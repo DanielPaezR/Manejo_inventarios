@@ -1,10 +1,12 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Outlet, useNavigate, useLocation, Navigate } from 'react-router-dom';
+import CambiarPassword from './CambiarPassword'; // Importar el nuevo componente
 import './Dashboard.css';
 
 const Dashboard = ({ user, onLogout }) => {
   const navigate = useNavigate();
   const location = useLocation();
+  const [showCambiarPassword, setShowCambiarPassword] = useState(false);
 
   const handleLogout = () => {
     onLogout();
@@ -62,6 +64,14 @@ const Dashboard = ({ user, onLogout }) => {
         </nav>
 
         <div className="sidebar-footer">
+          {/* ✅ BOTÓN PARA CAMBIAR CONTRASEÑA - SOLO PARA EL USUARIO ACTUAL */}
+          <button 
+            onClick={() => setShowCambiarPassword(true)}
+            className="change-password-btn"
+          >
+            🔐 Cambiar Contraseña
+          </button>
+          
           <button onClick={handleLogout} className="logout-btn">
             🚪 Cerrar Sesión
           </button>
@@ -84,6 +94,11 @@ const Dashboard = ({ user, onLogout }) => {
           <Outlet />
         </div>
       </div>
+
+      {/* ✅ MODAL DE CAMBIAR CONTRASEÑA */}
+      {showCambiarPassword && (
+        <CambiarPassword onClose={() => setShowCambiarPassword(false)} />
+      )}
     </div>
   );
 };
