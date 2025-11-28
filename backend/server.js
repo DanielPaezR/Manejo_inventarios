@@ -87,7 +87,7 @@ app.put('/api/usuarios/cambiar-password', authenticateToken, async (req, res) =>
 
     // Actualizar contraseña
     await pool.query(
-      'UPDATE usuarios SET password = $1, actualizado_en = NOW() WHERE id = $2',
+      'UPDATE usuarios SET password = $1 WHERE id = $2',
       [hashedPassword, usuarioId]
     );
 
