@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Outlet, useNavigate, useLocation, Navigate } from 'react-router-dom';
-import CambiarPassword from './CambiarPassword'; // Importar el nuevo componente
+import CambiarPassword from './CambiarPassword';
 import './Dashboard.css';
 
 const Dashboard = ({ user, onLogout }) => {
@@ -16,6 +16,7 @@ const Dashboard = ({ user, onLogout }) => {
   const menuItems = [
     { path: '/ventas', label: '🏪 Punto de Venta', roles: ['admin', 'trabajador'] },
     { path: '/productos', label: '📦 Productos', roles: ['admin'] },
+    { path: '/inventario', label: '📥 Gestión Inventario', roles: ['admin'] }, // ✅ NUEVA OPCIÓN
     { path: '/reportes', label: '📋 Reportes', roles: ['admin', 'super_admin'] },
     { path: '/estadisticas', label: '📊 Estadísticas', roles: ['admin'] },
   ];

@@ -910,6 +910,162 @@ app.get('/api/reportes', authenticateToken, getNegocioUsuario, requireAdmin, asy
 });
 
 // =============================================
+// RUTAS DE GESTIÓN DE INVENTARIO (REABASTECIMIENTO)
+// =============================================
+
+// Ruta para agregar stock a productos existentes
+app.post('/api/inventario/agregar-stock', authenticateToken, getNegocioUsuario, requireAdmin, async (req, res) => {
+  const client = await pool.connect();
+  
+  try {
+    await client.query('BEGIN');
+    
+    const { producto_id, cantidad, motivo, costo_unitario } = req.body;
+    const usuario_id = req.user.id;
+
+    console.log('📦 DEBUG Agregando stock - Producto:', producto_id, 'Cantidad:', cantidad, 'Usuario:', req.user.email);
+
+    // 1. Verificar que el producto existe y pertenece al negocio
+    const productoResult = await client.query(
+      'SELECT id, nombre, stock_actual FROM productos WHERE id = $1 AND negocio_id = $2 AND activo = true',
+      [producto_id, req.negocioId]
+    );
+
+    if (productoResult.rows.length === 0) {
+      throw new Error('Producto no encontrado o no pertenece a este negocio');
+    }
+
+    const producto = productoResult.rows[0];
+    console.log('📦 DEBUG Producto encontrado:', producto.nombre, 'Stock actual:', producto.stock_actual);
+
+    // 2. Actualizar stock del producto
+    const nuevoStock = producto.stock_actual + parseInt(cantidad);
+    
+    await client.query(
+      'UPDATE productos SET stock_actual = $1, fecha_actualizacion = NOW() WHERE id = $2',
+      [nuevoStock, producto_id]
+    );
+
+    console.log('✅ DEBUG Stock actualizado - Nuevo stock:', nuevoStock);
+
+    // 3. Si se proporcionó costo_unitario, actualizar precio_compra
+    if (costo_unitario) {
+      await client.query(
+        'UPDATE productos SET precio_compra = $1 WHERE id = $2',
+        [costo_unitario, producto_id]
+      );
+      console.log('💰 DEBUG Precio de compra actualizado:', costo_unitario);
+    }
+
+    // 4. Registrar el movimiento (podemos usar la tabla de ventas o crear una simple de logs si quieres)
+    // Por ahora solo logueamos, pero puedes crear una tabla movimientos_inventario si necesitas historial completo
+    console.log('📝 DEBUG Movimiento registrado - Producto:', producto.nombre, 'Cantidad:', cantidad, 'Motivo:', motivo);
+
+    await client.query('COMMIT');
+    
+    res.json({ 
+      success: true, 
+      message: 'Stock agregado correctamente',
+      producto: {
+        id: producto.id,
+        nombre: producto.nombre,
+        stock_anterior: producto.stock_actual,
+        stock_nuevo: nuevoStock,
+        cantidad_agregada: cantidad
+      }
+    });
+
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('❌ ERROR agregando stock:', error.message);
+    res.status(400).json({ error: error.message });
+  } finally {
+    client.release();
+  }
+});
+
+// Ruta para ajustar stock (corrección de inventario físico)
+app.post('/api/inventario/ajustar-stock', authenticateToken, getNegocioUsuario, requireAdmin, async (req, res) => {
+  const client = await pool.connect();
+  
+  try {
+    await client.query('BEGIN');
+    
+    const { producto_id, nuevo_stock, motivo } = req.body;
+    const usuario_id = req.user.id;
+
+    console.log('📊 DEBUG Ajustando stock - Producto:', producto_id, 'Nuevo stock:', nuevo_stock, 'Usuario:', req.user.email);
+
+    // 1. Verificar que el producto existe y pertenece al negocio
+    const productoResult = await client.query(
+      'SELECT id, nombre, stock_actual FROM productos WHERE id = $1 AND negocio_id = $2 AND activo = true',
+      [producto_id, req.negocioId]
+    );
+
+    if (productoResult.rows.length === 0) {
+      throw new Error('Producto no encontrado o no pertenece a este negocio');
+    }
+
+    const producto = productoResult.rows[0];
+    const diferencia = nuevo_stock - producto.stock_actual;
+    
+    console.log('📊 DEBUG Producto encontrado:', producto.nombre, 'Stock actual:', producto.stock_actual, 'Diferencia:', diferencia);
+
+    // 2. Actualizar stock del producto
+    await client.query(
+      'UPDATE productos SET stock_actual = $1, fecha_actualizacion = NOW() WHERE id = $2',
+      [nuevo_stock, producto_id]
+    );
+
+    console.log('✅ DEBUG Stock ajustado - Nuevo stock:', nuevo_stock);
+
+    // 3. Registrar el ajuste
+    console.log('📝 DEBUG Ajuste registrado - Producto:', producto.nombre, 
+                'Stock anterior:', producto.stock_actual, 
+                'Stock nuevo:', nuevo_stock, 
+                'Diferencia:', diferencia, 
+                'Motivo:', motivo);
+
+    await client.query('COMMIT');
+    
+    res.json({ 
+      success: true, 
+      message: 'Stock ajustado correctamente',
+      producto: {
+        id: producto.id,
+        nombre: producto.nombre,
+        stock_anterior: producto.stock_actual,
+        stock_nuevo: nuevo_stock,
+        diferencia: diferencia
+      }
+    });
+
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('❌ ERROR ajustando stock:', error.message);
+    res.status(400).json({ error: error.message });
+  } finally {
+    client.release();
+  }
+});
+
+// Ruta para obtener historial de movimientos (simplificado - usando logs del sistema)
+app.get('/api/inventario/movimientos', authenticateToken, getNegocioUsuario, requireAdmin, async (req, res) => {
+  try {
+    // Por ahora devolvemos un array vacío ya que no tenemos tabla de movimientos
+    // Pero puedes implementarla después si necesitas historial completo
+    console.log('📋 DEBUG Obteniendo movimientos - Negocio:', req.negocioId);
+    
+    // Ejemplo de respuesta - puedes expandir esto después
+    res.json([]);
+    
+  } catch (error) {
+    console.error('Error obteniendo movimientos:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// =============================================
 // FUNCIONES DE GENERACIÓN DE REPORTES
 // =============================================
 

@@ -7,6 +7,7 @@ import Productos from './components/Productos'
 import Estadisticas from './components/Estadisticas'
 import Negocios from './components/Negocios'
 import Reportes from './components/Reportes'
+import GestionInventario from './components/GestionInventario';
 import './App.css'
 
 function App() {
@@ -61,6 +62,7 @@ function App() {
             <Route path="negocios" element={<Negocios user={user} />} />
             <Route index element={<Navigate to="/ventas" />} />
             <Route path="reportes" element={<Reportes user={user} />} />
+            <Route path="inventario" element={<GestionInventario user={user} />} />
           </Route>
         </Routes>
       </div>

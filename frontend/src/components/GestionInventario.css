@@ -1,0 +1,166 @@
+/* frontend/src/components/GestionInventario.css */
+.gestion-inventario {
+  padding: 20px;
+}
+
+.inventario-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 30px;
+}
+
+.botones-accion {
+  display: flex;
+  gap: 15px;
+}
+
+.btn {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  font-weight: bold;
+}
+
+.btn-primary {
+  background-color: #28a745;
+  color: white;
+}
+
+.btn-secondary {
+  background-color: #17a2b8;
+  color: white;
+}
+
+/* Modal styles */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0,0,0,0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.modal {
+  background: white;
+  padding: 20px;
+  border-radius: 8px;
+  width: 500px;
+  max-width: 90%;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.modal-header button {
+  background: none;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+}
+
+.form-group {
+  margin-bottom: 15px;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 5px;
+  font-weight: bold;
+}
+
+.form-group input,
+.form-group select,
+.form-group textarea {
+  width: 100%;
+  padding: 8px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+
+.form-group textarea {
+  height: 80px;
+  resize: vertical;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+/* Movimientos table */
+.movimientos-section {
+  margin-top: 30px;
+}
+
+.movimientos-table {
+  overflow-x: auto;
+}
+
+.movimientos-table table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.movimientos-table th,
+.movimientos-table td {
+  padding: 12px;
+  text-align: left;
+  border-bottom: 1px solid #ddd;
+}
+
+.movimientos-table th {
+  background-color: #f8f9fa;
+  font-weight: bold;
+}
+
+/* Badges */
+.badge {
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: bold;
+}
+
+.badge.entrada {
+  background-color: #d4edda;
+  color: #155724;
+}
+
+.badge.salida {
+  background-color: #f8d7da;
+  color: #721c24;
+}
+
+.badge.ajuste_positivo {
+  background-color: #cce7ff;
+  color: #004085;
+}
+
+.badge.ajuste_negativo {
+  background-color: #fff3cd;
+  color: #856404;
+}
+
+/* Cantidad colors */
+.positivo {
+  color: #28a745;
+  font-weight: bold;
+}
+
+.negativo {
+  color: #dc3545;
+  font-weight: bold;
+}
