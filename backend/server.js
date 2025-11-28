@@ -24,6 +24,63 @@ const pool = new Pool({
   connectionTimeoutMillis: 2000,
 });
 
+// ==================== ✅ AGREGAR ESTO ====================
+// RUTAS TEMPORALES PARA INICIALIZAR BD (ELIMINAR DESPUÉS)
+
+// 1. Probar conexión a BD
+app.get('/api/test-db', async (req, res) => {
+  try {
+    console.log('🔍 Probando conexión a PostgreSQL...');
+    const result = await pool.query('SELECT NOW() as current_time');
+    
+    res.json({ 
+      success: true, 
+      message: '✅ Conexión a BD exitosa',
+      timestamp: result.rows[0].current_time
+    });
+  } catch (error) {
+    console.error('❌ Error de conexión a BD:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message,
+      ayuda: 'Verifica las variables DATABASE_URL en Railway'
+    });
+  }
+});
+
+// 2. Inicializar base de datos
+app.post('/api/init-db', async (req, res) => {
+  try {
+    console.log('🚀 Inicializando base de datos...');
+    
+    // Script SQL básico para crear tablas
+    const initSQL = `
+      -- Crear tabla de prueba primero
+      CREATE TABLE IF NOT EXISTS test_init (
+        id SERIAL PRIMARY KEY,
+        mensaje VARCHAR(255),
+        creado_en TIMESTAMP DEFAULT NOW()
+      );
+      
+      INSERT INTO test_init (mensaje) VALUES ('Base de datos inicializada correctamente');
+    `;
+    
+    await pool.query(initSQL);
+    
+    res.json({ 
+      success: true, 
+      message: '✅ Base de datos inicializada correctamente' 
+    });
+  } catch (error) {
+    console.error('❌ Error inicializando BD:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message 
+    });
+  }
+});
+// ==================== FIN DE RUTAS TEMPORALES ====================
+
 // Middleware de autenticación
 const authenticateToken = (req, res, next) => {
   const authHeader = req.headers['authorization'];
@@ -141,51 +198,6 @@ async function generarNumeroFactura(negocioId) {
     client.release();
   }
 }
-
-
-// Probar conexión a BD
-app.get('/api/test-db', async (req, res) => {
-  try {
-    const result = await pool.query('SELECT NOW() as current_time');
-    res.json({ 
-      success: true, 
-      message: 'Conexión a BD exitosa',
-      time: result.rows[0].current_time 
-    });
-  } catch (error) {
-    res.status(500).json({ 
-      success: false, 
-      error: error.message,
-      databaseUrl: process.env.DATABASE_URL ? 'Existe' : 'No existe'
-    });
-  }
-});
-
-// Ruta para inicializar BD - ELIMINAR después de usar
-app.post('/api/init-db', async (req, res) => {
-  try {
-    console.log('Inicializando base de datos...');
-    
-    // Leer el archivo init.sql
-    const initSQL = await fs.readFile(path.join(process.cwd(), 'database/init.sql'), 'utf8');
-    
-    // Dividir por sentencias SQL
-    const statements = initSQL.split(';').filter(stmt => stmt.trim());
-    
-    // Ejecutar cada sentencia
-    for (const statement of statements) {
-      if (statement.trim()) {
-        await pool.query(statement);
-      }
-    }
-    
-    console.log('Base de datos inicializada correctamente');
-    res.json({ success: true, message: 'Base de datos inicializada correctamente' });
-  } catch (error) {
-    console.error('Error inicializando BD:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
 
 // Rutas de Autenticación
 app.post('/api/login', async (req, res) => {
