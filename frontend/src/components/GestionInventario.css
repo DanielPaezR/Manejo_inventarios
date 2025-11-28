@@ -1,3 +1,16 @@
+.debug-info {
+  margin: 10px 0;
+  padding: 8px;
+  background: #f8f9fa;
+  border-radius: 4px;
+  border-left: 4px solid #17a2b8;
+}
+
+.debug-info small {
+  color: #6c757d;
+  font-family: monospace;
+}
+
 /* Botones de prueba */
 .botones-prueba {
   margin: 10px 0;

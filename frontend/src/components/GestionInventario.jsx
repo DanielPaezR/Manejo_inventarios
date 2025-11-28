@@ -12,13 +12,15 @@ const GestionInventario = ({ user }) => {
   const [loading, setLoading] = useState(false);
   const eanInputRef = useRef(null);
 
+  // ✅ URL del backend - CAMBIA ESTA URL POR LA DE TU BACKEND EN RAILWAY
+  const API_BASE_URL = 'https://manejoinventarios-production.up.railway.app';
+
   useEffect(() => {
     if (mostrarModal && eanInputRef.current) {
       eanInputRef.current.focus();
     }
   }, [mostrarModal]);
 
-  // Buscar producto por EAN - USANDO SOLO RUTAS EXISTENTES
   const buscarProductoPorEAN = async (ean) => {
     if (!ean) {
       setMensaje('❌ Ingrese un código EAN');
@@ -31,8 +33,8 @@ const GestionInventario = ({ user }) => {
     try {
       const token = localStorage.getItem('token');
       
-      // ✅ USAR SOLO LA RUTA QUE EXISTE: /api/productos con parámetro search
-      const response = await fetch(`/api/productos?search=${encodeURIComponent(ean)}`, {
+      // ✅ USAR URL COMPLETA DEL BACKEND
+      const response = await fetch(`${API_BASE_URL}/api/productos?search=${encodeURIComponent(ean)}`, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -41,37 +43,33 @@ const GestionInventario = ({ user }) => {
       });
 
       console.log('🔍 Response status:', response.status);
+      console.log('🔍 Response URL:', `${API_BASE_URL}/api/productos?search=${encodeURIComponent(ean)}`);
       
-      // Primero obtener el texto para ver qué devuelve
       const responseText = await response.text();
       console.log('🔍 Response text (first 200 chars):', responseText.substring(0, 200));
       
-      // Intentar parsear como JSON
       let productos = [];
       try {
         productos = JSON.parse(responseText);
       } catch (parseError) {
         console.error('❌ No se pudo parsear como JSON:', parseError);
-        setMensaje('❌ Error del servidor - respuesta no válida');
+        setMensaje('❌ El servidor está devolviendo HTML en lugar de JSON. Verifica la configuración de Railway.');
         return;
       }
 
       if (response.ok) {
         console.log('🔍 Productos encontrados:', productos);
         
-        // Buscar coincidencia exacta por EAN
         const productoExacto = productos.find(p => p.codigo_ean === ean);
         
         if (productoExacto) {
           setProductoEncontrado(productoExacto);
           setMensaje(`✅ Producto encontrado: ${productoExacto.nombre}`);
-          // Auto-focus en cantidad
           setTimeout(() => {
             const cantidadInput = document.querySelector('input[type="number"]');
             if (cantidadInput) cantidadInput.focus();
           }, 100);
         } else if (productos.length > 0) {
-          // Mostrar todos los productos encontrados (para debugging)
           console.log('🔍 Productos disponibles:', productos.map(p => ({ nombre: p.nombre, ean: p.codigo_ean })));
           setProductoEncontrado(null);
           setMensaje(`❌ No hay coincidencia exacta. Productos similares: ${productos.length}`);
@@ -106,7 +104,9 @@ const GestionInventario = ({ user }) => {
 
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('/api/inventario/agregar-stock', {
+      
+      // ✅ USAR URL COMPLETA DEL BACKEND
+      const response = await fetch(`${API_BASE_URL}/api/inventario/agregar-stock`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -157,7 +157,9 @@ const GestionInventario = ({ user }) => {
 
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('/api/inventario/ajustar-stock', {
+      
+      // ✅ USAR URL COMPLETA DEL BACKEND
+      const response = await fetch(`${API_BASE_URL}/api/inventario/ajustar-stock`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -205,7 +207,6 @@ const GestionInventario = ({ user }) => {
     const value = e.target.value;
     setCodigoEAN(value);
     
-    // Buscar automáticamente cuando el EAN tenga 13 dígitos
     if (value.length === 13) {
       buscarProductoPorEAN(value);
     }
@@ -218,27 +219,19 @@ const GestionInventario = ({ user }) => {
     }
   };
 
-  // Función para probar con EANs conocidos
-  const probarConEANConocido = (ean) => {
-    setCodigoEAN(ean);
-    buscarProductoPorEAN(ean);
-  };
-
   return (
     <div className="gestion-inventario">
       <div className="inventario-header">
         <h2>📥 Gestión de Inventario</h2>
+        
+        {/* Información de debugging */}
+        <div className="debug-info">
+          <small>🔗 Backend: {API_BASE_URL}</small>
+        </div>
+        
         {mensaje && <div className={`mensaje-alerta ${mensaje.includes('✅') ? 'success' : mensaje.includes('❌') ? 'error' : 'info'}`}>
           {mensaje}
         </div>}
-        
-        {/* Botones de prueba con EANs conocidos */}
-        <div className="botones-prueba">
-          <small>Prueba con: </small>
-          <button onClick={() => probarConEANConocido('1234567890123')}>EAN 1234567890123</button>
-          <button onClick={() => probarConEANConocido('1234567890124')}>EAN 1234567890124</button>
-          <button onClick={() => probarConEANConocido('1234567890125')}>EAN 1234567890125</button>
-        </div>
 
         <div className="botones-accion">
           <button 
@@ -266,7 +259,6 @@ const GestionInventario = ({ user }) => {
             </div>
             
             <form onSubmit={modo === 'agregar' ? handleAgregarStock : handleAjustarStock}>
-              {/* Búsqueda por EAN */}
               <div className="form-group">
                 <label>🔍 Código EAN:</label>
                 <div className="ean-search-container">
@@ -292,7 +284,6 @@ const GestionInventario = ({ user }) => {
                 <small>Ingrese 13 dígitos o presione Enter después de escanear</small>
               </div>
 
-              {/* Información del producto encontrado */}
               {productoEncontrado && (
                 <div className="producto-info">
                   <div className="producto-card">
@@ -311,7 +302,6 @@ const GestionInventario = ({ user }) => {
                 </div>
               )}
 
-              {/* Cantidad */}
               <div className="form-group">
                 <label>
                   {modo === 'agregar' ? '📦 Cantidad a agregar:' : '🎯 Nuevo stock:'}
@@ -327,7 +317,6 @@ const GestionInventario = ({ user }) => {
                 />
               </div>
 
-              {/* Motivo - OPCIONAL */}
               <div className="form-group">
                 <label>📝 Motivo (opcional):</label>
                 <textarea 
@@ -363,21 +352,20 @@ const GestionInventario = ({ user }) => {
         </div>
       )}
 
-      {/* Información de uso rápido */}
       <div className="quick-guide">
-        <h3>💡 Guía Rápida</h3>
+        <h3>⚠️ Configuración Requerida</h3>
         <div className="guide-steps">
           <div className="step">
-            <strong>1. Escanear EAN</strong>
-            <p>Use el lector de código de barras (13 dígitos)</p>
+            <strong>Problema Detectado</strong>
+            <p>Railway está sirviendo el frontend en lugar del backend para las rutas /api/</p>
           </div>
           <div className="step">
-            <strong>2. Ingresar cantidad</strong>
-            <p>Solo este campo es obligatorio</p>
+            <strong>Solución 1 (Recomendada)</strong>
+            <p>Configurar dos servicios separados en Railway: backend y frontend</p>
           </div>
           <div className="step">
-            <strong>3. Confirmar</strong>
-            <p>El motivo es opcional</p>
+            <strong>Solución 2 (Temporal)</strong>
+            <p>Usar URL completa del backend: {API_BASE_URL}</p>
           </div>
         </div>
       </div>
