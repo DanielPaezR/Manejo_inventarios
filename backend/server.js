@@ -48,6 +48,12 @@ const authenticateToken = (req, res, next) => {
   });
 };
 
+// Agrega esto al principio de tu server.js, después de los middlewares
+app.use((req, res, next) => {
+  console.log('📍 Ruta solicitada:', req.method, req.url);
+  next();
+});
+
 app.put('/api/usuarios/cambiar-password', authenticateToken, async (req, res) => {
   try {
     const { passwordActual, nuevaPassword } = req.body;
@@ -909,9 +915,6 @@ app.get('/api/reportes', authenticateToken, getNegocioUsuario, requireAdmin, asy
   }
 });
 
-// =============================================
-// RUTAS DE GESTIÓN DE INVENTARIO (REABASTECIMIENTO)
-// =============================================
 
 // =============================================
 // RUTAS DE GESTIÓN DE INVENTARIO (MOTIVO OPCIONAL)

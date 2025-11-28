@@ -18,7 +18,7 @@ const GestionInventario = ({ user }) => {
     }
   }, [mostrarModal]);
 
-  // Buscar producto por EAN
+  // Buscar producto por EAN - VERSIÓN SIMPLIFICADA
   const buscarProductoPorEAN = async (ean) => {
     if (!ean || ean.length < 3) {
       setProductoEncontrado(null);
@@ -32,7 +32,8 @@ const GestionInventario = ({ user }) => {
     try {
       const token = localStorage.getItem('token');
       
-      const response = await fetch(`/api/productos/buscar/${ean}`, {
+      // ✅ USAR LA RUTA QUE SABEMOS QUE FUNCIONA
+      const response = await fetch(`/api/productos?search=${encodeURIComponent(ean)}`, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -41,62 +42,48 @@ const GestionInventario = ({ user }) => {
       });
 
       console.log('🔍 Response status:', response.status);
+      console.log('🔍 Response headers:', response.headers.get('content-type'));
+      
+      // Verificar si la respuesta es JSON
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        throw new Error('El servidor no devolvió JSON');
+      }
       
       if (response.ok) {
-        const producto = await response.json();
-        setProductoEncontrado(producto);
-        setMensaje(`✅ Producto encontrado: ${producto.nombre}`);
-        // Auto-focus en cantidad después de encontrar producto
-        setTimeout(() => {
-          const cantidadInput = document.querySelector('input[type="number"]');
-          if (cantidadInput) cantidadInput.focus();
-        }, 100);
-      } else if (response.status === 404) {
-        setProductoEncontrado(null);
-        setMensaje('❌ No se encontró producto con ese código EAN');
-      } else {
-        await buscarProductoFallback(ean);
-      }
-    } catch (error) {
-      console.error('Error buscando producto:', error);
-      setProductoEncontrado(null);
-      setMensaje('❌ Error de conexión con el servidor');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Búsqueda fallback
-  const buscarProductoFallback = async (ean) => {
-    try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`/api/productos?search=${ean}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (response.ok) {
         const productos = await response.json();
+        console.log('🔍 Productos encontrados:', productos);
+        
+        // Buscar coincidencia exacta por EAN
         const productoExacto = productos.find(p => p.codigo_ean === ean);
         
         if (productoExacto) {
           setProductoEncontrado(productoExacto);
           setMensaje(`✅ Producto encontrado: ${productoExacto.nombre}`);
+          // Auto-focus en cantidad
+          setTimeout(() => {
+            const cantidadInput = document.querySelector('input[type="number"]');
+            if (cantidadInput) cantidadInput.focus();
+          }, 100);
         } else if (productos.length > 0) {
+          // Mostrar el primer producto encontrado (puede ser por nombre)
           setProductoEncontrado(productos[0]);
           setMensaje(`⚠️ Producto similar: ${productos[0].nombre}`);
         } else {
           setProductoEncontrado(null);
-          setMensaje('❌ No se encontró ningún producto');
+          setMensaje('❌ No se encontró ningún producto con ese código');
         }
       } else {
-        throw new Error('Error en búsqueda fallback');
+        const errorText = await response.text();
+        console.error('❌ Error response:', errorText);
+        setMensaje('❌ Error del servidor al buscar producto');
       }
     } catch (error) {
+      console.error('❌ Error buscando producto:', error);
       setProductoEncontrado(null);
-      setMensaje('❌ Error buscando producto');
+      setMensaje('❌ Error de conexión: ' + error.message);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -124,20 +111,29 @@ const GestionInventario = ({ user }) => {
         body: JSON.stringify({
           producto_id: productoEncontrado.id,
           cantidad: parseInt(cantidad),
-          motivo: motivo || 'Reabastecimiento' // ✅ Motivo por defecto si está vacío
+          motivo: motivo || (modo === 'agregar' ? 'Reabastecimiento' : 'Ajuste de inventario')
         })
       });
 
-      const data = await response.json();
+      // Verificar si es JSON
+      const contentType = response.headers.get('content-type');
+      if (contentType && contentType.includes('application/json')) {
+        const data = await response.json();
 
-      if (response.ok) {
-        setMensaje(`✅ Stock agregado: ${productoEncontrado.nombre} +${cantidad} unidades`);
-        setMostrarModal(false);
-        limpiarFormulario();
+        if (response.ok) {
+          setMensaje(`✅ Stock agregado: ${productoEncontrado.nombre} +${cantidad} unidades`);
+          setMostrarModal(false);
+          limpiarFormulario();
+        } else {
+          setMensaje(`❌ Error: ${data.error}`);
+        }
       } else {
-        setMensaje(`❌ Error: ${data.error}`);
+        const errorText = await response.text();
+        console.error('❌ Non-JSON response:', errorText);
+        setMensaje('❌ Error del servidor');
       }
     } catch (error) {
+      console.error('❌ Error:', error);
       setMensaje('❌ Error de conexión con el servidor');
     }
   };
@@ -166,20 +162,29 @@ const GestionInventario = ({ user }) => {
         body: JSON.stringify({
           producto_id: productoEncontrado.id,
           nuevo_stock: parseInt(cantidad),
-          motivo: motivo || 'Ajuste de inventario' // ✅ Motivo por defecto si está vacío
+          motivo: motivo || 'Ajuste de inventario'
         })
       });
 
-      const data = await response.json();
+      // Verificar si es JSON
+      const contentType = response.headers.get('content-type');
+      if (contentType && contentType.includes('application/json')) {
+        const data = await response.json();
 
-      if (response.ok) {
-        setMensaje(`✅ Stock ajustado: ${productoEncontrado.nombre} → ${cantidad} unidades`);
-        setMostrarModal(false);
-        limpiarFormulario();
+        if (response.ok) {
+          setMensaje(`✅ Stock ajustado: ${productoEncontrado.nombre} → ${cantidad} unidades`);
+          setMostrarModal(false);
+          limpiarFormulario();
+        } else {
+          setMensaje(`❌ Error: ${data.error}`);
+        }
       } else {
-        setMensaje(`❌ Error: ${data.error}`);
+        const errorText = await response.text();
+        console.error('❌ Non-JSON response:', errorText);
+        setMensaje('❌ Error del servidor');
       }
     } catch (error) {
+      console.error('❌ Error:', error);
       setMensaje('❌ Error de conexión con el servidor');
     }
   };
@@ -213,7 +218,7 @@ const GestionInventario = ({ user }) => {
     <div className="gestion-inventario">
       <div className="inventario-header">
         <h2>📥 Gestión de Inventario</h2>
-        {mensaje && <div className={`mensaje-alerta ${mensaje.includes('✅') ? 'success' : 'error'}`}>
+        {mensaje && <div className={`mensaje-alerta ${mensaje.includes('✅') ? 'success' : mensaje.includes('❌') ? 'error' : 'info'}`}>
           {mensaje}
         </div>}
         <div className="botones-accion">
@@ -252,7 +257,7 @@ const GestionInventario = ({ user }) => {
                     value={codigoEAN} 
                     onChange={handleEANChange}
                     onKeyPress={handleEANKeyPress}
-                    placeholder="Escanear o ingresar código EAN..."
+                    placeholder="Escanear código EAN (13 dígitos)..."
                     className="ean-input"
                     required
                   />
@@ -260,12 +265,12 @@ const GestionInventario = ({ user }) => {
                     type="button" 
                     onClick={() => buscarProductoPorEAN(codigoEAN)}
                     className="search-btn"
-                    disabled={loading}
+                    disabled={loading || !codigoEAN}
                   >
                     {loading ? '⏳' : '🔍'}
                   </button>
                 </div>
-                <small>Presione Enter después de escanear</small>
+                <small>Ingrese 13 dígitos o presione Enter después de escanear</small>
               </div>
 
               {/* Información del producto encontrado */}
@@ -329,7 +334,7 @@ const GestionInventario = ({ user }) => {
                 <button 
                   type="submit" 
                   className="btn-primary"
-                  disabled={!productoEncontrado || !cantidad} // ✅ Solo cantidad es requerida
+                  disabled={!productoEncontrado || !cantidad}
                 >
                   {modo === 'agregar' ? 'Agregar Stock' : 'Ajustar Stock'}
                 </button>
@@ -345,7 +350,7 @@ const GestionInventario = ({ user }) => {
         <div className="guide-steps">
           <div className="step">
             <strong>1. Escanear EAN</strong>
-            <p>Use el lector de código de barras</p>
+            <p>Use el lector de código de barras (13 dígitos)</p>
           </div>
           <div className="step">
             <strong>2. Ingresar cantidad</strong>
