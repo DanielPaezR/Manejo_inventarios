@@ -143,6 +143,23 @@ async function generarNumeroFactura(negocioId) {
 }
 
 
+// Probar conexión a BD
+app.get('/api/test-db', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT NOW() as current_time');
+    res.json({ 
+      success: true, 
+      message: 'Conexión a BD exitosa',
+      time: result.rows[0].current_time 
+    });
+  } catch (error) {
+    res.status(500).json({ 
+      success: false, 
+      error: error.message,
+      databaseUrl: process.env.DATABASE_URL ? 'Existe' : 'No existe'
+    });
+  }
+});
 
 // Ruta para inicializar BD - ELIMINAR después de usar
 app.post('/api/init-db', async (req, res) => {
