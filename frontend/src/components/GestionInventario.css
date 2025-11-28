@@ -1,6 +1,7 @@
-/* frontend/src/components/GestionInventario.css */
 .gestion-inventario {
   padding: 20px;
+  max-width: 1200px;
+  margin: 0 auto;
 }
 
 .inventario-header {
@@ -8,6 +9,8 @@
   justify-content: space-between;
   align-items: center;
   margin-bottom: 30px;
+  flex-wrap: wrap;
+  gap: 15px;
 }
 
 .botones-accion {
@@ -16,11 +19,13 @@
 }
 
 .btn {
-  padding: 10px 20px;
+  padding: 12px 24px;
   border: none;
-  border-radius: 5px;
+  border-radius: 8px;
   cursor: pointer;
   font-weight: bold;
+  font-size: 14px;
+  transition: all 0.3s ease;
 }
 
 .btn-primary {
@@ -28,12 +33,45 @@
   color: white;
 }
 
+.btn-primary:hover {
+  background-color: #218838;
+}
+
 .btn-secondary {
   background-color: #17a2b8;
   color: white;
 }
 
-/* Modal styles */
+.btn-secondary:hover {
+  background-color: #138496;
+}
+
+.btn:disabled {
+  background-color: #6c757d;
+  cursor: not-allowed;
+}
+
+/* Mensajes */
+.mensaje-alerta {
+  padding: 12px;
+  border-radius: 6px;
+  margin: 10px 0;
+  font-weight: bold;
+}
+
+.mensaje-alerta.success {
+  background-color: #d4edda;
+  color: #155724;
+  border: 1px solid #c3e6cb;
+}
+
+.mensaje-alerta.error {
+  background-color: #f8d7da;
+  color: #721c24;
+  border: 1px solid #f5c6cb;
+}
+
+/* Modal mejorado */
 .modal-overlay {
   position: fixed;
   top: 0;
@@ -47,12 +85,14 @@
   z-index: 1000;
 }
 
-.modal {
+.inventario-modal {
   background: white;
-  padding: 20px;
-  border-radius: 8px;
+  padding: 25px;
+  border-radius: 12px;
   width: 500px;
-  max-width: 90%;
+  max-width: 95%;
+  max-height: 90vh;
+  overflow-y: auto;
 }
 
 .modal-header {
@@ -60,6 +100,13 @@
   justify-content: space-between;
   align-items: center;
   margin-bottom: 20px;
+  padding-bottom: 15px;
+  border-bottom: 2px solid #e9ecef;
+}
+
+.modal-header h3 {
+  margin: 0;
+  color: #2c3e50;
 }
 
 .modal-header button {
@@ -67,100 +114,220 @@
   border: none;
   font-size: 24px;
   cursor: pointer;
+  color: #6c757d;
 }
 
+.modal-header button:hover {
+  color: #343a40;
+}
+
+/* Búsqueda EAN */
+.ean-search-container {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.ean-input {
+  flex: 1;
+  padding: 10px;
+  border: 2px solid #e9ecef;
+  border-radius: 6px;
+  font-size: 16px;
+}
+
+.ean-input:focus {
+  border-color: #007bff;
+  outline: none;
+}
+
+.search-btn {
+  padding: 10px 15px;
+  background: #007bff;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 16px;
+}
+
+.search-btn:hover {
+  background: #0056b3;
+}
+
+.search-btn:disabled {
+  background: #6c757d;
+  cursor: not-allowed;
+}
+
+/* Información del producto */
+.producto-info {
+  margin: 15px 0;
+}
+
+.producto-card {
+  background: #f8f9fa;
+  border: 1px solid #e9ecef;
+  border-radius: 8px;
+  padding: 15px;
+}
+
+.producto-card h4 {
+  margin: 0 0 10px 0;
+  color: #495057;
+}
+
+.producto-details {
+  font-size: 14px;
+}
+
+.producto-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-top: 8px;
+  color: #6c757d;
+}
+
+/* Form groups */
 .form-group {
-  margin-bottom: 15px;
+  margin-bottom: 20px;
 }
 
 .form-group label {
   display: block;
-  margin-bottom: 5px;
+  margin-bottom: 8px;
   font-weight: bold;
+  color: #495057;
 }
 
 .form-group input,
 .form-group select,
 .form-group textarea {
   width: 100%;
-  padding: 8px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
+  padding: 10px;
+  border: 2px solid #e9ecef;
+  border-radius: 6px;
+  font-size: 14px;
+  transition: border-color 0.3s ease;
+}
+
+.form-group input:focus,
+.form-group textarea:focus {
+  border-color: #007bff;
+  outline: none;
+}
+
+.form-group input:disabled,
+.form-group textarea:disabled {
+  background-color: #f8f9fa;
+  cursor: not-allowed;
 }
 
 .form-group textarea {
   height: 80px;
   resize: vertical;
+  font-family: inherit;
 }
 
+.form-group small {
+  color: #6c757d;
+  font-size: 12px;
+  margin-top: 5px;
+  display: block;
+}
+
+/* Acciones del modal */
 .modal-actions {
   display: flex;
   justify-content: flex-end;
-  gap: 10px;
-  margin-top: 20px;
+  gap: 12px;
+  margin-top: 25px;
+  padding-top: 20px;
+  border-top: 1px solid #e9ecef;
 }
 
-/* Movimientos table */
-.movimientos-section {
-  margin-top: 30px;
-}
-
-.movimientos-table {
-  overflow-x: auto;
-}
-
-.movimientos-table table {
-  width: 100%;
-  border-collapse: collapse;
-}
-
-.movimientos-table th,
-.movimientos-table td {
-  padding: 12px;
-  text-align: left;
-  border-bottom: 1px solid #ddd;
-}
-
-.movimientos-table th {
-  background-color: #f8f9fa;
+.modal-actions button {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
   font-weight: bold;
+  transition: all 0.3s ease;
 }
 
-/* Badges */
-.badge {
-  padding: 4px 8px;
-  border-radius: 4px;
-  font-size: 12px;
-  font-weight: bold;
+.modal-actions button[type="button"] {
+  background: #6c757d;
+  color: white;
 }
 
-.badge.entrada {
-  background-color: #d4edda;
-  color: #155724;
+.modal-actions button[type="button"]:hover {
+  background: #5a6268;
 }
 
-.badge.salida {
-  background-color: #f8d7da;
-  color: #721c24;
+.modal-actions .btn-primary {
+  background: #28a745;
+  color: white;
 }
 
-.badge.ajuste_positivo {
-  background-color: #cce7ff;
-  color: #004085;
+.modal-actions .btn-primary:hover:not(:disabled) {
+  background: #218838;
 }
 
-.badge.ajuste_negativo {
-  background-color: #fff3cd;
-  color: #856404;
+/* Guía rápida */
+.quick-guide {
+  margin-top: 40px;
+  background: #f8f9fa;
+  padding: 20px;
+  border-radius: 8px;
 }
 
-/* Cantidad colors */
-.positivo {
-  color: #28a745;
-  font-weight: bold;
+.quick-guide h3 {
+  margin-bottom: 15px;
+  color: #495057;
 }
 
-.negativo {
-  color: #dc3545;
-  font-weight: bold;
+.guide-steps {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 20px;
+}
+
+.step {
+  background: white;
+  padding: 15px;
+  border-radius: 6px;
+  border-left: 4px solid #007bff;
+}
+
+.step strong {
+  color: #2c3e50;
+  display: block;
+  margin-bottom: 5px;
+}
+
+.step p {
+  color: #6c757d;
+  margin: 0;
+  font-size: 14px;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .inventario-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .botones-accion {
+    justify-content: center;
+  }
+  
+  .guide-steps {
+    grid-template-columns: 1fr;
+  }
+  
+  .ean-search-container {
+    flex-direction: column;
+  }
 }

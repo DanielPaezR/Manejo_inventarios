@@ -1,54 +1,77 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import './GestionInventario.css';
 
 const GestionInventario = ({ user }) => {
-  const [productos, setProductos] = useState([]);
-  const [movimientos, setMovimientos] = useState([]);
-  const [productoSeleccionado, setProductoSeleccionado] = useState('');
+  const [codigoEAN, setCodigoEAN] = useState('');
+  const [productoEncontrado, setProductoEncontrado] = useState(null);
   const [cantidad, setCantidad] = useState('');
   const [motivo, setMotivo] = useState('');
   const [costoUnitario, setCostoUnitario] = useState('');
   const [modo, setModo] = useState('agregar');
   const [mostrarModal, setMostrarModal] = useState(false);
   const [mensaje, setMensaje] = useState('');
+  const [loading, setLoading] = useState(false);
+  const eanInputRef = useRef(null);
 
   useEffect(() => {
-    cargarProductos();
-    cargarMovimientos();
-  }, []);
+    if (mostrarModal && eanInputRef.current) {
+      eanInputRef.current.focus();
+    }
+  }, [mostrarModal]);
 
-  const cargarProductos = async () => {
+  // Buscar producto por EAN
+  const buscarProductoPorEAN = async (ean) => {
+    if (!ean || ean.length < 3) {
+      setProductoEncontrado(null);
+      return;
+    }
+
+    setLoading(true);
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('/api/productos', {
+      const response = await fetch(`/api/productos?search=${ean}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         }
       });
-      
+
       if (response.ok) {
-        const data = await response.json();
-        setProductos(data);
+        const productos = await response.json();
+        // Buscar por coincidencia exacta de EAN primero
+        const productoExacto = productos.find(p => p.codigo_ean === ean);
+        if (productoExacto) {
+          setProductoEncontrado(productoExacto);
+          setMensaje(`✅ Producto encontrado: ${productoExacto.nombre}`);
+        } else if (productos.length > 0) {
+          // Si no hay coincidencia exacta, usar el primero
+          setProductoEncontrado(productos[0]);
+          setMensaje(`⚠️ Producto similar: ${productos[0].nombre}`);
+        } else {
+          setProductoEncontrado(null);
+          setMensaje('❌ No se encontró producto con ese código');
+        }
       } else {
-        console.error('Error cargando productos');
+        setProductoEncontrado(null);
+        setMensaje('❌ Error buscando producto');
       }
     } catch (error) {
-      console.error('Error cargando productos:', error);
-    }
-  };
-
-  const cargarMovimientos = async () => {
-    try {
-      // Por ahora vacío hasta que implementemos la tabla de movimientos
-      setMovimientos([]);
-    } catch (error) {
-      console.error('Error cargando movimientos:', error);
+      console.error('Error buscando producto:', error);
+      setProductoEncontrado(null);
+      setMensaje('❌ Error de conexión');
+    } finally {
+      setLoading(false);
     }
   };
 
   const handleAgregarStock = async (e) => {
     e.preventDefault();
+    
+    if (!productoEncontrado) {
+      setMensaje('❌ Primero debe buscar un producto válido');
+      return;
+    }
+
     try {
       const token = localStorage.getItem('token');
       const response = await fetch('/api/inventario/agregar-stock', {
@@ -58,7 +81,7 @@ const GestionInventario = ({ user }) => {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          producto_id: productoSeleccionado,
+          producto_id: productoEncontrado.id,
           cantidad: parseInt(cantidad),
           motivo,
           costo_unitario: costoUnitario || null
@@ -68,11 +91,9 @@ const GestionInventario = ({ user }) => {
       const data = await response.json();
 
       if (response.ok) {
-        setMensaje('✅ Stock agregado correctamente');
+        setMensaje(`✅ Stock agregado: ${productoEncontrado.nombre} +${cantidad} unidades`);
         setMostrarModal(false);
         limpiarFormulario();
-        cargarProductos();
-        cargarMovimientos();
       } else {
         setMensaje(`❌ Error: ${data.error}`);
       }
@@ -83,6 +104,12 @@ const GestionInventario = ({ user }) => {
 
   const handleAjustarStock = async (e) => {
     e.preventDefault();
+    
+    if (!productoEncontrado) {
+      setMensaje('❌ Primero debe buscar un producto válido');
+      return;
+    }
+
     try {
       const token = localStorage.getItem('token');
       const response = await fetch('/api/inventario/ajustar-stock', {
@@ -92,7 +119,7 @@ const GestionInventario = ({ user }) => {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          producto_id: productoSeleccionado,
+          producto_id: productoEncontrado.id,
           nuevo_stock: parseInt(cantidad),
           motivo
         })
@@ -101,11 +128,9 @@ const GestionInventario = ({ user }) => {
       const data = await response.json();
 
       if (response.ok) {
-        setMensaje('✅ Stock ajustado correctamente');
+        setMensaje(`✅ Stock ajustado: ${productoEncontrado.nombre} → ${cantidad} unidades`);
         setMostrarModal(false);
         limpiarFormulario();
-        cargarProductos();
-        cargarMovimientos();
       } else {
         setMensaje(`❌ Error: ${data.error}`);
       }
@@ -115,20 +140,39 @@ const GestionInventario = ({ user }) => {
   };
 
   const limpiarFormulario = () => {
-    setProductoSeleccionado('');
+    setCodigoEAN('');
+    setProductoEncontrado(null);
     setCantidad('');
     setMotivo('');
     setCostoUnitario('');
     setTimeout(() => setMensaje(''), 5000);
   };
 
-  const productoActual = productos.find(p => p.id == productoSeleccionado);
+  const handleEANChange = (e) => {
+    const value = e.target.value;
+    setCodigoEAN(value);
+    
+    // Buscar automáticamente cuando el EAN tenga 13 dígitos (EAN estándar)
+    if (value.length === 13) {
+      buscarProductoPorEAN(value);
+    }
+  };
+
+  const handleEANKeyPress = (e) => {
+    // Si presiona Enter, buscar producto
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      buscarProductoPorEAN(codigoEAN);
+    }
+  };
 
   return (
     <div className="gestion-inventario">
       <div className="inventario-header">
-        <h2>Gestión de Inventario</h2>
-        {mensaje && <div className="mensaje-alerta">{mensaje}</div>}
+        <h2>📥 Gestión de Inventario</h2>
+        {mensaje && <div className={`mensaje-alerta ${mensaje.includes('✅') ? 'success' : 'error'}`}>
+          {mensaje}
+        </div>}
         <div className="botones-accion">
           <button 
             className="btn btn-primary"
@@ -148,32 +192,62 @@ const GestionInventario = ({ user }) => {
       {/* Modal para agregar/ajustar stock */}
       {mostrarModal && (
         <div className="modal-overlay">
-          <div className="modal">
+          <div className="modal inventario-modal">
             <div className="modal-header">
-              <h3>{modo === 'agregar' ? 'Agregar Stock' : 'Ajustar Stock'}</h3>
-              <button onClick={() => setMostrarModal(false)}>×</button>
+              <h3>{modo === 'agregar' ? '➕ Agregar Stock' : '📊 Ajustar Stock'}</h3>
+              <button onClick={() => { setMostrarModal(false); limpiarFormulario(); }}>×</button>
             </div>
             
             <form onSubmit={modo === 'agregar' ? handleAgregarStock : handleAjustarStock}>
+              {/* Búsqueda por EAN */}
               <div className="form-group">
-                <label>Producto:</label>
-                <select 
-                  value={productoSeleccionado} 
-                  onChange={(e) => setProductoSeleccionado(e.target.value)}
-                  required
-                >
-                  <option value="">Seleccionar producto</option>
-                  {productos.map(producto => (
-                    <option key={producto.id} value={producto.id}>
-                      {producto.nombre} (Stock actual: {producto.stock_actual})
-                    </option>
-                  ))}
-                </select>
+                <label>🔍 Código EAN:</label>
+                <div className="ean-search-container">
+                  <input 
+                    ref={eanInputRef}
+                    type="text" 
+                    value={codigoEAN} 
+                    onChange={handleEANChange}
+                    onKeyPress={handleEANKeyPress}
+                    placeholder="Escanear o ingresar código EAN..."
+                    className="ean-input"
+                    required
+                  />
+                  <button 
+                    type="button" 
+                    onClick={() => buscarProductoPorEAN(codigoEAN)}
+                    className="search-btn"
+                    disabled={loading}
+                  >
+                    {loading ? '🔍' : '🔍'}
+                  </button>
+                </div>
+                <small>Presione Enter después de escanear o ingresar el código</small>
               </div>
 
+              {/* Información del producto encontrado */}
+              {productoEncontrado && (
+                <div className="producto-info">
+                  <div className="producto-card">
+                    <h4>📦 Producto Encontrado</h4>
+                    <div className="producto-details">
+                      <strong>{productoEncontrado.nombre}</strong>
+                      <div className="producto-meta">
+                        <span>Código: {productoEncontrado.codigo_ean || 'N/A'}</span>
+                        <span>Stock actual: <strong>{productoEncontrado.stock_actual}</strong></span>
+                        {productoEncontrado.stock_minimo && (
+                          <span>Mínimo: {productoEncontrado.stock_minimo}</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Cantidad */}
               <div className="form-group">
                 <label>
-                  {modo === 'agregar' ? 'Cantidad a agregar:' : 'Nuevo stock:'}
+                  {modo === 'agregar' ? '📦 Cantidad a agregar:' : '🎯 Nuevo stock:'}
                 </label>
                 <input 
                   type="number" 
@@ -181,37 +255,53 @@ const GestionInventario = ({ user }) => {
                   onChange={(e) => setCantidad(e.target.value)}
                   min="1"
                   required
+                  disabled={!productoEncontrado}
                 />
               </div>
 
+              {/* Costo unitario solo para agregar stock */}
               {modo === 'agregar' && (
                 <div className="form-group">
-                  <label>Costo unitario (opcional):</label>
+                  <label>💰 Costo unitario (opcional):</label>
                   <input 
                     type="number" 
                     step="0.01"
                     value={costoUnitario} 
                     onChange={(e) => setCostoUnitario(e.target.value)}
                     placeholder="0.00"
+                    disabled={!productoEncontrado}
                   />
                 </div>
               )}
 
+              {/* Motivo */}
               <div className="form-group">
-                <label>Motivo:</label>
+                <label>📝 Motivo:</label>
                 <textarea 
                   value={motivo} 
                   onChange={(e) => setMotivo(e.target.value)}
-                  placeholder="Ej: Compra a proveedor, Ajuste por inventario físico, etc."
+                  placeholder={
+                    modo === 'agregar' 
+                      ? "Ej: Compra a proveedor, Reabastecimiento, Devolución..." 
+                      : "Ej: Ajuste por inventario físico, Corrección de stock, Pérdida..."
+                  }
                   required
+                  disabled={!productoEncontrado}
                 />
               </div>
 
               <div className="modal-actions">
-                <button type="button" onClick={() => setMostrarModal(false)}>
+                <button 
+                  type="button" 
+                  onClick={() => { setMostrarModal(false); limpiarFormulario(); }}
+                >
                   Cancelar
                 </button>
-                <button type="submit" className="btn-primary">
+                <button 
+                  type="submit" 
+                  className="btn-primary"
+                  disabled={!productoEncontrado || !cantidad || !motivo}
+                >
                   {modo === 'agregar' ? 'Agregar Stock' : 'Ajustar Stock'}
                 </button>
               </div>
@@ -220,21 +310,22 @@ const GestionInventario = ({ user }) => {
         </div>
       )}
 
-      {/* Información de productos con stock bajo */}
-      <div className="stock-section">
-        <h3>Productos con Stock Bajo</h3>
-        <div className="productos-lista">
-          {productos.filter(p => p.stock_actual <= p.stock_minimo).map(producto => (
-            <div key={producto.id} className="producto-alerta">
-              <span className="producto-nombre">{producto.nombre}</span>
-              <span className="stock-info">
-                Stock: <strong>{producto.stock_actual}</strong> / Mínimo: {producto.stock_minimo}
-              </span>
-            </div>
-          ))}
-          {productos.filter(p => p.stock_actual <= p.stock_minimo).length === 0 && (
-            <p>✅ Todos los productos tienen stock suficiente</p>
-          )}
+      {/* Información de uso rápido */}
+      <div className="quick-guide">
+        <h3>💡 Guía Rápida</h3>
+        <div className="guide-steps">
+          <div className="step">
+            <strong>1. Agregar Stock</strong>
+            <p>Para reabastecimiento por compras a proveedores</p>
+          </div>
+          <div className="step">
+            <strong>2. Ajustar Stock</strong>
+            <p>Para correcciones después de inventario físico</p>
+          </div>
+          <div className="step">
+            <strong>3. Escanear EAN</strong>
+            <p>Use el lector de código de barras o ingrese manualmente</p>
+          </div>
         </div>
       </div>
     </div>
