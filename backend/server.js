@@ -142,6 +142,36 @@ async function generarNumeroFactura(negocioId) {
   }
 }
 
+
+import fs from 'fs/promises';
+import path from 'path';
+
+// Ruta para inicializar BD - ELIMINAR después de usar
+app.post('/api/init-db', async (req, res) => {
+  try {
+    console.log('Inicializando base de datos...');
+    
+    // Leer el archivo init.sql
+    const initSQL = await fs.readFile(path.join(process.cwd(), 'database/init.sql'), 'utf8');
+    
+    // Dividir por sentencias SQL
+    const statements = initSQL.split(';').filter(stmt => stmt.trim());
+    
+    // Ejecutar cada sentencia
+    for (const statement of statements) {
+      if (statement.trim()) {
+        await pool.query(statement);
+      }
+    }
+    
+    console.log('Base de datos inicializada correctamente');
+    res.json({ success: true, message: 'Base de datos inicializada correctamente' });
+  } catch (error) {
+    console.error('Error inicializando BD:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Rutas de Autenticación
 app.post('/api/login', async (req, res) => {
   try {
