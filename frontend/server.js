@@ -9,48 +9,53 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// ✅ VERIFICACIÓN COMPLETA DEL BUILD
-console.log('=== VERIFICANDO BUILD ===');
-const distPath = path.join(__dirname, 'dist');
+// ✅ MIDDLEWARE DE LOGS DETALLADO
+app.use((req, res, next) => {
+  console.log(`📍 [${new Date().toISOString()}] ${req.method} ${req.url}`);
+  console.log(`📍 Headers:`, req.headers);
+  next();
+});
 
-try {
-  const files = fs.readdirSync(distPath);
-  console.log('📁 Archivos en dist/:', files);
-  
-  // Verificar archivos críticos
-  const criticalFiles = ['index.html', 'assets'];
-  criticalFiles.forEach(file => {
-    const filePath = path.join(distPath, file);
-    if (fs.existsSync(filePath)) {
-      console.log(`✅ ${file} encontrado`);
-    } else {
-      console.log(`❌ ${file} NO encontrado`);
-    }
-  });
-} catch (error) {
-  console.log('❌ ERROR accediendo a dist/:', error.message);
-}
+// Verificar build
+console.log('=== VERIFICACIÓN DE BUILD ===');
+const distPath = path.join(__dirname, 'dist');
+console.log('📁 Archivos en dist/:', fs.readdirSync(distPath));
 
 // Health check
 app.get('/health', (req, res) => {
-  res.json({ status: 'OK', service: 'frontend' });
+  console.log('✅ Health check accedido');
+  res.json({ status: 'OK', service: 'frontend', timestamp: new Date().toISOString() });
 });
 
-// Servir archivos estáticos
-app.use(express.static(distPath));
+// Servir archivos estáticos CON CONFIGURACIÓN EXPLÍCITA
+app.use('/assets', express.static(path.join(distPath, 'assets'), {
+  maxAge: '1y',
+  etag: true
+}));
 
-// ✅ RUTA CATCH-ALL MEJORADA
+app.use(express.static(distPath, {
+  maxAge: '1y',
+  etag: true,
+  index: 'index.html'
+}));
+
+// Ruta catch-all MEJORADA
 app.get('*', (req, res) => {
+  console.log(`🔄 Catch-all route: ${req.url}`);
   const indexPath = path.join(distPath, 'index.html');
+  
   if (fs.existsSync(indexPath)) {
-    console.log(`🔄 Sirviendo index.html para: ${req.url}`);
+    console.log(`✅ Sirviendo index.html`);
+    res.setHeader('Content-Type', 'text/html');
     res.sendFile(indexPath);
   } else {
-    console.log(`❌ index.html no encontrado en: ${indexPath}`);
-    res.status(404).send('Archivo de build no encontrado');
+    console.log(`❌ index.html no encontrado`);
+    res.status(404).send('Build no encontrado');
   }
 });
 
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Frontend funcionando en puerto ${PORT}`);
+  console.log(`📍 Ruta dist: ${distPath}`);
+  console.log(`📍 Health check: http://localhost:${PORT}/health`);
 });
