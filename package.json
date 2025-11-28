@@ -8,8 +8,7 @@
     "build:frontend": "cd frontend && npm install && npm run build",
     "start:frontend": "cd frontend && npm run preview"
   },
-  "workspaces": [
-    "backend",
-    "frontend"
-  ]
+  "engines": {
+    "node": ">=16.0.0"
+  }
 }
