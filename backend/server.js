@@ -29,6 +29,25 @@ const pool = new Pool({
 console.log('🔍 Conexión BD configurada con DATABASE_URL:', !!process.env.DATABASE_URL);
 
 
+
+// Middleware de autenticación
+const authenticateToken = (req, res, next) => {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+
+  if (!token) {
+    return res.status(401).json({ error: 'Token requerido' });
+  }
+
+  jwt.verify(token, process.env.JWT_SECRET || 'secreto_temporal', (err, user) => {
+    if (err) {
+      return res.status(403).json({ error: 'Token inválido' });
+    }
+    req.user = user;
+    next();
+  });
+};
+
 app.put('/api/usuarios/cambiar-password', authenticateToken, async (req, res) => {
   try {
     const { passwordActual, nuevaPassword } = req.body;
@@ -85,23 +104,6 @@ app.put('/api/usuarios/cambiar-password', authenticateToken, async (req, res) =>
   }
 });
 
-// Middleware de autenticación
-const authenticateToken = (req, res, next) => {
-  const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
-
-  if (!token) {
-    return res.status(401).json({ error: 'Token requerido' });
-  }
-
-  jwt.verify(token, process.env.JWT_SECRET || 'secreto_temporal', (err, user) => {
-    if (err) {
-      return res.status(403).json({ error: 'Token inválido' });
-    }
-    req.user = user;
-    next();
-  });
-};
 
 // Middleware para verificar rol de administrador - VERSIÓN CON DEBUG
 const requireAdmin = (req, res, next) => {
