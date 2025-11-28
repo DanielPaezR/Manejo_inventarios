@@ -1,0 +1,152 @@
+.factura-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.factura-container {
+  background: white;
+  border-radius: 10px;
+  width: 90%;
+  max-width: 800px;
+  max-height: 90vh;
+  overflow: auto;
+  padding: 1rem;
+}
+
+.factura-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+  border-bottom: 2px solid #333;
+  padding-bottom: 0.5rem;
+}
+
+.btn-close {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  cursor: pointer;
+  color: #666;
+}
+
+.factura-content {
+  margin-bottom: 1rem;
+}
+
+.factura-empresa {
+  text-align: center;
+  margin-bottom: 1rem;
+  border-bottom: 1px solid #ddd;
+  padding-bottom: 1rem;
+}
+
+.factura-info {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+}
+
+.factura-cliente {
+  background: #f8f9fa;
+  padding: 1rem;
+  border-radius: 5px;
+  margin-bottom: 1rem;
+}
+
+.factura-detalles {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 1rem;
+}
+
+.factura-detalles th,
+.factura-detalles td {
+  border: 1px solid #ddd;
+  padding: 0.5rem;
+  text-align: left;
+}
+
+.factura-detalles th {
+  background: #f8f9fa;
+  font-weight: bold;
+}
+
+.factura-totales {
+  border-top: 2px solid #333;
+  padding-top: 1rem;
+  margin-bottom: 1rem;
+}
+
+.total-line {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+}
+
+.total-final {
+  font-size: 1.2rem;
+  font-weight: bold;
+  border-top: 1px solid #ddd;
+  padding-top: 0.5rem;
+}
+
+.factura-footer {
+  text-align: center;
+  border-top: 1px solid #ddd;
+  padding-top: 1rem;
+}
+
+.factura-leyenda {
+  font-style: italic;
+  color: #666;
+}
+
+.factura-actions {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+}
+
+/* Estilos para impresión */
+@media print {
+  .factura-overlay {
+    position: static;
+    background: none;
+  }
+  
+  .factura-container {
+    width: 100%;
+    max-width: none;
+    max-height: none;
+    box-shadow: none;
+  }
+  
+  .factura-header .btn-close,
+  .factura-actions {
+    display: none;
+  }
+  
+  body * {
+    visibility: hidden;
+  }
+  
+  .factura-container,
+  .factura-container * {
+    visibility: visible;
+  }
+  
+  .factura-container {
+    position: absolute;
+    left: 0;
+    top: 0;
+  }
+}

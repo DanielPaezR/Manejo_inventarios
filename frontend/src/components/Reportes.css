@@ -1,0 +1,135 @@
+.reportes-container {
+  padding: 1rem;
+}
+
+.reportes-header {
+  margin-bottom: 2rem;
+}
+
+.reportes-header h1 {
+  color: #2c3e50;
+  margin: 0 0 0.5rem 0;
+}
+
+.reportes-header p {
+  color: #7f8c8d;
+  margin: 0;
+}
+
+.mensaje {
+  padding: 1rem;
+  margin-bottom: 1rem;
+  border-radius: 5px;
+  background: #d4edda;
+  color: #155724;
+  border: 1px solid #c3e6cb;
+}
+
+.reportes-panel {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2rem;
+}
+
+.filtros-section {
+  background: white;
+  padding: 1.5rem;
+  border-radius: 10px;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+  height: fit-content;
+}
+
+.filtros-section h3 {
+  margin: 0 0 1.5rem 0;
+  color: #2c3e50;
+}
+
+.filtro-group {
+  margin-bottom: 1rem;
+}
+
+.filtro-group label {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-weight: 500;
+  color: #2c3e50;
+}
+
+.filtro-group select,
+.filtro-group input {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid #ddd;
+  border-radius: 5px;
+  font-size: 1rem;
+}
+
+.fechas-group {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.btn-generar {
+  width: 100%;
+  background: #27ae60;
+  color: white;
+  border: none;
+  padding: 1rem;
+  border-radius: 8px;
+  font-size: 1.1rem;
+  font-weight: bold;
+  cursor: pointer;
+  transition: background 0.3s;
+  margin-top: 1rem;
+}
+
+.btn-generar:hover:not(:disabled) {
+  background: #219a52;
+}
+
+.btn-generar:disabled {
+  background: #bdc3c7;
+  cursor: not-allowed;
+}
+
+.info-section h3 {
+  margin: 0 0 1.5rem 0;
+  color: #2c3e50;
+}
+
+.reportes-info {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+}
+
+.info-card {
+  background: white;
+  padding: 1.5rem;
+  border-radius: 8px;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+  border-left: 4px solid #3498db;
+}
+
+.info-card h4 {
+  margin: 0 0 1rem 0;
+  color: #2c3e50;
+}
+
+.info-card p {
+  margin: 0.25rem 0;
+  color: #555;
+  font-size: 0.9rem;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .reportes-panel {
+    grid-template-columns: 1fr;
+  }
+  
+  .fechas-group {
+    grid-template-columns: 1fr;
+  }
+}
