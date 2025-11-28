@@ -30,7 +30,7 @@ console.log('🔍 Conexión BD configurada con DATABASE_URL:', !!process.env.DAT
 
 
 // Ruta para inicializar BD completa con tu script
-app.post('/api/init-db-complete', async (req, res) => {
+app.get('/api/init-db-complete', async (req, res) => {
   try {
     console.log('🚀 Inicializando base de datos completa...');
     
