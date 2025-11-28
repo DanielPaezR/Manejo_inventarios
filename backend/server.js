@@ -143,8 +143,6 @@ async function generarNumeroFactura(negocioId) {
 }
 
 
-import fs from 'fs/promises';
-import path from 'path';
 
 // Ruta para inicializar BD - ELIMINAR después de usar
 app.post('/api/init-db', async (req, res) => {
