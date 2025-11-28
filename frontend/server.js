@@ -7,55 +7,41 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
+
+// ✅ USAR EL PUERTO DE RAILWAY SIN FALLBACK
 const PORT = process.env.PORT || 3000;
 
-// ✅ MIDDLEWARE DE LOGS DETALLADO
+console.log('=== INICIANDO FRONTEND ===');
+console.log('🔧 Puerto:', PORT);
+console.log('📁 Ruta dist:', path.join(__dirname, 'dist'));
+
+// Middleware de logs
 app.use((req, res, next) => {
   console.log(`📍 [${new Date().toISOString()}] ${req.method} ${req.url}`);
-  console.log(`📍 Headers:`, req.headers);
   next();
 });
-
-// Verificar build
-console.log('=== VERIFICACIÓN DE BUILD ===');
-const distPath = path.join(__dirname, 'dist');
-console.log('📁 Archivos en dist/:', fs.readdirSync(distPath));
 
 // Health check
 app.get('/health', (req, res) => {
   console.log('✅ Health check accedido');
-  res.json({ status: 'OK', service: 'frontend', timestamp: new Date().toISOString() });
+  res.json({ 
+    status: 'OK', 
+    service: 'frontend', 
+    port: PORT,
+    timestamp: new Date().toISOString() 
+  });
 });
 
-// Servir archivos estáticos CON CONFIGURACIÓN EXPLÍCITA
-app.use('/assets', express.static(path.join(distPath, 'assets'), {
-  maxAge: '1y',
-  etag: true
-}));
+// Servir archivos estáticos
+app.use(express.static(path.join(__dirname, 'dist')));
 
-app.use(express.static(distPath, {
-  maxAge: '1y',
-  etag: true,
-  index: 'index.html'
-}));
-
-// Ruta catch-all MEJORADA
+// Ruta catch-all
 app.get('*', (req, res) => {
-  console.log(`🔄 Catch-all route: ${req.url}`);
-  const indexPath = path.join(distPath, 'index.html');
-  
-  if (fs.existsSync(indexPath)) {
-    console.log(`✅ Sirviendo index.html`);
-    res.setHeader('Content-Type', 'text/html');
-    res.sendFile(indexPath);
-  } else {
-    console.log(`❌ index.html no encontrado`);
-    res.status(404).send('Build no encontrado');
-  }
+  res.sendFile(path.join(__dirname, 'dist', 'index.html'));
 });
 
+// ✅ ESCUCHAR EN 0.0.0.0 (IMPORTANTE PARA DOCKER/RAILWAY)
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Frontend funcionando en puerto ${PORT}`);
-  console.log(`📍 Ruta dist: ${distPath}`);
-  console.log(`📍 Health check: http://localhost:${PORT}/health`);
+  console.log(`🌐 URL externa: https://agile-trust-production-eae8.up.railway.app`);
 });
