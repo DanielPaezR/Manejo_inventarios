@@ -18,11 +18,10 @@ const GestionInventario = ({ user }) => {
     }
   }, [mostrarModal]);
 
-  // Buscar producto por EAN - VERSIÓN SIMPLIFICADA
+  // Buscar producto por EAN - USANDO SOLO RUTAS EXISTENTES
   const buscarProductoPorEAN = async (ean) => {
-    if (!ean || ean.length < 3) {
-      setProductoEncontrado(null);
-      setMensaje('❌ Ingrese un código EAN válido');
+    if (!ean) {
+      setMensaje('❌ Ingrese un código EAN');
       return;
     }
 
@@ -32,7 +31,7 @@ const GestionInventario = ({ user }) => {
     try {
       const token = localStorage.getItem('token');
       
-      // ✅ USAR LA RUTA QUE SABEMOS QUE FUNCIONA
+      // ✅ USAR SOLO LA RUTA QUE EXISTE: /api/productos con parámetro search
       const response = await fetch(`/api/productos?search=${encodeURIComponent(ean)}`, {
         method: 'GET',
         headers: {
@@ -42,16 +41,22 @@ const GestionInventario = ({ user }) => {
       });
 
       console.log('🔍 Response status:', response.status);
-      console.log('🔍 Response headers:', response.headers.get('content-type'));
       
-      // Verificar si la respuesta es JSON
-      const contentType = response.headers.get('content-type');
-      if (!contentType || !contentType.includes('application/json')) {
-        throw new Error('El servidor no devolvió JSON');
+      // Primero obtener el texto para ver qué devuelve
+      const responseText = await response.text();
+      console.log('🔍 Response text (first 200 chars):', responseText.substring(0, 200));
+      
+      // Intentar parsear como JSON
+      let productos = [];
+      try {
+        productos = JSON.parse(responseText);
+      } catch (parseError) {
+        console.error('❌ No se pudo parsear como JSON:', parseError);
+        setMensaje('❌ Error del servidor - respuesta no válida');
+        return;
       }
-      
+
       if (response.ok) {
-        const productos = await response.json();
         console.log('🔍 Productos encontrados:', productos);
         
         // Buscar coincidencia exacta por EAN
@@ -66,16 +71,15 @@ const GestionInventario = ({ user }) => {
             if (cantidadInput) cantidadInput.focus();
           }, 100);
         } else if (productos.length > 0) {
-          // Mostrar el primer producto encontrado (puede ser por nombre)
-          setProductoEncontrado(productos[0]);
-          setMensaje(`⚠️ Producto similar: ${productos[0].nombre}`);
+          // Mostrar todos los productos encontrados (para debugging)
+          console.log('🔍 Productos disponibles:', productos.map(p => ({ nombre: p.nombre, ean: p.codigo_ean })));
+          setProductoEncontrado(null);
+          setMensaje(`❌ No hay coincidencia exacta. Productos similares: ${productos.length}`);
         } else {
           setProductoEncontrado(null);
-          setMensaje('❌ No se encontró ningún producto con ese código');
+          setMensaje('❌ No se encontró ningún producto');
         }
       } else {
-        const errorText = await response.text();
-        console.error('❌ Error response:', errorText);
         setMensaje('❌ Error del servidor al buscar producto');
       }
     } catch (error) {
@@ -115,10 +119,11 @@ const GestionInventario = ({ user }) => {
         })
       });
 
-      // Verificar si es JSON
-      const contentType = response.headers.get('content-type');
-      if (contentType && contentType.includes('application/json')) {
-        const data = await response.json();
+      const responseText = await response.text();
+      console.log('📦 Response agregar stock:', responseText);
+
+      try {
+        const data = JSON.parse(responseText);
 
         if (response.ok) {
           setMensaje(`✅ Stock agregado: ${productoEncontrado.nombre} +${cantidad} unidades`);
@@ -127,10 +132,9 @@ const GestionInventario = ({ user }) => {
         } else {
           setMensaje(`❌ Error: ${data.error}`);
         }
-      } else {
-        const errorText = await response.text();
-        console.error('❌ Non-JSON response:', errorText);
-        setMensaje('❌ Error del servidor');
+      } catch (parseError) {
+        console.error('❌ Error parseando respuesta:', parseError);
+        setMensaje('❌ Error del servidor - respuesta no válida');
       }
     } catch (error) {
       console.error('❌ Error:', error);
@@ -166,10 +170,11 @@ const GestionInventario = ({ user }) => {
         })
       });
 
-      // Verificar si es JSON
-      const contentType = response.headers.get('content-type');
-      if (contentType && contentType.includes('application/json')) {
-        const data = await response.json();
+      const responseText = await response.text();
+      console.log('📊 Response ajustar stock:', responseText);
+
+      try {
+        const data = JSON.parse(responseText);
 
         if (response.ok) {
           setMensaje(`✅ Stock ajustado: ${productoEncontrado.nombre} → ${cantidad} unidades`);
@@ -178,10 +183,9 @@ const GestionInventario = ({ user }) => {
         } else {
           setMensaje(`❌ Error: ${data.error}`);
         }
-      } else {
-        const errorText = await response.text();
-        console.error('❌ Non-JSON response:', errorText);
-        setMensaje('❌ Error del servidor');
+      } catch (parseError) {
+        console.error('❌ Error parseando respuesta:', parseError);
+        setMensaje('❌ Error del servidor - respuesta no válida');
       }
     } catch (error) {
       console.error('❌ Error:', error);
@@ -214,6 +218,12 @@ const GestionInventario = ({ user }) => {
     }
   };
 
+  // Función para probar con EANs conocidos
+  const probarConEANConocido = (ean) => {
+    setCodigoEAN(ean);
+    buscarProductoPorEAN(ean);
+  };
+
   return (
     <div className="gestion-inventario">
       <div className="inventario-header">
@@ -221,6 +231,15 @@ const GestionInventario = ({ user }) => {
         {mensaje && <div className={`mensaje-alerta ${mensaje.includes('✅') ? 'success' : mensaje.includes('❌') ? 'error' : 'info'}`}>
           {mensaje}
         </div>}
+        
+        {/* Botones de prueba con EANs conocidos */}
+        <div className="botones-prueba">
+          <small>Prueba con: </small>
+          <button onClick={() => probarConEANConocido('1234567890123')}>EAN 1234567890123</button>
+          <button onClick={() => probarConEANConocido('1234567890124')}>EAN 1234567890124</button>
+          <button onClick={() => probarConEANConocido('1234567890125')}>EAN 1234567890125</button>
+        </div>
+
         <div className="botones-accion">
           <button 
             className="btn btn-primary"
