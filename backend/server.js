@@ -475,6 +475,37 @@ app.delete('/api/productos/:id', authenticateToken, getNegocioUsuario, requireAd
   }
 });
 
+// Ruta específica para buscar producto por EAN - AGREGAR ESTA RUTA
+app.get('/api/productos/buscar/:ean', authenticateToken, getNegocioUsuario, async (req, res) => {
+  try {
+    const { ean } = req.params;
+    
+    console.log('🔍 DEBUG Buscando producto por EAN:', ean, 'Negocio:', req.negocioId);
+
+    const result = await pool.query(
+      `SELECT p.*, c.nombre as categoria_nombre 
+       FROM productos p 
+       LEFT JOIN categorias c ON p.categoria_id = c.id 
+       WHERE p.activo = true 
+       AND p.negocio_id = $1 
+       AND p.codigo_ean = $2`,
+      [req.negocioId, ean]
+    );
+
+    console.log('🔍 DEBUG Resultados encontrados:', result.rows.length);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Producto no encontrado' });
+    }
+
+    res.json(result.rows[0]);
+    
+  } catch (error) {
+    console.error('Error buscando producto por EAN:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
 // Rutas de Ventas - VERSIÓN MEJORADA CON VALIDACIÓN DE STOCK
 app.post('/api/ventas', authenticateToken, getNegocioUsuario, async (req, res) => {
   const client = await pool.connect();
