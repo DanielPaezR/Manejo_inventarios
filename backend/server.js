@@ -53,7 +53,7 @@ app.get('/api/test-db', async (req, res) => {
 });
 
 // 2. Inicializar base de datos
-app.post('/api/init-db', async (req, res) => {
+app.get('/api/init-db', async (req, res) => {
   try {
     console.log('🚀 Inicializando base de datos...');
     
