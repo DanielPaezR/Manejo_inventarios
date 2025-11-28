@@ -224,10 +224,6 @@ const GestionInventario = ({ user }) => {
       <div className="inventario-header">
         <h2>📥 Gestión de Inventario</h2>
         
-        {/* Información de debugging */}
-        <div className="debug-info">
-          <small>🔗 Backend: {API_BASE_URL}</small>
-        </div>
         
         {mensaje && <div className={`mensaje-alerta ${mensaje.includes('✅') ? 'success' : mensaje.includes('❌') ? 'error' : 'info'}`}>
           {mensaje}

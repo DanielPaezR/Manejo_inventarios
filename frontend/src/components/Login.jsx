@@ -64,11 +64,6 @@ const Login = ({ onLogin }) => {
             {loading ? 'Iniciando sesión...' : 'Iniciar Sesión'}
           </button>
         </form>
-        <div className="login-info">
-          <p><strong>Credenciales de prueba:</strong></p>
-          <p>Email: superadmin@system.com / admin@negocio.com</p>
-          <p>Password: password</p>
-        </div>
       </div>
     </div>
   );
