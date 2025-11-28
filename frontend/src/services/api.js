@@ -1,8 +1,11 @@
 import axios from 'axios';
 
+// ✅ USAR VARIABLE DE ENTORNO
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+
 // Configurar la base URL
 const api = axios.create({
-  baseURL: 'http://localhost:5000/api',
+  baseURL: `${API_BASE_URL}/api`,
 });
 
 // Interceptor para agregar el token a todas las peticiones
