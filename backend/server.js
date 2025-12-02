@@ -1084,7 +1084,7 @@ app.get('/api/estadisticas/negocio/:negocioId', authenticateToken, requireSuperA
   }
 });
 
-// Ruta para estadísticas con filtros de período (solo admin) - ACTUALIZAR ESTA
+// Ruta para estadísticas con filtros de período (solo admin) - VERSIÓN 100% FUNCIONAL
 app.get('/api/estadisticas', authenticateToken, getNegocioUsuario, requireAdmin, async (req, res) => {
   try {
     const { periodo, fecha_inicio, fecha_fin } = req.query;
@@ -1126,14 +1126,12 @@ app.get('/api/estadisticas', authenticateToken, getNegocioUsuario, requireAdmin,
         startDate = moment(fecha_inicio).startOf('day').toDate();
         endDate = moment(fecha_fin).endOf('day').toDate();
         
-        // Validar que no sea un rango mayor a 1 año
         const diffDays = moment(endDate).diff(moment(startDate), 'days');
         if (diffDays > 365) {
           return res.status(400).json({ error: 'El período no puede ser mayor a 1 año' });
         }
         break;
       default:
-        // Por defecto: hoy
         startDate = moment().startOf('day').toDate();
         endDate = moment().endOf('day').toDate();
     }
@@ -1144,12 +1142,12 @@ app.get('/api/estadisticas', authenticateToken, getNegocioUsuario, requireAdmin,
       periodo: periodo || 'hoy'
     });
 
-    // VENTAS DEL PERÍODO - CAMBIAR: fecha → fecha_venta
+    // VENTAS DEL PERÍODO
     const ventasPeriodo = await pool.query(
       `SELECT COUNT(*) as total, COALESCE(SUM(total), 0) as monto 
        FROM ventas 
        WHERE negocio_id = $1 
-       AND fecha_venta BETWEEN $2 AND $3`, 
+       AND fecha_venta BETWEEN $2 AND $3`,
       [req.negocioId, startDate, endDate]
     );
 
@@ -1163,7 +1161,7 @@ app.get('/api/estadisticas', authenticateToken, getNegocioUsuario, requireAdmin,
       [req.negocioId]
     );
 
-    // TOP PRODUCTOS DEL PERÍODO - CAMBIAR: v.fecha → v.fecha_venta
+    // TOP PRODUCTOS DEL PERÍODO
     const topProductos = await pool.query(
       `SELECT 
           p.id,
@@ -1174,14 +1172,14 @@ app.get('/api/estadisticas', authenticateToken, getNegocioUsuario, requireAdmin,
        JOIN productos p ON dv.producto_id = p.id
        JOIN ventas v ON dv.venta_id = v.id
        WHERE v.negocio_id = $1 
-       AND v.fecha_venta BETWEEN $2 AND $3 
+       AND v.fecha_venta BETWEEN $2 AND $3
        GROUP BY p.id, p.nombre
        ORDER BY total_vendido DESC
        LIMIT 10`,
       [req.negocioId, startDate, endDate]
     );
 
-    // VENTAS POR DÍA DEL PERÍODO - CAMBIAR: fecha → fecha_venta y DATE(fecha) → DATE(fecha_venta)
+    // VENTAS POR DÍA DEL PERÍODO
     const ventasPorDia = await pool.query(
       `SELECT 
           DATE(fecha_venta) as fecha, 
@@ -1189,9 +1187,9 @@ app.get('/api/estadisticas', authenticateToken, getNegocioUsuario, requireAdmin,
           SUM(total) as total
        FROM ventas
        WHERE negocio_id = $1 
-       AND fecha_venta BETWEEN $2 AND $3  
-       GROUP BY DATE(fecha_venta)  
-       ORDER BY fecha_venta ASC`,
+       AND fecha_venta BETWEEN $2 AND $3
+       GROUP BY DATE(fecha_venta)
+       ORDER BY fecha ASC`,
       [req.negocioId, startDate, endDate]
     );
 
@@ -1204,22 +1202,22 @@ app.get('/api/estadisticas', authenticateToken, getNegocioUsuario, requireAdmin,
       [req.negocioId]
     );
 
-    
+    // PROMEDIO DE VENTAS POR DÍA - VERSIÓN CORREGIDA (USA ESTA)
     const promedioVentas = await pool.query(
       `SELECT 
-          COALESCE(AVG(daily.total_sum), 0) as promedio_diario,
-          COALESCE(COUNT(daily.fecha_dia), 0) as dias_con_ventas
-      FROM (
-        SELECT DATE(fecha_venta) as fecha_dia, SUM(total) as total_sum
-        FROM ventas
-        WHERE negocio_id = $1 
-        AND fecha_venta BETWEEN $2 AND $3
-        GROUP BY DATE(fecha_venta)
-      ) daily`,
+          COALESCE(AVG(total_dia), 0) as promedio_diario,
+          COUNT(*) as dias_con_ventas
+       FROM (
+         SELECT DATE(fecha_venta), SUM(total) as total_dia
+         FROM ventas
+         WHERE negocio_id = $1 
+         AND fecha_venta BETWEEN $2 AND $3
+         GROUP BY DATE(fecha_venta)
+       ) ventas_diarias`,
       [req.negocioId, startDate, endDate]
     );
 
-    // MÉTODO DE PAGO MÁS UTILIZADO - CAMBIAR: fecha → fecha_venta
+    // MÉTODO DE PAGO MÁS UTILIZADO
     const metodoPagoPopular = await pool.query(
       `SELECT 
           metodo_pago,
