@@ -1149,7 +1149,7 @@ app.get('/api/estadisticas', authenticateToken, getNegocioUsuario, requireAdmin,
       `SELECT COUNT(*) as total, COALESCE(SUM(total), 0) as monto 
        FROM ventas 
        WHERE negocio_id = $1 
-       AND fecha_venta BETWEEN $2 AND $3`,  // ← CAMBIADO
+       AND fecha_venta BETWEEN $2 AND $3`, 
       [req.negocioId, startDate, endDate]
     );
 
@@ -1174,7 +1174,7 @@ app.get('/api/estadisticas', authenticateToken, getNegocioUsuario, requireAdmin,
        JOIN productos p ON dv.producto_id = p.id
        JOIN ventas v ON dv.venta_id = v.id
        WHERE v.negocio_id = $1 
-       AND v.fecha_venta BETWEEN $2 AND $3  // ← CAMBIADO
+       AND v.fecha_venta BETWEEN $2 AND $3 
        GROUP BY p.id, p.nombre
        ORDER BY total_vendido DESC
        LIMIT 10`,
@@ -1184,13 +1184,13 @@ app.get('/api/estadisticas', authenticateToken, getNegocioUsuario, requireAdmin,
     // VENTAS POR DÍA DEL PERÍODO - CAMBIAR: fecha → fecha_venta y DATE(fecha) → DATE(fecha_venta)
     const ventasPorDia = await pool.query(
       `SELECT 
-          DATE(fecha_venta) as fecha,  // ← CAMBIADO
+          DATE(fecha_venta) as fecha, 
           COUNT(*) as cantidad, 
           SUM(total) as total
        FROM ventas
        WHERE negocio_id = $1 
-       AND fecha_venta BETWEEN $2 AND $3  // ← CAMBIADO
-       GROUP BY DATE(fecha_venta)  // ← CAMBIADO
+       AND fecha_venta BETWEEN $2 AND $3  
+       GROUP BY DATE(fecha_venta)  
        ORDER BY fecha_venta ASC`,
       [req.negocioId, startDate, endDate]
     );
@@ -1208,13 +1208,13 @@ app.get('/api/estadisticas', authenticateToken, getNegocioUsuario, requireAdmin,
     const promedioVentas = await pool.query(
       `SELECT 
           COALESCE(AVG(daily.total_sum), 0) as promedio_diario,
-          COALESCE(COUNT(DISTINCT DATE(fecha_venta)), 0) as dias_con_ventas  // ← CAMBIADO
+          COALESCE(COUNT(DISTINCT DATE(fecha_venta)), 0) as dias_con_ventas
        FROM (
-         SELECT DATE(fecha_venta) as fecha_dia, SUM(total) as total_sum  // ← CAMBIADO
+         SELECT DATE(fecha_venta) as fecha_dia, SUM(total) as total_sum 
          FROM ventas
          WHERE negocio_id = $1 
-         AND fecha_venta BETWEEN $2 AND $3  // ← CAMBIADO
-         GROUP BY DATE(fecha_venta)  // ← CAMBIADO
+         AND fecha_venta BETWEEN $2 AND $3  
+         GROUP BY DATE(fecha_venta)  
        ) daily`,
       [req.negocioId, startDate, endDate]
     );
@@ -1227,7 +1227,7 @@ app.get('/api/estadisticas', authenticateToken, getNegocioUsuario, requireAdmin,
           SUM(total) as monto_total
        FROM ventas
        WHERE negocio_id = $1 
-       AND fecha_venta BETWEEN $2 AND $3  // ← CAMBIADO
+       AND fecha_venta BETWEEN $2 AND $3
        GROUP BY metodo_pago
        ORDER BY cantidad DESC
        LIMIT 1`,
