@@ -801,7 +801,7 @@ app.get('/api/alertas/stock-bajo', authenticateToken, getNegocioUsuario, require
   }
 });
 
-// Ruta para estadísticas específicas por negocio (super admin)
+// Ruta para estadísticas específicas por negocio (super admin) - VERSIÓN FLEXIBLE
 app.get('/api/estadisticas/negocio/:negocioId', authenticateToken, requireSuperAdmin, async (req, res) => {
   try {
     const { negocioId } = req.params;
@@ -862,12 +862,31 @@ app.get('/api/estadisticas/negocio/:negocioId', authenticateToken, requireSuperA
       periodo: periodo || 'hoy'
     });
 
+    // Primero determinar el nombre real de la columna
+    let fechaColumnName = 'fecha_venta';
+    try {
+      // Intentar consultar usando fecha_venta
+      const testQuery = await pool.query(
+        'SELECT 1 FROM ventas WHERE negocio_id = $1 AND fecha_venta IS NOT NULL LIMIT 1',
+        [negocioId]
+      );
+      console.log('✅ Usando columna: fecha_venta');
+    } catch (error) {
+      if (error.message.includes('fecha_venta')) {
+        fechaColumnName = 'fecha';
+        console.log('⚠️ Cambiando a columna: fecha');
+      }
+    }
+
+    // Función helper para usar la columna correcta
+    const fechaColumn = () => fechaColumnName;
+
     // VENTAS DEL PERÍODO
     const ventasPeriodo = await pool.query(
       `SELECT COUNT(*) as total, COALESCE(SUM(total), 0) as monto 
        FROM ventas 
        WHERE negocio_id = $1 
-       AND fecha_venta BETWEEN $2 AND $3`,
+       AND ${fechaColumn()} BETWEEN $2 AND $3`,
       [negocioId, startDate, endDate]
     );
 
@@ -892,7 +911,7 @@ app.get('/api/estadisticas/negocio/:negocioId', authenticateToken, requireSuperA
        JOIN productos p ON dv.producto_id = p.id
        JOIN ventas v ON dv.venta_id = v.id
        WHERE v.negocio_id = $1 
-       AND v.fecha_venta BETWEEN $2 AND $3
+       AND v.${fechaColumn()} BETWEEN $2 AND $3
        GROUP BY p.id, p.nombre
        ORDER BY total_vendido DESC
        LIMIT 10`,
@@ -902,15 +921,13 @@ app.get('/api/estadisticas/negocio/:negocioId', authenticateToken, requireSuperA
     // VENTAS POR DÍA DEL PERÍODO
     const ventasPorDia = await pool.query(
       `SELECT 
-          DATE(fecha_venta) as fecha, 
+          DATE(${fechaColumn()}) as fecha, 
           COUNT(*) as cantidad, 
-          SUM(total) as total,
-          SUM(subtotal) as subtotal_total,
-          SUM(iva) as iva_total
+          SUM(total) as total
        FROM ventas
        WHERE negocio_id = $1 
-       AND fecha_venta BETWEEN $2 AND $3
-       GROUP BY DATE(fecha_venta)
+       AND ${fechaColumn()} BETWEEN $2 AND $3
+       GROUP BY DATE(${fechaColumn()})
        ORDER BY fecha ASC`,
       [negocioId, startDate, endDate]
     );
@@ -929,7 +946,7 @@ app.get('/api/estadisticas/negocio/:negocioId', authenticateToken, requireSuperA
       `SELECT COUNT(DISTINCT cliente_documento) as total_clientes
        FROM ventas
        WHERE negocio_id = $1 
-       AND fecha_venta BETWEEN $2 AND $3
+       AND ${fechaColumn()} BETWEEN $2 AND $3
        AND cliente_documento IS NOT NULL
        AND cliente_documento != ''`,
       [negocioId, startDate, endDate]
@@ -939,13 +956,13 @@ app.get('/api/estadisticas/negocio/:negocioId', authenticateToken, requireSuperA
     const promedioVentas = await pool.query(
       `SELECT 
           COALESCE(AVG(daily.total_sum), 0) as promedio_diario,
-          COALESCE(COUNT(DISTINCT DATE(fecha_venta)), 0) as dias_con_ventas
+          COALESCE(COUNT(DISTINCT DATE(${fechaColumn()})), 0) as dias_con_ventas
        FROM (
-         SELECT DATE(fecha_venta) as fecha_dia, SUM(total) as total_sum
+         SELECT DATE(${fechaColumn()}) as fecha_dia, SUM(total) as total_sum
          FROM ventas
          WHERE negocio_id = $1 
-         AND fecha_venta BETWEEN $2 AND $3
-         GROUP BY DATE(fecha_venta)
+         AND ${fechaColumn()} BETWEEN $2 AND $3
+         GROUP BY DATE(${fechaColumn()})
        ) daily`,
       [negocioId, startDate, endDate]
     );
@@ -958,7 +975,7 @@ app.get('/api/estadisticas/negocio/:negocioId', authenticateToken, requireSuperA
           SUM(total) as monto_total
        FROM ventas
        WHERE negocio_id = $1 
-       AND fecha_venta BETWEEN $2 AND $3
+       AND ${fechaColumn()} BETWEEN $2 AND $3
        GROUP BY metodo_pago
        ORDER BY cantidad DESC
        LIMIT 1`,
@@ -975,13 +992,13 @@ app.get('/api/estadisticas/negocio/:negocioId', authenticateToken, requireSuperA
        FROM ventas v
        JOIN usuarios u ON v.usuario_id = u.id
        WHERE v.negocio_id = $1 
-       AND v.fecha_venta BETWEEN $2 AND $3
+       AND v.${fechaColumn()} BETWEEN $2 AND $3
        GROUP BY u.id, u.nombre
        ORDER BY monto_total DESC`,
       [negocioId, startDate, endDate]
     );
 
-    console.log('📈 DEBUG super admin - Estadísticas calculadas correctamente');
+    console.log('📈 DEBUG super admin - Estadísticas calculadas correctamente (usando columna:', fechaColumnName, ')');
     
     // Preparar respuesta
     const response = {
@@ -1003,6 +1020,9 @@ app.get('/api/estadisticas/negocio/:negocioId', authenticateToken, requireSuperA
         fecha_inicio: moment(startDate).format('YYYY-MM-DD'),
         fecha_fin: moment(endDate).format('YYYY-MM-DD'),
         dias: moment(endDate).diff(moment(startDate), 'days') + 1
+      },
+      debug: {
+        fecha_column_used: fechaColumnName
       }
     };
 
@@ -1022,7 +1042,7 @@ app.get('/api/estadisticas/negocio/:negocioId', authenticateToken, requireSuperA
   }
 });
 
-// Ruta para estadísticas con filtros de período (solo admin)
+// Ruta para estadísticas con filtros de período (solo admin) - VERSIÓN CORREGIDA
 app.get('/api/estadisticas', authenticateToken, getNegocioUsuario, requireAdmin, async (req, res) => {
   try {
     const { periodo, fecha_inicio, fecha_fin } = req.query;
@@ -1043,7 +1063,6 @@ app.get('/api/estadisticas', authenticateToken, getNegocioUsuario, requireAdmin,
 
     // Definir fechas según el período
     let startDate, endDate;
-    const now = new Date();
     
     switch (periodo) {
       case 'hoy':
@@ -1063,7 +1082,7 @@ app.get('/api/estadisticas', authenticateToken, getNegocioUsuario, requireAdmin,
           return res.status(400).json({ error: 'Para período personalizado se requieren fecha_inicio y fecha_fin' });
         }
         startDate = moment(fecha_inicio).startOf('day').toDate();
-        endDate = moment(fecha_fin).endOf('day').toDate();
+        endDate = moment(fechaFin).endOf('day').toDate();
         
         // Validar que no sea un rango mayor a 1 año
         const diffDays = moment(endDate).diff(moment(startDate), 'days');
@@ -1083,7 +1102,7 @@ app.get('/api/estadisticas', authenticateToken, getNegocioUsuario, requireAdmin,
       periodo: periodo || 'hoy'
     });
 
-    // VENTAS DEL PERÍODO
+    // VENTAS DEL PERÍODO - CORREGIDO: usar fecha_venta (como está en tu BD)
     const ventasPeriodo = await pool.query(
       `SELECT COUNT(*) as total, COALESCE(SUM(total), 0) as monto 
        FROM ventas 
@@ -1102,7 +1121,7 @@ app.get('/api/estadisticas', authenticateToken, getNegocioUsuario, requireAdmin,
       [req.negocioId]
     );
 
-    // TOP PRODUCTOS DEL PERÍODO
+    // TOP PRODUCTOS DEL PERÍODO - CORREGIDO: usar fecha_venta
     const topProductos = await pool.query(
       `SELECT 
           p.id,
@@ -1120,14 +1139,12 @@ app.get('/api/estadisticas', authenticateToken, getNegocioUsuario, requireAdmin,
       [req.negocioId, startDate, endDate]
     );
 
-    // VENTAS POR DÍA DEL PERÍODO
+    // VENTAS POR DÍA DEL PERÍODO - CORREGIDO: usar fecha_venta
     const ventasPorDia = await pool.query(
       `SELECT 
           DATE(fecha_venta) as fecha, 
           COUNT(*) as cantidad, 
-          SUM(total) as total,
-          SUM(subtotal) as subtotal_total,
-          SUM(iva) as iva_total
+          SUM(total) as total
        FROM ventas
        WHERE negocio_id = $1 
        AND fecha_venta BETWEEN $2 AND $3
@@ -1145,10 +1162,10 @@ app.get('/api/estadisticas', authenticateToken, getNegocioUsuario, requireAdmin,
       [req.negocioId]
     );
 
-    // PROMEDIO DE VENTAS POR DÍA
+    // PROMEDIO DE VENTAS POR DÍA - CORREGIDO: usar fecha_venta
     const promedioVentas = await pool.query(
       `SELECT 
-          COALESCE(AVG(daily_sales.total_sum), 0) as promedio_diario,
+          COALESCE(AVG(daily.total_sum), 0) as promedio_diario,
           COALESCE(COUNT(DISTINCT DATE(fecha_venta)), 0) as dias_con_ventas
        FROM (
          SELECT DATE(fecha_venta) as fecha_dia, SUM(total) as total_sum
@@ -1156,11 +1173,11 @@ app.get('/api/estadisticas', authenticateToken, getNegocioUsuario, requireAdmin,
          WHERE negocio_id = $1 
          AND fecha_venta BETWEEN $2 AND $3
          GROUP BY DATE(fecha_venta)
-       ) daily_sales`,
+       ) daily`,
       [req.negocioId, startDate, endDate]
     );
 
-    // MÉTODO DE PAGO MÁS UTILIZADO
+    // MÉTODO DE PAGO MÁS UTILIZADO - CORREGIDO: usar fecha_venta
     const metodoPagoPopular = await pool.query(
       `SELECT 
           metodo_pago,
