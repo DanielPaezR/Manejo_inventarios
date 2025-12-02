@@ -1204,18 +1204,18 @@ app.get('/api/estadisticas', authenticateToken, getNegocioUsuario, requireAdmin,
       [req.negocioId]
     );
 
-    // PROMEDIO DE VENTAS POR DÍA - CAMBIAR: fecha → fecha_venta
+    
     const promedioVentas = await pool.query(
       `SELECT 
           COALESCE(AVG(daily.total_sum), 0) as promedio_diario,
-          COALESCE(COUNT(DISTINCT DATE(fecha_venta)), 0) as dias_con_ventas
-       FROM (
-         SELECT DATE(fecha_venta) as fecha_dia, SUM(total) as total_sum 
-         FROM ventas
-         WHERE negocio_id = $1 
-         AND fecha_venta BETWEEN $2 AND $3  
-         GROUP BY DATE(fecha_venta)  
-       ) daily`,
+          COALESCE(COUNT(daily.fecha_dia), 0) as dias_con_ventas
+      FROM (
+        SELECT DATE(fecha_venta) as fecha_dia, SUM(total) as total_sum
+        FROM ventas
+        WHERE negocio_id = $1 
+        AND fecha_venta BETWEEN $2 AND $3
+        GROUP BY DATE(fecha_venta)
+      ) daily`,
       [req.negocioId, startDate, endDate]
     );
 
