@@ -2299,142 +2299,77 @@ async function generarReporteFinancieroMensual(negocioId, fechaInicio, fechaFin)
   });
 }
 
-// Ruta de diagnóstico URGENTE - AGREGAR AL PRINCIPIO (después de los middlewares)
-app.get('/api/debug/ventas-columns-urgent', async (req, res) => {
-  try {
-    // 1. Verificar todas las columnas de la tabla ventas
-    const columnsResult = await pool.query(`
-      SELECT column_name, data_type, is_nullable, column_default
-      FROM information_schema.columns 
-      WHERE table_name = 'ventas' 
-      ORDER BY ordinal_position
-    `);
-    
-    // 2. Verificar si hay alguna columna de fecha
-    const dateColumns = columnsResult.rows.filter(col => 
-      col.data_type.includes('time') || 
-      col.data_type.includes('date') ||
-      col.column_name.includes('fecha')
-    );
-    
-    // 3. Verificar estructura completa de la tabla
-    const tableInfo = await pool.query(`
-      SELECT * FROM ventas LIMIT 1
-    `);
-    
-    // 4. Obtener información de la base de datos
-    const dbInfo = await pool.query(`
-      SELECT current_database(), current_user, version()
-    `);
-
-    res.json({
-      database: dbInfo.rows[0],
-      ventas_table: {
-        total_columns: columnsResult.rows.length,
-        all_columns: columnsResult.rows,
-        date_columns: dateColumns,
-        sample_row: tableInfo.rows[0] || null,
-        column_names: columnsResult.rows.map(col => col.column_name)
-      },
-      error_analysis: {
-        missing_both: !columnsResult.rows.some(col => 
-          col.column_name === 'fecha' || col.column_name === 'fecha_venta'
-        ),
-        recommendation: dateColumns.length > 0 ? 
-          `Usar columna: ${dateColumns[0].column_name}` : 
-          'AGREGAR COLUMNA DE FECHA'
-      }
-    });
-  } catch (error) {
-    res.status(500).json({ 
-      error: error.message,
-      stack: error.stack 
-    });
-  }
-});
-
-// Ruta TEMPORAL para crear la columna de fecha si no existe
-app.get('/api/fix/fecha-column', authenticateToken, requireSuperAdmin, async (req, res) => {
+// Ruta para restaurar el nombre original de la columna
+app.get('/api/fix/restaurar-fecha-venta', authenticateToken, requireSuperAdmin, async (req, res) => {
   const client = await pool.connect();
   
   try {
     await client.query('BEGIN');
     
-    console.log('🔧 Verificando estructura de tabla ventas...');
+    console.log('🔄 Restaurando nombre original de columna...');
     
-    // 1. Verificar si existe alguna columna de fecha
+    // Verificar qué columnas existen
     const checkColumns = await client.query(`
       SELECT column_name, data_type 
       FROM information_schema.columns 
       WHERE table_name = 'ventas' 
-      AND (column_name LIKE '%fecha%' OR data_type LIKE '%time%' OR data_type LIKE '%date%')
+      AND column_name IN ('fecha', 'fecha_venta')
     `);
     
-    console.log('Columnas de fecha encontradas:', checkColumns.rows);
+    console.log('Columnas encontradas:', checkColumns.rows);
     
-    // 2. Si no existe ninguna, crear columna "fecha"
-    if (checkColumns.rows.length === 0) {
-      console.log('❌ No hay columna de fecha. Creando columna "fecha"...');
+    // Si existe "fecha" pero no "fecha_venta", renombrar
+    const fechaExists = checkColumns.rows.some(col => col.column_name === 'fecha');
+    const fechaVentaExists = checkColumns.rows.some(col => col.column_name === 'fecha_venta');
+    
+    if (fechaExists && !fechaVentaExists) {
+      console.log('🔄 Renombrando "fecha" a "fecha_venta"...');
       
       await client.query(`
         ALTER TABLE ventas 
-        ADD COLUMN fecha TIMESTAMP DEFAULT NOW()
+        RENAME COLUMN fecha TO fecha_venta
       `);
       
-      console.log('✅ Columna "fecha" creada');
+      console.log('✅ Columna renombrada exitosamente');
       
-      // Actualizar registros existentes con fecha_venta si existe
-      try {
-        await client.query(`
-          UPDATE ventas 
-          SET fecha = fecha_venta 
-          WHERE fecha_venta IS NOT NULL
-        `);
-        console.log('✅ Fechas migradas desde fecha_venta');
-      } catch (e) {
-        console.log('ℹ️ No se pudo migrar desde fecha_venta');
-      }
+      res.json({
+        success: true,
+        message: 'Columna restaurada a "fecha_venta"',
+        details: 'Ahora todas tus consultas deberían funcionar sin cambios'
+      });
+      
+    } else if (fechaVentaExists) {
+      console.log('✅ La columna "fecha_venta" ya existe');
+      
+      res.json({
+        success: true,
+        message: 'La columna "fecha_venta" ya existe',
+        details: 'Tu código debería funcionar sin problemas'
+      });
+      
     } else {
-      // 3. Usar la primera columna de fecha encontrada
-      const fechaColumn = checkColumns.rows[0].column_name;
-      console.log(`✅ Usando columna existente: "${fechaColumn}"`);
+      console.log('⚠️ No se encontró columna "fecha" para renombrar');
       
-      // Renombrar a "fecha" si tiene otro nombre
-      if (fechaColumn !== 'fecha') {
-        console.log(`🔄 Renombrando "${fechaColumn}" a "fecha"...`);
-        await client.query(`
-          ALTER TABLE ventas 
-          RENAME COLUMN "${fechaColumn}" TO fecha
-        `);
-        console.log('✅ Columna renombrada');
-      }
+      // Crear columna fecha_venta si no existe
+      await client.query(`
+        ALTER TABLE ventas 
+        ADD COLUMN fecha_venta TIMESTAMP DEFAULT NOW()
+      `);
+      
+      console.log('✅ Columna "fecha_venta" creada');
+      
+      res.json({
+        success: true,
+        message: 'Columna "fecha_venta" creada',
+        details: 'Se creó la columna fecha_venta con valor por defecto'
+      });
     }
     
     await client.query('COMMIT');
     
-    // 4. Verificar resultado final
-    const finalCheck = await client.query(`
-      SELECT column_name, data_type 
-      FROM information_schema.columns 
-      WHERE table_name = 'ventas' 
-      AND column_name = 'fecha'
-    `);
-    
-    res.json({
-      success: true,
-      message: 'Problema de columna de fecha resuelto',
-      final_structure: finalCheck.rows,
-      recommendation: 'Ahora usa "fecha" en todas las consultas',
-      next_steps: [
-        '1. Actualizar todas las consultas para usar "fecha"',
-        '2. Probar la ruta /api/estadisticas nuevamente',
-        '3. Eliminar esta ruta después de usar'
-      ]
-    });
-    
   } catch (error) {
     await client.query('ROLLBACK');
-    console.error('❌ Error arreglando columna:', error);
+    console.error('❌ Error restaurando columna:', error);
     res.status(500).json({ 
       error: error.message,
       details: 'Verifica los logs para más información' 
