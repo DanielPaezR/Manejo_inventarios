@@ -507,7 +507,7 @@ app.get('/api/productos/buscar/:ean', authenticateToken, getNegocioUsuario, asyn
   }
 });
 
-// Rutas de Ventas - VERSIÓN MEJORADA CON VALIDACIÓN DE STOCK
+// Rutas de Ventas - VERSIÓN CORREGIDA (usando "fecha" en lugar de "fecha_venta")
 app.post('/api/ventas', authenticateToken, getNegocioUsuario, async (req, res) => {
   const client = await pool.connect();
   
@@ -696,7 +696,7 @@ app.post('/api/ventas/devolucion', authenticateToken, getNegocioUsuario, async (
   }
 });
 
-// Ruta para obtener ventas
+// Ruta para obtener ventas - CORREGIDA (usando "fecha" en lugar de "fecha_venta")
 app.get('/api/ventas', authenticateToken, getNegocioUsuario, async (req, res) => {
   try {
     const { limit = 50 } = req.query;
@@ -706,7 +706,7 @@ app.get('/api/ventas', authenticateToken, getNegocioUsuario, async (req, res) =>
        FROM ventas v
        JOIN usuarios u ON v.usuario_id = u.id
        WHERE v.negocio_id = $1
-       ORDER BY v.fecha_venta DESC
+       ORDER BY v.fecha DESC
        LIMIT $2`,
       [req.negocioId, limit]
     );
@@ -714,6 +714,48 @@ app.get('/api/ventas', authenticateToken, getNegocioUsuario, async (req, res) =>
     res.json(result.rows);
   } catch (error) {
     console.error('Error obteniendo ventas:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// Ruta para obtener una factura específica - CORREGIDA (usando "fecha" si es necesario en consultas internas)
+app.get('/api/ventas/:id/factura', authenticateToken, getNegocioUsuario, async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const result = await pool.query(
+      `SELECT v.*, 
+              n.nombre as negocio_nombre,
+              n.direccion as negocio_direccion,
+              n.telefono as negocio_telefono,
+              n.email as negocio_email,
+              n.ruc_nit as negocio_ruc_nit,
+              u.nombre as vendedor_nombre,
+              json_agg(
+                json_build_object(
+                  'producto_nombre', p.nombre,
+                  'cantidad', dv.cantidad,
+                  'precio_unitario', dv.precio_unitario,
+                  'subtotal', dv.subtotal
+                )
+              ) as detalles
+       FROM ventas v
+       JOIN negocios n ON v.negocio_id = n.id
+       JOIN usuarios u ON v.usuario_id = u.id
+       LEFT JOIN detalle_venta dv ON v.id = dv.venta_id
+       LEFT JOIN productos p ON dv.producto_id = p.id
+       WHERE v.id = $1 AND v.negocio_id = $2
+       GROUP BY v.id, n.id, u.id`,
+      [id, req.negocioId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Factura no encontrada' });
+    }
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error obteniendo factura:', error);
     res.status(500).json({ error: 'Error interno del servidor' });
   }
 });
@@ -1042,7 +1084,7 @@ app.get('/api/estadisticas/negocio/:negocioId', authenticateToken, requireSuperA
   }
 });
 
-// Ruta para estadísticas con filtros de período (solo admin) - VERSIÓN CORREGIDA
+// Ruta para estadísticas con filtros de período (solo admin) - CORREGIDA (usando "fecha")
 app.get('/api/estadisticas', authenticateToken, getNegocioUsuario, requireAdmin, async (req, res) => {
   try {
     const { periodo, fecha_inicio, fecha_fin } = req.query;
@@ -1082,7 +1124,7 @@ app.get('/api/estadisticas', authenticateToken, getNegocioUsuario, requireAdmin,
           return res.status(400).json({ error: 'Para período personalizado se requieren fecha_inicio y fecha_fin' });
         }
         startDate = moment(fecha_inicio).startOf('day').toDate();
-        endDate = moment(fechaFin).endOf('day').toDate();
+        endDate = moment(fecha_fin).endOf('day').toDate();
         
         // Validar que no sea un rango mayor a 1 año
         const diffDays = moment(endDate).diff(moment(startDate), 'days');
@@ -1102,16 +1144,16 @@ app.get('/api/estadisticas', authenticateToken, getNegocioUsuario, requireAdmin,
       periodo: periodo || 'hoy'
     });
 
-    // VENTAS DEL PERÍODO - CORREGIDO: usar fecha_venta (como está en tu BD)
+    // VENTAS DEL PERÍODO - USANDO "fecha" (no fecha_venta)
     const ventasPeriodo = await pool.query(
       `SELECT COUNT(*) as total, COALESCE(SUM(total), 0) as monto 
        FROM ventas 
        WHERE negocio_id = $1 
-       AND fecha_venta BETWEEN $2 AND $3`,
+       AND fecha BETWEEN $2 AND $3`,
       [req.negocioId, startDate, endDate]
     );
 
-    // PRODUCTOS CON STOCK BAJO (este no depende del período)
+    // PRODUCTOS CON STOCK BAJO
     const productosStockBajo = await pool.query(
       `SELECT COUNT(*) as total 
        FROM productos 
@@ -1121,7 +1163,7 @@ app.get('/api/estadisticas', authenticateToken, getNegocioUsuario, requireAdmin,
       [req.negocioId]
     );
 
-    // TOP PRODUCTOS DEL PERÍODO - CORREGIDO: usar fecha_venta
+    // TOP PRODUCTOS DEL PERÍODO - USANDO "fecha" (no fecha_venta)
     const topProductos = await pool.query(
       `SELECT 
           p.id,
@@ -1132,23 +1174,23 @@ app.get('/api/estadisticas', authenticateToken, getNegocioUsuario, requireAdmin,
        JOIN productos p ON dv.producto_id = p.id
        JOIN ventas v ON dv.venta_id = v.id
        WHERE v.negocio_id = $1 
-       AND v.fecha_venta BETWEEN $2 AND $3
+       AND v.fecha BETWEEN $2 AND $3
        GROUP BY p.id, p.nombre
        ORDER BY total_vendido DESC
        LIMIT 10`,
       [req.negocioId, startDate, endDate]
     );
 
-    // VENTAS POR DÍA DEL PERÍODO - CORREGIDO: usar fecha_venta
+    // VENTAS POR DÍA DEL PERÍODO - USANDO "fecha" (no fecha_venta)
     const ventasPorDia = await pool.query(
       `SELECT 
-          DATE(fecha_venta) as fecha, 
+          DATE(fecha) as fecha, 
           COUNT(*) as cantidad, 
           SUM(total) as total
        FROM ventas
        WHERE negocio_id = $1 
-       AND fecha_venta BETWEEN $2 AND $3
-       GROUP BY DATE(fecha_venta)
+       AND fecha BETWEEN $2 AND $3
+       GROUP BY DATE(fecha)
        ORDER BY fecha ASC`,
       [req.negocioId, startDate, endDate]
     );
@@ -1162,22 +1204,22 @@ app.get('/api/estadisticas', authenticateToken, getNegocioUsuario, requireAdmin,
       [req.negocioId]
     );
 
-    // PROMEDIO DE VENTAS POR DÍA - CORREGIDO: usar fecha_venta
+    // PROMEDIO DE VENTAS POR DÍA - USANDO "fecha" (no fecha_venta)
     const promedioVentas = await pool.query(
       `SELECT 
           COALESCE(AVG(daily.total_sum), 0) as promedio_diario,
-          COALESCE(COUNT(DISTINCT DATE(fecha_venta)), 0) as dias_con_ventas
+          COALESCE(COUNT(DISTINCT DATE(fecha)), 0) as dias_con_ventas
        FROM (
-         SELECT DATE(fecha_venta) as fecha_dia, SUM(total) as total_sum
+         SELECT DATE(fecha) as fecha_dia, SUM(total) as total_sum
          FROM ventas
          WHERE negocio_id = $1 
-         AND fecha_venta BETWEEN $2 AND $3
-         GROUP BY DATE(fecha_venta)
+         AND fecha BETWEEN $2 AND $3
+         GROUP BY DATE(fecha)
        ) daily`,
       [req.negocioId, startDate, endDate]
     );
 
-    // MÉTODO DE PAGO MÁS UTILIZADO - CORREGIDO: usar fecha_venta
+    // MÉTODO DE PAGO MÁS UTILIZADO - USANDO "fecha" (no fecha_venta)
     const metodoPagoPopular = await pool.query(
       `SELECT 
           metodo_pago,
@@ -1185,7 +1227,7 @@ app.get('/api/estadisticas', authenticateToken, getNegocioUsuario, requireAdmin,
           SUM(total) as monto_total
        FROM ventas
        WHERE negocio_id = $1 
-       AND fecha_venta BETWEEN $2 AND $3
+       AND fecha BETWEEN $2 AND $3
        GROUP BY metodo_pago
        ORDER BY cantidad DESC
        LIMIT 1`,
@@ -1211,7 +1253,7 @@ app.get('/api/estadisticas', authenticateToken, getNegocioUsuario, requireAdmin,
       }
     };
 
-    // Para compatibilidad con el frontend existente, mantenemos las propiedades anteriores
+    // Para compatibilidad con el frontend existente
     response.ventasHoy = {
       total: response.ventasPeriodo.total,
       monto: response.ventasPeriodo.monto
@@ -1604,8 +1646,8 @@ async function generarReporteVentasDiarias(negocioId, fechaInicio, fechaFin) {
          FROM ventas v
          JOIN usuarios u ON v.usuario_id = u.id
          WHERE v.negocio_id = $1 
-         AND DATE(v.fecha_venta) BETWEEN COALESCE($2, CURRENT_DATE) AND COALESCE($3, CURRENT_DATE)
-         ORDER BY v.fecha_venta DESC`,
+         AND DATE(v.fecha) BETWEEN COALESCE($2, CURRENT_DATE) AND COALESCE($3, CURRENT_DATE)
+         ORDER BY v.fecha DESC`,
         [negocioId, fechaInicio, fechaFin]
       );
 
@@ -1619,7 +1661,7 @@ async function generarReporteVentasDiarias(negocioId, fechaInicio, fechaFin) {
            COALESCE(SUM(iva), 0) as iva_total
          FROM ventas 
          WHERE negocio_id = $1 
-         AND DATE(fecha_venta) BETWEEN COALESCE($2, CURRENT_DATE) AND COALESCE($3, CURRENT_DATE)`,
+         AND DATE(fecha) BETWEEN COALESCE($2, CURRENT_DATE) AND COALESCE($3, CURRENT_DATE)`,
         [negocioId, fechaInicio, fechaFin]
       );
 
@@ -1925,9 +1967,362 @@ async function generarExcelVentas(negocioId, fechaInicio, fechaFin) {
 
 
 
-// 5. REPORTE FINANCIERO MENSUAL (PDF) - Función placeholder
+// 5. REPORTE FINANCIERO MENSUAL (PDF) - Función completa
 async function generarReporteFinancieroMensual(negocioId, fechaInicio, fechaFin) {
-  // Por ahora usamos la misma función que ventas diarias
-  return await generarReporteVentasDiarias(negocioId, fechaInicio, fechaFin);
+  return new Promise(async (resolve, reject) => {
+    try {
+      const doc = new PDFDocument();
+      const buffers = [];
+      
+      doc.on('data', buffers.push.bind(buffers));
+      doc.on('end', () => {
+        const pdfData = Buffer.concat(buffers);
+        resolve(pdfData);
+      });
+
+      // Obtener datos del negocio
+      const negocioResult = await pool.query(
+        'SELECT * FROM negocios WHERE id = $1',
+        [negocioId]
+      );
+      const negocio = negocioResult.rows[0];
+
+      // Obtener fechas del período (si no se especifican, usar mes actual)
+      let startDate = fechaInicio || moment().startOf('month').format('YYYY-MM-DD');
+      let endDate = fechaFin || moment().endOf('month').format('YYYY-MM-DD');
+
+      console.log('💰 Generando reporte financiero - Período:', startDate, 'a', endDate);
+
+      // OBTENER DATOS FINANCIEROS
+
+      // 1. Ventas totales del período
+      const ventasResult = await pool.query(
+        `SELECT 
+            COUNT(*) as total_ventas,
+            COALESCE(SUM(total), 0) as monto_total,
+            COALESCE(SUM(iva), 0) as iva_total,
+            COALESCE(SUM(subtotal), 0) as subtotal_total
+         FROM ventas 
+         WHERE negocio_id = $1 
+         AND fecha BETWEEN $2 AND $3`,
+        [negocioId, startDate, endDate]
+      );
+
+      // 2. Ventas por día (para gráfico)
+      const ventasPorDia = await pool.query(
+        `SELECT 
+            DATE(fecha) as fecha,
+            COUNT(*) as ventas_dia,
+            SUM(total) as monto_dia,
+            SUM(iva) as iva_dia
+         FROM ventas
+         WHERE negocio_id = $1 
+         AND fecha BETWEEN $2 AND $3
+         GROUP BY DATE(fecha)
+         ORDER BY fecha`,
+        [negocioId, startDate, endDate]
+      );
+
+      // 3. Métodos de pago utilizados
+      const metodosPago = await pool.query(
+        `SELECT 
+            metodo_pago,
+            COUNT(*) as cantidad_ventas,
+            SUM(total) as monto_total,
+            ROUND((COUNT(*) * 100.0 / (SELECT COUNT(*) FROM ventas WHERE negocio_id = $1 AND fecha BETWEEN $2 AND $3)), 2) as porcentaje
+         FROM ventas
+         WHERE negocio_id = $1 
+         AND fecha BETWEEN $2 AND $3
+         GROUP BY metodo_pago
+         ORDER BY monto_total DESC`,
+        [negocioId, startDate, endDate]
+      );
+
+      // 4. Productos más vendidos (top 10)
+      const productosTop = await pool.query(
+        `SELECT 
+            p.nombre,
+            SUM(dv.cantidad) as cantidad_vendida,
+            SUM(dv.subtotal) as monto_total,
+            ROUND(AVG(dv.precio_unitario), 2) as precio_promedio
+         FROM detalle_venta dv
+         JOIN productos p ON dv.producto_id = p.id
+         JOIN ventas v ON dv.venta_id = v.id
+         WHERE v.negocio_id = $1 
+         AND v.fecha BETWEEN $2 AND $3
+         GROUP BY p.id, p.nombre
+         ORDER BY cantidad_vendida DESC
+         LIMIT 10`,
+        [negocioId, startDate, endDate]
+      );
+
+      // 5. Clientes frecuentes
+      const clientesFrecuentes = await pool.query(
+        `SELECT 
+            cliente_nombre,
+            cliente_documento,
+            COUNT(*) as compras,
+            SUM(total) as monto_total
+         FROM ventas
+         WHERE negocio_id = $1 
+         AND fecha BETWEEN $2 AND $3
+         AND cliente_nombre IS NOT NULL
+         AND cliente_nombre != 'Consumidor Final'
+         GROUP BY cliente_nombre, cliente_documento
+         HAVING COUNT(*) >= 2
+         ORDER BY monto_total DESC
+         LIMIT 10`,
+        [negocioId, startDate, endDate]
+      );
+
+      // 6. Valor del inventario actual
+      const valorInventario = await pool.query(
+        `SELECT 
+            COUNT(*) as total_productos,
+            SUM(stock_actual) as unidades_total,
+            SUM(precio_compra * stock_actual) as valor_inventario,
+            SUM(precio_venta * stock_actual) as valor_venta_potencial
+         FROM productos
+         WHERE negocio_id = $1 AND activo = true`,
+        [negocioId]
+      );
+
+      // 7. Productos con stock bajo
+      const productosStockBajo = await pool.query(
+        `SELECT 
+            nombre,
+            stock_actual,
+            stock_minimo,
+            precio_compra,
+            precio_venta,
+            (precio_compra * stock_actual) as valor_inventario
+         FROM productos
+         WHERE negocio_id = $1 
+         AND activo = true 
+         AND stock_actual <= stock_minimo
+         ORDER BY stock_actual ASC`,
+        [negocioId]
+      );
+
+      const ventas = ventasResult.rows[0];
+      const inventario = valorInventario.rows[0];
+
+      // CALCULAR MÉTRICAS FINANCIERAS
+      const margenBruto = ventas.subtotal_total - (inventario?.valor_inventario || 0);
+      const margenPorcentaje = ventas.subtotal_total > 0 ? 
+        (margenBruto / ventas.subtotal_total * 100).toFixed(2) : 0;
+      
+      const ticketPromedio = ventas.total_ventas > 0 ? 
+        ventas.monto_total / ventas.total_ventas : 0;
+
+      // GENERAR PDF
+      doc.fontSize(20).text(`REPORTE FINANCIERO MENSUAL`, { align: 'center' });
+      doc.moveDown();
+      doc.fontSize(12).text(`Negocio: ${negocio.nombre}`, { align: 'center' });
+      doc.text(`Período: ${moment(startDate).format('DD/MM/YYYY')} - ${moment(endDate).format('DD/MM/YYYY')}`, { align: 'center' });
+      doc.text(`Generado: ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}`, { align: 'center' });
+      doc.moveDown();
+
+      // RESUMEN EJECUTIVO
+      doc.fontSize(16).text('📊 RESUMEN EJECUTIVO', { underline: true });
+      doc.moveDown(0.5);
+      
+      doc.fontSize(12);
+      doc.text(`Período analizado: ${moment(startDate).format('DD/MM/YYYY')} - ${moment(endDate).format('DD/MM/YYYY')}`);
+      doc.text(`Total de días con ventas: ${ventasPorDia.rows.length}`);
+      doc.moveDown();
+
+      // MÉTRICAS FINANCIERAS PRINCIPALES
+      doc.fontSize(14).text('💰 MÉTRICAS FINANCIERAS', { underline: true });
+      doc.moveDown(0.5);
+      
+      doc.text(`Ventas Totales: $${Number(ventas.monto_total).toLocaleString()}`);
+      doc.text(`• Subtotal: $${Number(ventas.subtotal_total).toLocaleString()}`);
+      doc.text(`• IVA (19%): $${Number(ventas.iva_total).toLocaleString()}`);
+      doc.text(`Total Ventas: ${ventas.total_ventas} transacciones`);
+      doc.text(`Ticket Promedio: $${Number(ticketPromedio).toLocaleString()}`);
+      doc.text(`Margen Bruto: $${Number(margenBruto).toLocaleString()} (${margenPorcentaje}%)`);
+      doc.moveDown();
+
+      // MÉTODOS DE PAGO
+      doc.fontSize(14).text('💳 DISTRIBUCIÓN DE MÉTODOS DE PAGO', { underline: true });
+      doc.moveDown(0.5);
+      
+      if (metodosPago.rows.length > 0) {
+        metodosPago.rows.forEach(metodo => {
+          doc.text(`${metodo.metodo_pago}: ${metodo.cantidad_ventas} ventas (${metodo.porcentaje}%) - $${Number(metodo.monto_total).toLocaleString()}`);
+        });
+      } else {
+        doc.text('No hay datos de métodos de pago');
+      }
+      doc.moveDown();
+
+      // INVENTARIO
+      doc.fontSize(14).text('📦 ANÁLISIS DE INVENTARIO', { underline: true });
+      doc.moveDown(0.5);
+      
+      if (inventario) {
+        doc.text(`Total Productos: ${inventario.total_productos}`);
+        doc.text(`Unidades en Inventario: ${inventario.unidades_total}`);
+        doc.text(`Valor del Inventario: $${Number(inventario.valor_inventario).toLocaleString()}`);
+        doc.text(`Valor de Venta Potencial: $${Number(inventario.valor_venta_potencial).toLocaleString()}`);
+      }
+      doc.moveDown();
+
+      // PRODUCTOS MÁS VENDIDOS
+      if (productosTop.rows.length > 0) {
+        doc.fontSize(14).text('🔥 TOP 10 PRODUCTOS MÁS VENDIDOS', { underline: true });
+        doc.moveDown(0.5);
+        
+        productosTop.rows.forEach((producto, index) => {
+          doc.fontSize(10);
+          doc.text(`${index + 1}. ${producto.nombre}`);
+          doc.text(`   Vendidos: ${producto.cantidad_vendida} unidades - $${Number(producto.monto_total).toLocaleString()}`);
+          doc.text(`   Precio promedio: $${Number(producto.precio_promedio).toLocaleString()}`);
+        });
+        doc.moveDown();
+      }
+
+      // CLIENTES FRECUENTES
+      if (clientesFrecuentes.rows.length > 0) {
+        doc.fontSize(14).text('👥 CLIENTES FRECUENTES', { underline: true });
+        doc.moveDown(0.5);
+        
+        clientesFrecuentes.rows.forEach((cliente, index) => {
+          doc.fontSize(10);
+          doc.text(`${index + 1}. ${cliente.cliente_nombre} (${cliente.cliente_documento || 'Sin documento'})`);
+          doc.text(`   Compras: ${cliente.compras} - Total gastado: $${Number(cliente.monto_total).toLocaleString()}`);
+        });
+        doc.moveDown();
+      }
+
+      // ALERTAS DE STOCK
+      if (productosStockBajo.rows.length > 0) {
+        doc.fontSize(14).text('⚠️ PRODUCTOS CON STOCK BAJO', { underline: true });
+        doc.moveDown(0.5);
+        
+        productosStockBajo.rows.forEach(producto => {
+          doc.fontSize(10);
+          doc.text(`${producto.nombre}`);
+          doc.text(`   Stock: ${producto.stock_actual} (Mínimo: ${producto.stock_minimo})`);
+          doc.text(`   Valor en inventario: $${Number(producto.valor_inventario).toLocaleString()}`);
+        });
+        doc.moveDown();
+      }
+
+      // VENTAS POR DÍA (tabla)
+      if (ventasPorDia.rows.length > 0) {
+        doc.fontSize(14).text('📈 VENTAS POR DÍA', { underline: true });
+        doc.moveDown(0.5);
+        
+        // Crear tabla simple
+        let yPosition = doc.y;
+        let xPosition = 50;
+        let rowHeight = 20;
+        let colWidth = 100;
+        
+        // Encabezados
+        doc.fontSize(10).font('Helvetica-Bold');
+        doc.text('Fecha', xPosition, yPosition);
+        doc.text('Ventas', xPosition + colWidth, yPosition);
+        doc.text('Monto', xPosition + colWidth * 2, yPosition);
+        doc.text('IVA', xPosition + colWidth * 3, yPosition);
+        
+        yPosition += rowHeight;
+        doc.font('Helvetica');
+        
+        // Filas
+        ventasPorDia.rows.forEach(dia => {
+          doc.text(moment(dia.fecha).format('DD/MM'), xPosition, yPosition);
+          doc.text(dia.ventas_dia.toString(), xPosition + colWidth, yPosition);
+          doc.text(`$${Number(dia.monto_dia).toLocaleString()}`, xPosition + colWidth * 2, yPosition);
+          doc.text(`$${Number(dia.iva_dia).toLocaleString()}`, xPosition + colWidth * 3, yPosition);
+          yPosition += 15;
+          
+          // Si nos quedamos sin espacio, crear nueva página
+          if (yPosition > 700) {
+            doc.addPage();
+            yPosition = 50;
+          }
+        });
+        doc.moveDown();
+      }
+
+      // RECOMENDACIONES
+      doc.addPage();
+      doc.fontSize(16).text('💡 RECOMENDACIONES Y ANÁLISIS', { align: 'center', underline: true });
+      doc.moveDown();
+      
+      doc.fontSize(12);
+      doc.text('1. Análisis de Rentabilidad:');
+      doc.text('   • Margen bruto del ' + margenPorcentaje + '% indica ' + 
+        (margenPorcentaje > 30 ? 'buena rentabilidad' : margenPorcentaje > 15 ? 'rentabilidad aceptable' : 'rentabilidad baja'));
+      doc.moveDown(0.5);
+      
+      doc.text('2. Gestión de Inventario:');
+      if (productosStockBajo.rows.length > 0) {
+        doc.text(`   • ${productosStockBajo.rows.length} productos necesitan reabastecimiento urgente`);
+        doc.text(`   • Valor estimado para reposición: $${Number(productosStockBajo.rows.reduce((sum, p) => sum + (p.precio_compra * (p.stock_minimo * 3 - p.stock_actual)), 0)).toLocaleString()}`);
+      } else {
+        doc.text('   • Inventario en niveles óptimos');
+      }
+      doc.moveDown(0.5);
+      
+      doc.text('3. Comportamiento de Ventas:');
+      doc.text(`   • Ticket promedio: $${Number(ticketPromedio).toLocaleString()}`);
+      if (ticketPromedio < 100000) {
+        doc.text('   • Considerar estrategias para aumentar el ticket promedio');
+      }
+      doc.moveDown(0.5);
+      
+      doc.text('4. Métodos de Pago:');
+      const metodoPrincipal = metodosPago.rows[0];
+      if (metodoPrincipal) {
+        doc.text(`   • Método principal: ${metodoPrincipal.metodo_pago} (${metodoPrincipal.porcentaje}%)`);
+        if (metodoPrincipal.porcentaje > 70) {
+          doc.text('   • Dependencia alta de un solo método de pago');
+        }
+      }
+      doc.moveDown();
+
+      // FIRMA Y FECHA
+      doc.moveDown(2);
+      doc.text('_________________________________', { align: 'center' });
+      doc.text('Responsable del Reporte', { align: 'center' });
+      doc.text(new Date().toLocaleDateString(), { align: 'center' });
+
+      doc.end();
+
+    } catch (error) {
+      reject(error);
+    }
+  });
 }
 
+// Ruta para verificar estructura de tabla ventas
+app.get('/api/debug/ventas-structure', authenticateToken, async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT column_name, data_type, is_nullable
+      FROM information_schema.columns 
+      WHERE table_name = 'ventas' 
+      ORDER BY ordinal_position
+    `);
+    
+    // Verificar si existe fecha o fecha_venta
+    const tieneFecha = result.rows.some(col => col.column_name === 'fecha');
+    const tieneFechaVenta = result.rows.some(col => col.column_name === 'fecha_venta');
+    
+    res.json({
+      table: 'ventas',
+      columns: result.rows,
+      analysis: {
+        tiene_fecha: tieneFecha,
+        tiene_fecha_venta: tieneFechaVenta,
+        recommended_column: tieneFecha ? 'fecha' : tieneFechaVenta ? 'fecha_venta' : 'none'
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
