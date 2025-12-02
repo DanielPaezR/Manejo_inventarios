@@ -6,13 +6,18 @@ const GestionInventario = ({ user }) => {
   const [productoEncontrado, setProductoEncontrado] = useState(null);
   const [cantidad, setCantidad] = useState('');
   const [motivo, setMotivo] = useState('');
-  const [modo, setModo] = useState('agregar');
+  const [tipoMovimiento, setTipoMovimiento] = useState('agregar'); // agregar, ajustar, devolucion
   const [mostrarModal, setMostrarModal] = useState(false);
   const [mensaje, setMensaje] = useState('');
   const [loading, setLoading] = useState(false);
+  const [clienteInfo, setClienteInfo] = useState({
+    nombre: '',
+    documento: '',
+    telefono: '',
+    motivo_devolucion: ''
+  });
   const eanInputRef = useRef(null);
 
-  // ✅ URL del backend - CAMBIA ESTA URL POR LA DE TU BACKEND EN RAILWAY
   const API_BASE_URL = 'https://manejoinventarios-production.up.railway.app';
 
   useEffect(() => {
@@ -33,7 +38,6 @@ const GestionInventario = ({ user }) => {
     try {
       const token = localStorage.getItem('token');
       
-      // ✅ USAR URL COMPLETA DEL BACKEND
       const response = await fetch(`${API_BASE_URL}/api/productos?search=${encodeURIComponent(ean)}`, {
         method: 'GET',
         headers: {
@@ -42,24 +46,17 @@ const GestionInventario = ({ user }) => {
         }
       });
 
-      console.log('🔍 Response status:', response.status);
-      console.log('🔍 Response URL:', `${API_BASE_URL}/api/productos?search=${encodeURIComponent(ean)}`);
-      
-      const responseText = await response.text();
-      console.log('🔍 Response text (first 200 chars):', responseText.substring(0, 200));
-      
       let productos = [];
       try {
+        const responseText = await response.text();
         productos = JSON.parse(responseText);
       } catch (parseError) {
-        console.error('❌ No se pudo parsear como JSON:', parseError);
-        setMensaje('❌ El servidor está devolviendo HTML en lugar de JSON. Verifica la configuración de Railway.');
+        console.error('❌ Error parseando respuesta:', parseError);
+        setMensaje('❌ Error del servidor');
         return;
       }
 
       if (response.ok) {
-        console.log('🔍 Productos encontrados:', productos);
-        
         const productoExacto = productos.find(p => p.codigo_ean === ean);
         
         if (productoExacto) {
@@ -70,7 +67,6 @@ const GestionInventario = ({ user }) => {
             if (cantidadInput) cantidadInput.focus();
           }, 100);
         } else if (productos.length > 0) {
-          console.log('🔍 Productos disponibles:', productos.map(p => ({ nombre: p.nombre, ean: p.codigo_ean })));
           setProductoEncontrado(null);
           setMensaje(`❌ No hay coincidencia exacta. Productos similares: ${productos.length}`);
         } else {
@@ -78,12 +74,12 @@ const GestionInventario = ({ user }) => {
           setMensaje('❌ No se encontró ningún producto');
         }
       } else {
-        setMensaje('❌ Error del servidor al buscar producto');
+        setMensaje('❌ Error del servidor');
       }
     } catch (error) {
       console.error('❌ Error buscando producto:', error);
       setProductoEncontrado(null);
-      setMensaje('❌ Error de conexión: ' + error.message);
+      setMensaje('❌ Error de conexión');
     } finally {
       setLoading(false);
     }
@@ -102,10 +98,11 @@ const GestionInventario = ({ user }) => {
       return;
     }
 
+    setLoading(true);
+    
     try {
       const token = localStorage.getItem('token');
       
-      // ✅ USAR URL COMPLETA DEL BACKEND
       const response = await fetch(`${API_BASE_URL}/api/inventario/agregar-stock`, {
         method: 'POST',
         headers: {
@@ -115,30 +112,32 @@ const GestionInventario = ({ user }) => {
         body: JSON.stringify({
           producto_id: productoEncontrado.id,
           cantidad: parseInt(cantidad),
-          motivo: motivo || (modo === 'agregar' ? 'Reabastecimiento' : 'Ajuste de inventario')
+          motivo: motivo || 'Reabastecimiento'
         })
       });
 
-      const responseText = await response.text();
-      console.log('📦 Response agregar stock:', responseText);
+      const data = await response.json();
 
-      try {
-        const data = JSON.parse(responseText);
-
-        if (response.ok) {
-          setMensaje(`✅ Stock agregado: ${productoEncontrado.nombre} +${cantidad} unidades`);
+      if (response.ok) {
+        setMensaje(`✅ Stock agregado: ${productoEncontrado.nombre} +${cantidad} unidades`);
+        // Actualizar el stock localmente
+        setProductoEncontrado({
+          ...productoEncontrado,
+          stock_actual: productoEncontrado.stock_actual + parseInt(cantidad)
+        });
+        
+        setTimeout(() => {
           setMostrarModal(false);
           limpiarFormulario();
-        } else {
-          setMensaje(`❌ Error: ${data.error}`);
-        }
-      } catch (parseError) {
-        console.error('❌ Error parseando respuesta:', parseError);
-        setMensaje('❌ Error del servidor - respuesta no válida');
+        }, 2000);
+      } else {
+        setMensaje(`❌ Error: ${data.error}`);
       }
     } catch (error) {
       console.error('❌ Error:', error);
-      setMensaje('❌ Error de conexión con el servidor');
+      setMensaje('❌ Error de conexión');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -155,10 +154,11 @@ const GestionInventario = ({ user }) => {
       return;
     }
 
+    setLoading(true);
+    
     try {
       const token = localStorage.getItem('token');
       
-      // ✅ USAR URL COMPLETA DEL BACKEND
       const response = await fetch(`${API_BASE_URL}/api/inventario/ajustar-stock`, {
         method: 'POST',
         headers: {
@@ -172,26 +172,129 @@ const GestionInventario = ({ user }) => {
         })
       });
 
-      const responseText = await response.text();
-      console.log('📊 Response ajustar stock:', responseText);
+      const data = await response.json();
 
-      try {
-        const data = JSON.parse(responseText);
-
-        if (response.ok) {
-          setMensaje(`✅ Stock ajustado: ${productoEncontrado.nombre} → ${cantidad} unidades`);
+      if (response.ok) {
+        setMensaje(`✅ Stock ajustado: ${productoEncontrado.nombre} → ${cantidad} unidades`);
+        // Actualizar el stock localmente
+        setProductoEncontrado({
+          ...productoEncontrado,
+          stock_actual: parseInt(cantidad)
+        });
+        
+        setTimeout(() => {
           setMostrarModal(false);
           limpiarFormulario();
-        } else {
-          setMensaje(`❌ Error: ${data.error}`);
-        }
-      } catch (parseError) {
-        console.error('❌ Error parseando respuesta:', parseError);
-        setMensaje('❌ Error del servidor - respuesta no válida');
+        }, 2000);
+      } else {
+        setMensaje(`❌ Error: ${data.error}`);
       }
     } catch (error) {
       console.error('❌ Error:', error);
-      setMensaje('❌ Error de conexión con el servidor');
+      setMensaje('❌ Error de conexión');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDevolucion = async (e) => {
+    e.preventDefault();
+    
+    if (!productoEncontrado) {
+      setMensaje('❌ Primero debe buscar un producto válido');
+      return;
+    }
+
+    if (!cantidad || cantidad < 1) {
+      setMensaje('❌ Ingrese una cantidad válida');
+      return;
+    }
+
+    if (!clienteInfo.nombre.trim()) {
+      setMensaje('❌ Ingrese el nombre del cliente para la devolución');
+      return;
+    }
+
+    setLoading(true);
+    
+    try {
+      const token = localStorage.getItem('token');
+      
+      // PRIMERO: Agregar stock (devolución)
+      const responseStock = await fetch(`${API_BASE_URL}/api/inventario/agregar-stock`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          producto_id: productoEncontrado.id,
+          cantidad: parseInt(cantidad),
+          motivo: `Devolución: ${clienteInfo.motivo_devolucion || 'Sin motivo especificado'}`
+        })
+      });
+
+      const dataStock = await responseStock.json();
+
+      if (!responseStock.ok) {
+        throw new Error(dataStock.error || 'Error agregando stock');
+      }
+
+      // SEGUNDO: Crear venta negativa (devolución)
+      const ventaData = {
+        detalles: [{
+          producto_id: productoEncontrado.id,
+          producto_nombre: productoEncontrado.nombre,
+          cantidad: parseInt(cantidad),
+          precio_unitario: productoEncontrado.precio_venta,
+          subtotal: productoEncontrado.precio_venta * parseInt(cantidad)
+        }],
+        cliente_nombre: clienteInfo.nombre,
+        cliente_documento: clienteInfo.documento || '',
+        cliente_telefono: clienteInfo.telefono || '',
+        metodo_pago: 'devolucion',
+        es_devolucion: true,
+        motivo_devolucion: clienteInfo.motivo_devolucion || ''
+      };
+
+      const responseVenta = await fetch(`${API_BASE_URL}/api/ventas/devolucion`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(ventaData)
+      });
+
+      if (!responseVenta.ok) {
+        const errorData = await responseVenta.json();
+        throw new Error(errorData.error || 'Error registrando devolución');
+      }
+
+      setMensaje(`✅ Devolución registrada: ${productoEncontrado.nombre} +${cantidad} unidades`);
+      
+      // Actualizar el stock localmente
+      setProductoEncontrado({
+        ...productoEncontrado,
+        stock_actual: productoEncontrado.stock_actual + parseInt(cantidad)
+      });
+      
+      setTimeout(() => {
+        setMostrarModal(false);
+        limpiarFormulario();
+        setClienteInfo({
+          nombre: '',
+          documento: '',
+          telefono: '',
+          motivo_devolucion: ''
+        });
+      }, 2000);
+
+    } catch (error) {
+      console.error('❌ Error en devolución:', error);
+      setMensaje(`❌ Error: ${error.message}`);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -219,42 +322,65 @@ const GestionInventario = ({ user }) => {
     }
   };
 
+  const getTituloModal = () => {
+    switch(tipoMovimiento) {
+      case 'agregar': return '➕ Agregar Stock';
+      case 'ajustar': return '📊 Ajustar Stock';
+      case 'devolucion': return '↩️ Registrar Devolución';
+      default: return '📦 Gestión de Inventario';
+    }
+  };
+
+  const handleSubmit = (e) => {
+    switch(tipoMovimiento) {
+      case 'agregar': return handleAgregarStock(e);
+      case 'ajustar': return handleAjustarStock(e);
+      case 'devolucion': return handleDevolucion(e);
+      default: e.preventDefault();
+    }
+  };
+
   return (
     <div className="gestion-inventario">
       <div className="inventario-header">
-        <h2>📥 Gestión de Inventario</h2>
+        <h2>📦 Gestión de Inventario</h2>
         
-        
-        {mensaje && <div className={`mensaje-alerta ${mensaje.includes('✅') ? 'success' : mensaje.includes('❌') ? 'error' : 'info'}`}>
+        {mensaje && <div className={`mensaje-alerta ${mensaje.includes('✅') ? 'success' : 'error'}`}>
           {mensaje}
         </div>}
 
         <div className="botones-accion">
           <button 
             className="btn btn-primary"
-            onClick={() => { setModo('agregar'); setMostrarModal(true); }}
+            onClick={() => { setTipoMovimiento('agregar'); setMostrarModal(true); }}
           >
             ➕ Agregar Stock
           </button>
           <button 
             className="btn btn-secondary"
-            onClick={() => { setModo('ajustar'); setMostrarModal(true); }}
+            onClick={() => { setTipoMovimiento('ajustar'); setMostrarModal(true); }}
           >
             📊 Ajustar Stock
+          </button>
+          <button 
+            className="btn btn-warning"
+            onClick={() => { setTipoMovimiento('devolucion'); setMostrarModal(true); }}
+          >
+            ↩️ Registrar Devolución
           </button>
         </div>
       </div>
 
-      {/* Modal para agregar/ajustar stock */}
+      {/* Modal para gestión de inventario */}
       {mostrarModal && (
         <div className="modal-overlay">
           <div className="modal inventario-modal">
             <div className="modal-header">
-              <h3>{modo === 'agregar' ? '➕ Agregar Stock' : '📊 Ajustar Stock'}</h3>
+              <h3>{getTituloModal()}</h3>
               <button onClick={() => { setMostrarModal(false); limpiarFormulario(); }}>×</button>
             </div>
             
-            <form onSubmit={modo === 'agregar' ? handleAgregarStock : handleAjustarStock}>
+            <form onSubmit={handleSubmit}>
               <div className="form-group">
                 <label>🔍 Código EAN:</label>
                 <div className="ean-search-container">
@@ -289,6 +415,7 @@ const GestionInventario = ({ user }) => {
                       <div className="producto-meta">
                         <span>Código: {productoEncontrado.codigo_ean || 'N/A'}</span>
                         <span>Stock actual: <strong>{productoEncontrado.stock_actual}</strong></span>
+                        <span>Precio: ${productoEncontrado.precio_venta?.toLocaleString() || '0'}</span>
                         {productoEncontrado.stock_minimo && (
                           <span>Mínimo: {productoEncontrado.stock_minimo}</span>
                         )}
@@ -300,32 +427,103 @@ const GestionInventario = ({ user }) => {
 
               <div className="form-group">
                 <label>
-                  {modo === 'agregar' ? '📦 Cantidad a agregar:' : '🎯 Nuevo stock:'}
+                  {tipoMovimiento === 'agregar' ? '📦 Cantidad a agregar:' : 
+                   tipoMovimiento === 'ajustar' ? '🎯 Nuevo stock:' : 
+                   '↩️ Cantidad devuelta:'}
                 </label>
                 <input 
                   type="number" 
                   value={cantidad} 
                   onChange={(e) => setCantidad(e.target.value)}
-                  min="1"
+                  min={tipoMovimiento === 'devolucion' ? "1" : "0"}
                   required
                   disabled={!productoEncontrado}
-                  placeholder={modo === 'agregar' ? "Ej: 50" : "Ej: 100"}
+                  placeholder={
+                    tipoMovimiento === 'agregar' ? "Ej: 50" : 
+                    tipoMovimiento === 'ajustar' ? "Ej: 100" : 
+                    "Ej: 2"
+                  }
                 />
               </div>
 
+              {tipoMovimiento === 'devolucion' && (
+                <>
+                  <div className="form-group">
+                    <label>👤 Cliente (requerido):</label>
+                    <input 
+                      type="text" 
+                      value={clienteInfo.nombre}
+                      onChange={(e) => setClienteInfo({...clienteInfo, nombre: e.target.value})}
+                      placeholder="Nombre del cliente"
+                      required
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label>📄 Documento (opcional):</label>
+                    <input 
+                      type="text" 
+                      value={clienteInfo.documento}
+                      onChange={(e) => setClienteInfo({...clienteInfo, documento: e.target.value})}
+                      placeholder="Número de documento"
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label>📞 Teléfono (opcional):</label>
+                    <input 
+                      type="text" 
+                      value={clienteInfo.telefono}
+                      onChange={(e) => setClienteInfo({...clienteInfo, telefono: e.target.value})}
+                      placeholder="Teléfono del cliente"
+                    />
+                  </div>
+                </>
+              )}
+
               <div className="form-group">
-                <label>📝 Motivo (opcional):</label>
+                <label>📝 {tipoMovimiento === 'devolucion' ? 'Motivo de devolución:' : 'Motivo (opcional):'}</label>
                 <textarea 
-                  value={motivo} 
-                  onChange={(e) => setMotivo(e.target.value)}
+                  value={tipoMovimiento === 'devolucion' ? clienteInfo.motivo_devolucion : motivo}
+                  onChange={(e) => {
+                    if (tipoMovimiento === 'devolucion') {
+                      setClienteInfo({...clienteInfo, motivo_devolucion: e.target.value});
+                    } else {
+                      setMotivo(e.target.value);
+                    }
+                  }}
                   placeholder={
-                    modo === 'agregar' 
+                    tipoMovimiento === 'agregar' 
                       ? "Ej: Compra a proveedor, Reabastecimiento..." 
-                      : "Ej: Ajuste por inventario físico, Corrección..."
+                      : tipoMovimiento === 'ajustar'
+                      ? "Ej: Ajuste por inventario físico, Corrección..."
+                      : "Ej: Producto defectuoso, No le gustó, Talla incorrecta..."
                   }
                   disabled={!productoEncontrado}
                 />
-                <small>Dejar vacío para usar motivo por defecto</small>
+              </div>
+
+              <div className="resumen-movimiento">
+                {productoEncontrado && cantidad && (
+                  <div className="resumen-card">
+                    <h4>📋 Resumen del Movimiento</h4>
+                    <p><strong>Producto:</strong> {productoEncontrado.nombre}</p>
+                    <p><strong>Tipo:</strong> {getTituloModal()}</p>
+                    {tipoMovimiento === 'agregar' && (
+                      <p><strong>Stock resultante:</strong> {productoEncontrado.stock_actual} + {cantidad} = {productoEncontrado.stock_actual + parseInt(cantidad)}</p>
+                    )}
+                    {tipoMovimiento === 'ajustar' && (
+                      <p><strong>Cambio:</strong> {productoEncontrado.stock_actual} → {cantidad} ({parseInt(cantidad) - productoEncontrado.stock_actual >= 0 ? '+' : ''}{parseInt(cantidad) - productoEncontrado.stock_actual})</p>
+                    )}
+                    {tipoMovimiento === 'devolucion' && (
+                      <>
+                        <p><strong>Cliente:</strong> {clienteInfo.nombre}</p>
+                        <p><strong>Valor devuelto:</strong> ${(productoEncontrado.precio_venta * parseInt(cantidad)).toLocaleString()}</p>
+                        <p><strong>Stock resultante:</strong> {productoEncontrado.stock_actual} + {cantidad} = {productoEncontrado.stock_actual + parseInt(cantidad)}</p>
+                      </>
+                    )}
+                  </div>
+                )}
               </div>
 
               <div className="modal-actions">
@@ -337,34 +535,19 @@ const GestionInventario = ({ user }) => {
                 </button>
                 <button 
                   type="submit" 
-                  className="btn-primary"
-                  disabled={!productoEncontrado || !cantidad}
+                  className={`btn-${tipoMovimiento === 'devolucion' ? 'warning' : 'primary'}`}
+                  disabled={!productoEncontrado || !cantidad || loading}
                 >
-                  {modo === 'agregar' ? 'Agregar Stock' : 'Ajustar Stock'}
+                  {loading ? 'Procesando...' : 
+                   tipoMovimiento === 'agregar' ? 'Agregar Stock' : 
+                   tipoMovimiento === 'ajustar' ? 'Ajustar Stock' : 
+                   'Registrar Devolución'}
                 </button>
               </div>
             </form>
           </div>
         </div>
       )}
-
-      <div className="quick-guide">
-        <h3>⚠️ Configuración Requerida</h3>
-        <div className="guide-steps">
-          <div className="step">
-            <strong>Problema Detectado</strong>
-            <p>Railway está sirviendo el frontend en lugar del backend para las rutas /api/</p>
-          </div>
-          <div className="step">
-            <strong>Solución 1 (Recomendada)</strong>
-            <p>Configurar dos servicios separados en Railway: backend y frontend</p>
-          </div>
-          <div className="step">
-            <strong>Solución 2 (Temporal)</strong>
-            <p>Usar URL completa del backend: {API_BASE_URL}</p>
-          </div>
-        </div>
-      </div>
     </div>
   );
 };

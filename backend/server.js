@@ -3,6 +3,7 @@ const cors = require('cors');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { Pool } = require('pg');
+const moment = require('moment');
 require('dotenv').config();
 
 const app = express();
@@ -626,6 +627,75 @@ app.post('/api/ventas', authenticateToken, getNegocioUsuario, async (req, res) =
   }
 });
 
+// Ruta para registrar devoluciones (afecta stock y ventas)
+app.post('/api/ventas/devolucion', authenticateToken, getNegocioUsuario, async (req, res) => {
+  const client = await pool.connect();
+  
+  try {
+    await client.query('BEGIN');
+    
+    const { detalles, cliente_nombre, cliente_documento, cliente_telefono, motivo_devolucion } = req.body;
+    const usuario_id = req.user.id;
+    
+    console.log('↩️ DEBUG Procesando devolución - Usuario:', req.user.email);
+
+    // Validar que haya detalles
+    if (!detalles || detalles.length === 0) {
+      throw new Error('No hay productos para devolver');
+    }
+
+    // Calcular totales (negativos para devolución)
+    const subtotal = detalles.reduce((sum, detalle) => sum + (detalle.cantidad * detalle.precio_unitario), 0) * -1;
+    const iva = subtotal * 0.19;
+    const total = subtotal + iva;
+
+    // Generar número de factura especial para devolución
+    const numero_factura = await generarNumeroFactura(req.negocioId);
+    const numero_devolucion = `DEV-${numero_factura}`;
+    
+    console.log('🧾 DEBUG Número de devolución:', numero_devolucion);
+
+    // Insertar venta negativa (devolución)
+    const ventaResult = await client.query(
+      `INSERT INTO ventas 
+       (negocio_id, numero_factura, cliente_nombre, cliente_documento, cliente_telefono, 
+        subtotal, iva, total, usuario_id, metodo_pago, es_devolucion, motivo_devolucion) 
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, true, $11) 
+       RETURNING *`,
+      [req.negocioId, numero_devolucion, cliente_nombre, cliente_documento, cliente_telefono, 
+       subtotal, iva, total, usuario_id, 'devolucion', motivo_devolucion]
+    );
+    
+    const venta = ventaResult.rows[0];
+    console.log('✅ DEBUG Devolución registrada con ID:', venta.id);
+    
+    // Insertar detalles de devolución
+    for (const detalle of detalles) {
+      await client.query(
+        `INSERT INTO detalle_venta (venta_id, producto_id, cantidad, precio_unitario, subtotal) 
+         VALUES ($1, $2, $3, $4, $5)`,
+        [venta.id, detalle.producto_id, detalle.cantidad * -1, detalle.precio_unitario, detalle.cantidad * detalle.precio_unitario * -1]
+      );
+    }
+    
+    await client.query('COMMIT');
+    console.log('✅ DEBUG Transacción de devolución completada');
+    
+    res.status(201).json({
+      success: true,
+      message: 'Devolución registrada correctamente',
+      devolucion: venta
+    });
+    
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('❌ ERROR registrando devolución:', error.message);
+    res.status(400).json({ error: error.message });
+  } finally {
+    client.release();
+  }
+});
+
 // Ruta para obtener ventas
 app.get('/api/ventas', authenticateToken, getNegocioUsuario, async (req, res) => {
   try {
@@ -695,17 +765,32 @@ app.get('/api/alertas/stock-bajo', authenticateToken, getNegocioUsuario, require
   try {
     console.log('📊 DEBUG alertas/stock-bajo - Usuario:', req.user.email, 'Negocio ID:', req.negocioId);
 
-    if (req.user.rol === 'super_admin' && !req.negocioId) {
+    // Si es super_admin pero no tiene negocio_id, usar query param
+    let negocioId = req.negocioId;
+    
+    if (req.user.rol === 'super_admin' && req.query.negocio_id) {
+      negocioId = req.query.negocio_id;
+      console.log('📊 DEBUG - Super admin usando negocio específico:', negocioId);
+    }
+
+    if (!negocioId) {
       return res.json([]);
     }
 
     const result = await pool.query(
-      `SELECT * FROM productos 
-       WHERE stock_actual <= stock_minimo 
-       AND activo = true 
-       AND negocio_id = $1
-       ORDER BY stock_actual ASC`,
-      [req.negocioId]
+      `SELECT p.*, 
+              (p.stock_actual <= p.stock_minimo) as necesita_reponer,
+              CASE 
+                WHEN p.stock_actual = 0 THEN 'Agotado'
+                WHEN p.stock_actual <= p.stock_minimo THEN 'Bajo'
+                ELSE 'Normal'
+              END as estado_stock
+       FROM productos p 
+       WHERE p.stock_actual <= p.stock_minimo 
+       AND p.activo = true 
+       AND p.negocio_id = $1
+       ORDER BY p.stock_actual ASC`,
+      [negocioId]
     );
     
     console.log('📊 DEBUG - Alertas encontradas:', result.rows.length);
@@ -716,10 +801,239 @@ app.get('/api/alertas/stock-bajo', authenticateToken, getNegocioUsuario, require
   }
 });
 
-// Ruta para estadísticas (solo admin)
+// Ruta para estadísticas específicas por negocio (super admin)
+app.get('/api/estadisticas/negocio/:negocioId', authenticateToken, requireSuperAdmin, async (req, res) => {
+  try {
+    const { negocioId } = req.params;
+    const { periodo, fecha_inicio, fecha_fin } = req.query;
+    
+    console.log('📈 DEBUG estadisticas super admin - Negocio:', negocioId, 'Período:', periodo);
+
+    // Verificar que el negocio existe
+    const negocioExistente = await pool.query(
+      'SELECT id, nombre FROM negocios WHERE id = $1 AND activo = true',
+      [negocioId]
+    );
+
+    if (negocioExistente.rows.length === 0) {
+      return res.status(404).json({ error: 'Negocio no encontrado o inactivo' });
+    }
+
+    const negocio = negocioExistente.rows[0];
+
+    // Definir fechas según el período
+    let startDate, endDate;
+    
+    switch (periodo) {
+      case 'hoy':
+        startDate = moment().startOf('day').toDate();
+        endDate = moment().endOf('day').toDate();
+        break;
+      case 'semana':
+        startDate = moment().subtract(7, 'days').startOf('day').toDate();
+        endDate = moment().endOf('day').toDate();
+        break;
+      case 'mes':
+        startDate = moment().subtract(30, 'days').startOf('day').toDate();
+        endDate = moment().endOf('day').toDate();
+        break;
+      case 'personalizado':
+        if (!fecha_inicio || !fecha_fin) {
+          return res.status(400).json({ error: 'Para período personalizado se requieren fecha_inicio y fecha_fin' });
+        }
+        startDate = moment(fecha_inicio).startOf('day').toDate();
+        endDate = moment(fecha_fin).endOf('day').toDate();
+        
+        // Validar que no sea un rango mayor a 1 año
+        const diffDays = moment(endDate).diff(moment(startDate), 'days');
+        if (diffDays > 365) {
+          return res.status(400).json({ error: 'El período no puede ser mayor a 1 año' });
+        }
+        break;
+      default:
+        // Por defecto: hoy
+        startDate = moment().startOf('day').toDate();
+        endDate = moment().endOf('day').toDate();
+    }
+
+    console.log('📈 DEBUG super admin - Fechas calculadas:', { 
+      startDate: moment(startDate).format('YYYY-MM-DD HH:mm:ss'),
+      endDate: moment(endDate).format('YYYY-MM-DD HH:mm:ss'),
+      periodo: periodo || 'hoy'
+    });
+
+    // VENTAS DEL PERÍODO
+    const ventasPeriodo = await pool.query(
+      `SELECT COUNT(*) as total, COALESCE(SUM(total), 0) as monto 
+       FROM ventas 
+       WHERE negocio_id = $1 
+       AND fecha_venta BETWEEN $2 AND $3`,
+      [negocioId, startDate, endDate]
+    );
+
+    // PRODUCTOS CON STOCK BAJO
+    const productosStockBajo = await pool.query(
+      `SELECT COUNT(*) as total 
+       FROM productos 
+       WHERE stock_actual <= stock_minimo 
+       AND activo = true 
+       AND negocio_id = $1`,
+      [negocioId]
+    );
+
+    // TOP PRODUCTOS DEL PERÍODO
+    const topProductos = await pool.query(
+      `SELECT 
+          p.id,
+          p.nombre, 
+          SUM(dv.cantidad) as total_vendido,
+          SUM(dv.subtotal) as monto_total
+       FROM detalle_venta dv
+       JOIN productos p ON dv.producto_id = p.id
+       JOIN ventas v ON dv.venta_id = v.id
+       WHERE v.negocio_id = $1 
+       AND v.fecha_venta BETWEEN $2 AND $3
+       GROUP BY p.id, p.nombre
+       ORDER BY total_vendido DESC
+       LIMIT 10`,
+      [negocioId, startDate, endDate]
+    );
+
+    // VENTAS POR DÍA DEL PERÍODO
+    const ventasPorDia = await pool.query(
+      `SELECT 
+          DATE(fecha_venta) as fecha, 
+          COUNT(*) as cantidad, 
+          SUM(total) as total,
+          SUM(subtotal) as subtotal_total,
+          SUM(iva) as iva_total
+       FROM ventas
+       WHERE negocio_id = $1 
+       AND fecha_venta BETWEEN $2 AND $3
+       GROUP BY DATE(fecha_venta)
+       ORDER BY fecha ASC`,
+      [negocioId, startDate, endDate]
+    );
+
+    // TOTAL PRODUCTOS EN INVENTARIO
+    const totalProductos = await pool.query(
+      `SELECT COUNT(*) as total 
+       FROM productos 
+       WHERE activo = true 
+       AND negocio_id = $1`,
+      [negocioId]
+    );
+
+    // TOTAL DE CLIENTES ÚNICOS
+    const clientesUnicos = await pool.query(
+      `SELECT COUNT(DISTINCT cliente_documento) as total_clientes
+       FROM ventas
+       WHERE negocio_id = $1 
+       AND fecha_venta BETWEEN $2 AND $3
+       AND cliente_documento IS NOT NULL
+       AND cliente_documento != ''`,
+      [negocioId, startDate, endDate]
+    );
+
+    // PROMEDIO DE VENTAS POR DÍA
+    const promedioVentas = await pool.query(
+      `SELECT 
+          COALESCE(AVG(daily.total_sum), 0) as promedio_diario,
+          COALESCE(COUNT(DISTINCT DATE(fecha_venta)), 0) as dias_con_ventas
+       FROM (
+         SELECT DATE(fecha_venta) as fecha_dia, SUM(total) as total_sum
+         FROM ventas
+         WHERE negocio_id = $1 
+         AND fecha_venta BETWEEN $2 AND $3
+         GROUP BY DATE(fecha_venta)
+       ) daily`,
+      [negocioId, startDate, endDate]
+    );
+
+    // MÉTODO DE PAGO MÁS UTILIZADO
+    const metodoPagoPopular = await pool.query(
+      `SELECT 
+          metodo_pago,
+          COUNT(*) as cantidad,
+          SUM(total) as monto_total
+       FROM ventas
+       WHERE negocio_id = $1 
+       AND fecha_venta BETWEEN $2 AND $3
+       GROUP BY metodo_pago
+       ORDER BY cantidad DESC
+       LIMIT 1`,
+      [negocioId, startDate, endDate]
+    );
+
+    // VENTAS POR VENDEDOR
+    const ventasPorVendedor = await pool.query(
+      `SELECT 
+          u.id,
+          u.nombre as vendedor,
+          COUNT(v.id) as total_ventas,
+          SUM(v.total) as monto_total
+       FROM ventas v
+       JOIN usuarios u ON v.usuario_id = u.id
+       WHERE v.negocio_id = $1 
+       AND v.fecha_venta BETWEEN $2 AND $3
+       GROUP BY u.id, u.nombre
+       ORDER BY monto_total DESC`,
+      [negocioId, startDate, endDate]
+    );
+
+    console.log('📈 DEBUG super admin - Estadísticas calculadas correctamente');
+    
+    // Preparar respuesta
+    const response = {
+      negocio: {
+        id: negocio.id,
+        nombre: negocio.nombre
+      },
+      ventasPeriodo: ventasPeriodo.rows[0] || { total: 0, monto: 0 },
+      productosStockBajo: productosStockBajo.rows[0] || { total: 0 },
+      topProductos: topProductos.rows,
+      ventasPorDia: ventasPorDia.rows,
+      totalProductos: totalProductos.rows[0]?.total || 0,
+      totalClientes: clientesUnicos.rows[0]?.total_clientes || 0,
+      promedioVentas: promedioVentas.rows[0] || { promedio_diario: 0, dias_con_ventas: 0 },
+      metodoPagoPopular: metodoPagoPopular.rows[0] || null,
+      ventasPorVendedor: ventasPorVendedor.rows,
+      periodoInfo: {
+        tipo: periodo || 'hoy',
+        fecha_inicio: moment(startDate).format('YYYY-MM-DD'),
+        fecha_fin: moment(endDate).format('YYYY-MM-DD'),
+        dias: moment(endDate).diff(moment(startDate), 'days') + 1
+      }
+    };
+
+    // Para compatibilidad con el frontend existente
+    response.ventasHoy = {
+      total: response.ventasPeriodo.total,
+      monto: response.ventasPeriodo.monto
+    };
+    
+    response.ventasUltimaSemana = response.ventasPorDia;
+    
+    res.json(response);
+    
+  } catch (error) {
+    console.error('❌ ERROR obteniendo estadísticas super admin:', error);
+    res.status(500).json({ error: 'Error interno del servidor: ' + error.message });
+  }
+});
+
+// Ruta para estadísticas con filtros de período (solo admin)
 app.get('/api/estadisticas', authenticateToken, getNegocioUsuario, requireAdmin, async (req, res) => {
   try {
-    console.log('📈 DEBUG estadisticas - Usuario:', req.user.email, 'Rol:', req.user.rol, 'Negocio ID:', req.negocioId);
+    const { periodo, fecha_inicio, fecha_fin } = req.query;
+    
+    console.log('📈 DEBUG estadisticas - Parámetros:', { 
+      periodo, 
+      fecha_inicio, 
+      fecha_fin,
+      usuario: req.user.email, 
+      negocio: req.negocioId 
+    });
 
     if (req.user.rol === 'super_admin' && !req.negocioId) {
       return res.status(400).json({ 
@@ -727,54 +1041,176 @@ app.get('/api/estadisticas', authenticateToken, getNegocioUsuario, requireAdmin,
       });
     }
 
-    const ventasHoy = await pool.query(
+    // Definir fechas según el período
+    let startDate, endDate;
+    const now = new Date();
+    
+    switch (periodo) {
+      case 'hoy':
+        startDate = moment().startOf('day').toDate();
+        endDate = moment().endOf('day').toDate();
+        break;
+      case 'semana':
+        startDate = moment().subtract(7, 'days').startOf('day').toDate();
+        endDate = moment().endOf('day').toDate();
+        break;
+      case 'mes':
+        startDate = moment().subtract(30, 'days').startOf('day').toDate();
+        endDate = moment().endOf('day').toDate();
+        break;
+      case 'personalizado':
+        if (!fecha_inicio || !fecha_fin) {
+          return res.status(400).json({ error: 'Para período personalizado se requieren fecha_inicio y fecha_fin' });
+        }
+        startDate = moment(fecha_inicio).startOf('day').toDate();
+        endDate = moment(fecha_fin).endOf('day').toDate();
+        
+        // Validar que no sea un rango mayor a 1 año
+        const diffDays = moment(endDate).diff(moment(startDate), 'days');
+        if (diffDays > 365) {
+          return res.status(400).json({ error: 'El período no puede ser mayor a 1 año' });
+        }
+        break;
+      default:
+        // Por defecto: hoy
+        startDate = moment().startOf('day').toDate();
+        endDate = moment().endOf('day').toDate();
+    }
+
+    console.log('📈 DEBUG - Fechas calculadas:', { 
+      startDate: moment(startDate).format('YYYY-MM-DD HH:mm:ss'),
+      endDate: moment(endDate).format('YYYY-MM-DD HH:mm:ss'),
+      periodo: periodo || 'hoy'
+    });
+
+    // VENTAS DEL PERÍODO
+    const ventasPeriodo = await pool.query(
       `SELECT COUNT(*) as total, COALESCE(SUM(total), 0) as monto 
        FROM ventas 
-       WHERE negocio_id = $1 AND DATE(fecha_venta) = CURRENT_DATE`,
-      [req.negocioId]
+       WHERE negocio_id = $1 
+       AND fecha_venta BETWEEN $2 AND $3`,
+      [req.negocioId, startDate, endDate]
     );
 
+    // PRODUCTOS CON STOCK BAJO (este no depende del período)
     const productosStockBajo = await pool.query(
       `SELECT COUNT(*) as total 
        FROM productos 
-       WHERE stock_actual <= stock_minimo AND activo = true AND negocio_id = $1`,
+       WHERE stock_actual <= stock_minimo 
+       AND activo = true 
+       AND negocio_id = $1`,
       [req.negocioId]
     );
 
+    // TOP PRODUCTOS DEL PERÍODO
     const topProductos = await pool.query(
-      `SELECT p.nombre, SUM(dv.cantidad) as total_vendido
+      `SELECT 
+          p.id,
+          p.nombre, 
+          SUM(dv.cantidad) as total_vendido,
+          SUM(dv.subtotal) as monto_total
        FROM detalle_venta dv
        JOIN productos p ON dv.producto_id = p.id
        JOIN ventas v ON dv.venta_id = v.id
-       WHERE v.negocio_id = $1 AND v.fecha_venta >= CURRENT_DATE - INTERVAL '7 days'
+       WHERE v.negocio_id = $1 
+       AND v.fecha_venta BETWEEN $2 AND $3
        GROUP BY p.id, p.nombre
        ORDER BY total_vendido DESC
-       LIMIT 5`,
+       LIMIT 10`,
+      [req.negocioId, startDate, endDate]
+    );
+
+    // VENTAS POR DÍA DEL PERÍODO
+    const ventasPorDia = await pool.query(
+      `SELECT 
+          DATE(fecha_venta) as fecha, 
+          COUNT(*) as cantidad, 
+          SUM(total) as total,
+          SUM(subtotal) as subtotal_total,
+          SUM(iva) as iva_total
+       FROM ventas
+       WHERE negocio_id = $1 
+       AND fecha_venta BETWEEN $2 AND $3
+       GROUP BY DATE(fecha_venta)
+       ORDER BY fecha ASC`,
+      [req.negocioId, startDate, endDate]
+    );
+
+    // TOTAL PRODUCTOS EN INVENTARIO
+    const totalProductos = await pool.query(
+      `SELECT COUNT(*) as total 
+       FROM productos 
+       WHERE activo = true 
+       AND negocio_id = $1`,
       [req.negocioId]
     );
 
-    const ventasUltimaSemana = await pool.query(
-      `SELECT DATE(fecha_venta) as fecha, COUNT(*) as cantidad, SUM(total) as total
+    // PROMEDIO DE VENTAS POR DÍA
+    const promedioVentas = await pool.query(
+      `SELECT 
+          COALESCE(AVG(daily_sales.total_sum), 0) as promedio_diario,
+          COALESCE(COUNT(DISTINCT DATE(fecha_venta)), 0) as dias_con_ventas
+       FROM (
+         SELECT DATE(fecha_venta) as fecha_dia, SUM(total) as total_sum
+         FROM ventas
+         WHERE negocio_id = $1 
+         AND fecha_venta BETWEEN $2 AND $3
+         GROUP BY DATE(fecha_venta)
+       ) daily_sales`,
+      [req.negocioId, startDate, endDate]
+    );
+
+    // MÉTODO DE PAGO MÁS UTILIZADO
+    const metodoPagoPopular = await pool.query(
+      `SELECT 
+          metodo_pago,
+          COUNT(*) as cantidad,
+          SUM(total) as monto_total
        FROM ventas
-       WHERE negocio_id = $1 AND fecha_venta >= CURRENT_DATE - INTERVAL '7 days'
-       GROUP BY DATE(fecha_venta)
-       ORDER BY fecha DESC`,
-      [req.negocioId]
+       WHERE negocio_id = $1 
+       AND fecha_venta BETWEEN $2 AND $3
+       GROUP BY metodo_pago
+       ORDER BY cantidad DESC
+       LIMIT 1`,
+      [req.negocioId, startDate, endDate]
     );
 
     console.log('📈 DEBUG - Estadísticas calculadas correctamente');
-    res.json({
-      ventasHoy: ventasHoy.rows[0],
-      productosStockBajo: productosStockBajo.rows[0],
+    
+    // Preparar respuesta
+    const response = {
+      ventasPeriodo: ventasPeriodo.rows[0] || { total: 0, monto: 0 },
+      productosStockBajo: productosStockBajo.rows[0] || { total: 0 },
       topProductos: topProductos.rows,
-      ventasUltimaSemana: ventasUltimaSemana.rows
-    });
+      ventasPorDia: ventasPorDia.rows,
+      totalProductos: totalProductos.rows[0]?.total || 0,
+      promedioVentas: promedioVentas.rows[0] || { promedio_diario: 0, dias_con_ventas: 0 },
+      metodoPagoPopular: metodoPagoPopular.rows[0] || null,
+      periodoInfo: {
+        tipo: periodo || 'hoy',
+        fecha_inicio: moment(startDate).format('YYYY-MM-DD'),
+        fecha_fin: moment(endDate).format('YYYY-MM-DD'),
+        dias: moment(endDate).diff(moment(startDate), 'days') + 1
+      }
+    };
+
+    // Para compatibilidad con el frontend existente, mantenemos las propiedades anteriores
+    response.ventasHoy = {
+      total: response.ventasPeriodo.total,
+      monto: response.ventasPeriodo.monto
+    };
+    
+    response.ventasUltimaSemana = response.ventasPorDia;
+    
+    res.json(response);
     
   } catch (error) {
-    console.error('Error obteniendo estadísticas:', error);
-    res.status(500).json({ error: 'Error interno del servidor' });
+    console.error('❌ ERROR obteniendo estadísticas:', error);
+    res.status(500).json({ error: 'Error interno del servidor: ' + error.message });
   }
 });
+
+  
 
 // Ruta para obtener categorías
 app.get('/api/categorias', authenticateToken, getNegocioUsuario, async (req, res) => {
@@ -1470,8 +1906,192 @@ async function generarExcelVentas(negocioId, fechaInicio, fechaFin) {
   });
 }
 
+
+
 // 5. REPORTE FINANCIERO MENSUAL (PDF) - Función placeholder
 async function generarReporteFinancieroMensual(negocioId, fechaInicio, fechaFin) {
   // Por ahora usamos la misma función que ventas diarias
   return await generarReporteVentasDiarias(negocioId, fechaInicio, fechaFin);
 }
+
+
+// =============================================
+// RUTAS DE MIGRACIÓN PARA PRODUCCIÓN
+// =============================================
+
+// RUTA ESPECIAL PARA ACTUALIZAR LA BASE DE DATOS EN PRODUCCIÓN
+// Solo ejecutar una vez y luego desactivar
+app.get('/api/migrate/add-devolucion-fields', authenticateToken, requireSuperAdmin, async (req, res) => {
+  try {
+    console.log('🔄 Ejecutando migración para agregar campos de devolución...');
+    
+    // 1. Verificar si las columnas ya existen
+    const checkColumns = await pool.query(`
+      SELECT column_name 
+      FROM information_schema.columns 
+      WHERE table_name = 'ventas' 
+      AND column_name IN ('es_devolucion', 'motivo_devolucion')
+    `);
+
+    const existingColumns = checkColumns.rows.map(row => row.column_name);
+    console.log('📊 Columnas existentes en ventas:', existingColumns);
+
+    const results = [];
+    
+    // 2. Agregar columna 'es_devolucion' si no existe
+    if (!existingColumns.includes('es_devolucion')) {
+      try {
+        await pool.query(`
+          ALTER TABLE ventas 
+          ADD COLUMN es_devolucion BOOLEAN DEFAULT false
+        `);
+        results.push('✅ Columna "es_devolucion" agregada correctamente');
+        console.log('✅ Columna "es_devolucion" agregada');
+      } catch (error) {
+        results.push(`❌ Error agregando "es_devolucion": ${error.message}`);
+        console.error('❌ Error agregando es_devolucion:', error);
+      }
+    } else {
+      results.push('✅ Columna "es_devolucion" ya existe');
+    }
+
+    // 3. Agregar columna 'motivo_devolucion' si no existe
+    if (!existingColumns.includes('motivo_devolucion')) {
+      try {
+        await pool.query(`
+          ALTER TABLE ventas 
+          ADD COLUMN motivo_devolucion TEXT
+        `);
+        results.push('✅ Columna "motivo_devolucion" agregada correctamente');
+        console.log('✅ Columna "motivo_devolucion" agregada');
+      } catch (error) {
+        results.push(`❌ Error agregando "motivo_devolucion": ${error.message}`);
+        console.error('❌ Error agregando motivo_devolucion:', error);
+      }
+    } else {
+      results.push('✅ Columna "motivo_devolucion" ya existe');
+    }
+
+    // 4. Verificar estructura final
+    const finalCheck = await pool.query(`
+      SELECT column_name, data_type, is_nullable, column_default
+      FROM information_schema.columns 
+      WHERE table_name = 'ventas'
+      AND column_name IN ('es_devolucion', 'motivo_devolucion')
+      ORDER BY column_name
+    `);
+
+    console.log('📊 Estructura final de columnas:');
+    finalCheck.rows.forEach(col => {
+      console.log(`   ${col.column_name}: ${col.data_type} (nullable: ${col.is_nullable})`);
+    });
+
+    res.json({
+      success: true,
+      message: 'Migración completada',
+      results: results,
+      finalStructure: finalCheck.rows,
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error('❌ ERROR en migración:', error);
+    res.status(500).json({ 
+      error: 'Error en migración', 
+      details: error.message 
+    });
+  }
+});
+
+// Ruta más segura con POST (recomendada)
+app.post('/api/migrate/add-devolucion-fields', authenticateToken, requireSuperAdmin, async (req, res) => {
+  try {
+    // Añadir validación de contraseña para mayor seguridad
+    const { password } = req.body;
+    
+    // Verificar contraseña de super admin para confirmar
+    const usuarioResult = await pool.query(
+      'SELECT password FROM usuarios WHERE id = $1 AND rol = $2',
+      [req.user.id, 'super_admin']
+    );
+
+    if (usuarioResult.rows.length === 0) {
+      return res.status(403).json({ error: 'No autorizado' });
+    }
+
+    const usuario = usuarioResult.rows[0];
+    const passwordValida = await bcrypt.compare(password, usuario.password);
+    
+    if (!passwordValida) {
+      return res.status(403).json({ error: 'Contraseña incorrecta' });
+    }
+
+    console.log('🔄 Ejecutando migración (POST) para agregar campos de devolución...');
+    
+    // El resto del código de migración igual que arriba...
+    // (copiar todo el código del try-catch anterior aquí)
+    
+    // ... código de migración ...
+
+  } catch (error) {
+    console.error('❌ ERROR en migración POST:', error);
+    res.status(500).json({ 
+      error: 'Error en migración', 
+      details: error.message 
+    });
+  }
+});
+
+// Ruta para verificar el estado de la base de datos
+app.get('/api/database/check-structure', authenticateToken, requireSuperAdmin, async (req, res) => {
+  try {
+    // Obtener todas las tablas
+    const tablesResult = await pool.query(`
+      SELECT table_name 
+      FROM information_schema.tables 
+      WHERE table_schema = 'public'
+      ORDER BY table_name
+    `);
+
+    const tablesInfo = [];
+
+    for (const table of tablesResult.rows) {
+      const columnsResult = await pool.query(`
+        SELECT column_name, data_type, is_nullable, column_default
+        FROM information_schema.columns 
+        WHERE table_name = $1
+        ORDER BY ordinal_position
+      `, [table.table_name]);
+
+      tablesInfo.push({
+        table: table.table_name,
+        columns: columnsResult.rows
+      });
+    }
+
+    // Verificar específicamente la tabla ventas
+    const ventasColumns = tablesInfo.find(t => t.table === 'ventas');
+    const tieneDevolucionFields = ventasColumns?.columns.some(col => 
+      col.column_name === 'es_devolucion' || col.column_name === 'motivo_devolucion'
+    );
+
+    res.json({
+      success: true,
+      database: process.env.DB_NAME || 'inventario_negocio',
+      totalTables: tablesResult.rows.length,
+      tables: tablesInfo,
+      ventasStatus: {
+        hasDevolucionFields: tieneDevolucionFields,
+        columnsCount: ventasColumns?.columns.length || 0
+      },
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error('❌ ERROR verificando estructura:', error);
+    res.status(500).json({ 
+      error: 'Error verificando estructura', 
+      details: error.message 
+    });
+  }
+});

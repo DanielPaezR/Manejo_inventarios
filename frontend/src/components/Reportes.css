@@ -133,3 +133,210 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* Estilos para búsqueda de facturas */
+.busqueda-facturas-section {
+  background: white;
+  border-radius: 10px;
+  padding: 20px;
+  margin-bottom: 20px;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+}
+
+.busqueda-form {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-top: 15px;
+}
+
+.busqueda-form input {
+  flex: 1;
+  padding: 12px 15px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 16px;
+}
+
+.busqueda-form input:focus {
+  outline: none;
+  border-color: #007bff;
+  box-shadow: 0 0 0 3px rgba(0,123,255,0.1);
+}
+
+.btn-buscar {
+  padding: 12px 20px;
+  background: #28a745;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: background 0.3s;
+}
+
+.btn-buscar:hover:not(:disabled) {
+  background: #218838;
+}
+
+.btn-buscar:disabled {
+  background: #cccccc;
+  cursor: not-allowed;
+}
+
+.btn-limpiar {
+  padding: 12px 15px;
+  background: #6c757d;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.3s;
+}
+
+.btn-limpiar:hover {
+  background: #5a6268;
+}
+
+.resultado-busqueda {
+  margin-top: 20px;
+  padding: 15px;
+  background: #f8f9fa;
+  border-radius: 6px;
+  border-left: 4px solid #007bff;
+}
+
+.factura-encontrada {
+  animation: fadeIn 0.5s ease;
+}
+
+.factura-info {
+  background: white;
+  padding: 15px;
+  border-radius: 6px;
+  margin: 10px 0;
+  border: 1px solid #e9ecef;
+}
+
+.factura-info p {
+  margin: 8px 0;
+  display: flex;
+  justify-content: space-between;
+}
+
+.factura-info strong {
+  color: #495057;
+  min-width: 120px;
+}
+
+.factura-acciones {
+  display: flex;
+  justify-content: center;
+  margin-top: 15px;
+}
+
+.btn-imprimir {
+  padding: 12px 25px;
+  background: #17a2b8;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: background 0.3s;
+}
+
+.btn-imprimir:hover {
+  background: #138496;
+}
+
+.sin-resultados {
+  text-align: center;
+  padding: 20px;
+  color: #dc3545;
+  background: white;
+  border-radius: 6px;
+  border: 1px solid #f5c6cb;
+}
+
+.sin-resultados small {
+  display: block;
+  margin-top: 10px;
+  color: #6c757d;
+  font-size: 12px;
+}
+
+/* Mejoras a los mensajes */
+.mensaje.success {
+  background: #d4edda;
+  color: #155724;
+  border: 1px solid #c3e6cb;
+}
+
+.mensaje.error {
+  background: #f8d7da;
+  color: #721c24;
+  border: 1px solid #f5c6cb;
+}
+
+.mensaje.info {
+  background: #d1ecf1;
+  color: #0c5460;
+  border: 1px solid #bee5eb;
+}
+
+/* Notas y consejos */
+.nota-fechas {
+  margin: 10px 0;
+  padding: 10px;
+  background: #fff3cd;
+  border: 1px solid #ffeaa7;
+  border-radius: 4px;
+  color: #856404;
+}
+
+.consejo-reportes {
+  margin-top: 20px;
+  padding: 15px;
+  background: #e7f5ff;
+  border-radius: 6px;
+  border-left: 4px solid #007bff;
+}
+
+.consejo-reportes ul {
+  margin: 10px 0 0 20px;
+  padding: 0;
+}
+
+.consejo-reportes li {
+  margin: 5px 0;
+  color: #495057;
+}
+
+/* Animación */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .busqueda-form {
+    flex-direction: column;
+  }
+  
+  .busqueda-form input,
+  .busqueda-form button {
+    width: 100%;
+  }
+  
+  .fechas-group {
+    flex-direction: column;
+  }
+}

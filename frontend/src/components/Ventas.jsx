@@ -21,6 +21,8 @@ const Ventas = ({ user }) => {
   const [modoScanner, setModoScanner] = useState(false);
   
   const inputBusquedaRef = useRef(null);
+  const confirmarButtonRef = useRef(null);
+  const cancelarButtonRef = useRef(null);
 
   // Cargar productos
   useEffect(() => {
@@ -34,6 +36,15 @@ const Ventas = ({ user }) => {
       setMensaje('🔴 Modo scanner activado - Listo para escanear');
     }
   }, [modoScanner]);
+
+  // Focus automático en el botón de confirmar cuando aparece el modal
+  useEffect(() => {
+    if (mostrarConfirmacion && confirmarButtonRef.current) {
+      setTimeout(() => {
+        confirmarButtonRef.current.focus();
+      }, 100);
+    }
+  }, [mostrarConfirmacion]);
 
   const cargarProductos = async () => {
     try {
@@ -92,6 +103,25 @@ const Ventas = ({ user }) => {
     if (e.key === 'Enter' && busqueda.trim()) {
       e.preventDefault();
       buscarProducto();
+    }
+  };
+
+  // ✅ MANEJADOR DE TECLADO PARA EL MODAL DE CONFIRMACIÓN
+  const handleModalKeyDown = (e) => {
+    if (e.key === 'Enter') {
+      if (document.activeElement === confirmarButtonRef.current) {
+        procesarVenta();
+      } else if (document.activeElement === cancelarButtonRef.current) {
+        setMostrarConfirmacion(false);
+      }
+    } else if (e.key === 'Escape') {
+      setMostrarConfirmacion(false);
+    } else if (e.key === 'Tab' && e.shiftKey) {
+      // Prevenir tab hacia atrás desde el primer botón
+      if (document.activeElement === confirmarButtonRef.current) {
+        e.preventDefault();
+        cancelarButtonRef.current.focus();
+      }
     }
   };
 
@@ -260,9 +290,9 @@ const Ventas = ({ user }) => {
         />
       )}
 
-      {/* Modal de Confirmación */}
+      {/* Modal de Confirmación - MODIFICADO */}
       {mostrarConfirmacion && (
-        <div className="modal-overlay">
+        <div className="modal-overlay" onKeyDown={handleModalKeyDown}>
           <div className="modal-confirmacion">
             <h3>Confirmar Venta</h3>
             <div className="confirmacion-detalles">
@@ -275,17 +305,20 @@ const Ventas = ({ user }) => {
             </div>
             <div className="modal-actions">
               <button 
+                ref={confirmarButtonRef}
                 onClick={procesarVenta} 
                 disabled={loading}
                 className="btn-confirmar"
+                autoFocus
               >
-                {loading ? 'Procesando...' : '✅ Confirmar Venta'}
+                {loading ? 'Procesando...' : '✅ Confirmar Venta (Enter)'}
               </button>
               <button 
+                ref={cancelarButtonRef}
                 onClick={() => setMostrarConfirmacion(false)}
                 className="btn-cancelar"
               >
-                ✖️ Cancelar
+                ✖️ Cancelar (Esc)
               </button>
             </div>
           </div>

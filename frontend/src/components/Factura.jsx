@@ -1,19 +1,61 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import './Factura.css';
 
 const Factura = ({ venta, onClose }) => {
+  const printButtonRef = useRef(null);
+  const closeButtonRef = useRef(null);
+  const [isPrinting, setIsPrinting] = React.useState(false);
+
   if (!venta) return null;
 
+  // Enfocar el botón de imprimir cuando el componente se monta
+  useEffect(() => {
+    if (printButtonRef.current) {
+      printButtonRef.current.focus();
+    }
+  }, []);
+
   const handlePrint = () => {
+    setIsPrinting(true);
     window.print();
+    // Después de imprimir, enfocar el botón de cerrar
+    setTimeout(() => {
+      if (closeButtonRef.current) {
+        closeButtonRef.current.focus();
+      }
+      setIsPrinting(false);
+    }, 100);
+  };
+
+  // Manejar teclas para mejorar la experiencia
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter') {
+      if (document.activeElement === printButtonRef.current && !isPrinting) {
+        handlePrint();
+      } else if (document.activeElement === closeButtonRef.current) {
+        onClose();
+      }
+    } else if (e.key === 'Escape') {
+      onClose();
+    } else if (e.key === 'Tab' && e.shiftKey && document.activeElement === printButtonRef.current) {
+      // Prevenir tab hacia atrás desde el primer botón
+      e.preventDefault();
+      closeButtonRef.current.focus();
+    }
   };
 
   return (
-    <div className="factura-overlay">
+    <div className="factura-overlay" onKeyDown={handleKeyDown}>
       <div className="factura-container">
         <div className="factura-header">
           <h2>FACTURA DE VENTA</h2>
-          <button className="btn-close" onClick={onClose}>×</button>
+          <button 
+            className="btn-close" 
+            onClick={onClose}
+            aria-label="Cerrar"
+          >
+            ×
+          </button>
         </div>
         
         <div className="factura-content" id="factura-print">
@@ -90,11 +132,20 @@ const Factura = ({ venta, onClose }) => {
         </div>
         
         <div className="factura-actions">
-          <button className="btn btn-primary" onClick={handlePrint}>
-            🖨️ Imprimir Factura
+          <button 
+            ref={printButtonRef}
+            className="btn btn-primary" 
+            onClick={handlePrint}
+            autoFocus
+          >
+            🖨️ Imprimir Factura (Enter)
           </button>
-          <button className="btn btn-secondary" onClick={onClose}>
-            Cerrar
+          <button 
+            ref={closeButtonRef}
+            className="btn btn-secondary" 
+            onClick={onClose}
+          >
+            Cerrar (Enter/Esc)
           </button>
         </div>
       </div>
