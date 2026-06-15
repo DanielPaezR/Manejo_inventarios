@@ -49,7 +49,6 @@ const authenticateToken = (req, res, next) => {
   });
 };
 
-// Agrega esto al principio de tu server.js, después de los middlewares
 app.use((req, res, next) => {
   console.log('📍 Ruta solicitada:', req.method, req.url);
   next();
@@ -1293,12 +1292,6 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-app.listen(PORT, () => {
-  console.log(`🚀 Servidor corriendo en puerto ${PORT}`);
-  console.log(`📊 Sistema de Inventario con Múltiples Negocios`);
-  console.log(`💾 Base de datos: ${process.env.DB_NAME || 'inventario_negocio'}`);
-});
-
 // Ruta para obtener usuarios de un negocio (solo super admin)
 app.get('/api/negocios/:id/usuarios', authenticateToken, requireSuperAdmin, async (req, res) => {
   try {
@@ -2375,4 +2368,21 @@ app.get('/api/fix/restaurar-fecha-venta', authenticateToken, requireSuperAdmin, 
   } finally {
     client.release();
   }
+});
+
+// ==================== SERVIR FRONTEND (React) ====================
+// Servir archivos estáticos desde frontend/dist
+const path = require('path');
+app.use(express.static(path.join(__dirname, '../frontend/dist')));
+
+// Cualquier ruta no manejada por la API envía index.html (para React Router)
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, '../frontend/dist/index.html'));
+});
+
+// ==================== INICIAR SERVIDOR ====================
+app.listen(PORT, () => {
+  console.log(`🚀 Servidor corriendo en puerto ${PORT}`);
+  console.log(`📊 Sistema de Inventario con Múltiples Negocios`);
+  console.log(`💾 Base de datos: ${process.env.DB_NAME || 'inventario_negocio'}`);
 });
