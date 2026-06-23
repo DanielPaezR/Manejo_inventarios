@@ -1,151 +1,144 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useRef } from 'react';
 import './Factura.css';
 
 const Factura = ({ venta, onClose }) => {
-  const printButtonRef = useRef(null);
-  const closeButtonRef = useRef(null);
-  const [isPrinting, setIsPrinting] = React.useState(false);
+  const facturaRef = useRef();
 
   if (!venta) return null;
 
-  // Enfocar el botón de imprimir cuando el componente se monta
-  useEffect(() => {
-    if (printButtonRef.current) {
-      printButtonRef.current.focus();
+  const imprimirFactura = () => {
+    const contenido = facturaRef.current;
+    if (!contenido) return;
+    
+    const ventana = window.open('', '_blank', 'width=400,height=600');
+    if (!ventana) {
+      alert('Por favor, permite las ventanas emergentes para imprimir');
+      return;
     }
-  }, []);
-
-  const handlePrint = () => {
-    setIsPrinting(true);
-    window.print();
-    // Después de imprimir, enfocar el botón de cerrar
-    setTimeout(() => {
-      if (closeButtonRef.current) {
-        closeButtonRef.current.focus();
-      }
-      setIsPrinting(false);
-    }, 100);
-  };
-
-  // Manejar teclas para mejorar la experiencia
-  const handleKeyDown = (e) => {
-    if (e.key === 'Enter') {
-      if (document.activeElement === printButtonRef.current && !isPrinting) {
-        handlePrint();
-      } else if (document.activeElement === closeButtonRef.current) {
-        onClose();
-      }
-    } else if (e.key === 'Escape') {
-      onClose();
-    } else if (e.key === 'Tab' && e.shiftKey && document.activeElement === printButtonRef.current) {
-      // Prevenir tab hacia atrás desde el primer botón
-      e.preventDefault();
-      closeButtonRef.current.focus();
-    }
+    
+    ventana.document.write(`
+      <html>
+        <head>
+          <title>Factura ${venta.numero_factura}</title>
+          <style>
+            body { font-family: monospace; padding: 20px; max-width: 350px; margin: 0 auto; }
+            .factura-header { text-align: center; border-bottom: 1px dashed #000; padding-bottom: 10px; margin-bottom: 10px; }
+            .factura-detalle { border-bottom: 1px solid #ddd; padding: 5px 0; }
+            .factura-total { font-weight: bold; font-size: 1.2em; text-align: right; margin-top: 10px; }
+            .factura-pie { text-align: center; margin-top: 20px; font-size: 0.9em; }
+            .factura-cliente { margin: 10px 0; padding: 10px; background: #f5f5f5; border-radius: 5px; }
+            .factura-items table { width: 100%; border-collapse: collapse; }
+            .factura-items th, .factura-items td { padding: 5px; text-align: left; border-bottom: 1px solid #ddd; }
+            .factura-items th { background: #f0f0f0; }
+            .factura-totales { margin-top: 10px; text-align: right; }
+            @media print { .no-print { display: none; } }
+          </style>
+        </head>
+        <body>
+          <div id="factura-print">
+            ${contenido.innerHTML}
+          </div>
+          <div class="no-print" style="text-align:center;margin-top:20px;">
+            <button onclick="window.print()">🖨️ Imprimir</button>
+            <button onclick="window.close()">Cerrar</button>
+          </div>
+          <script>
+            window.print();
+          <\/script>
+        </body>
+      </html>
+    `);
+    ventana.document.close();
   };
 
   return (
-    <div className="factura-overlay" onKeyDown={handleKeyDown}>
-      <div className="factura-container">
-        <div className="factura-header">
-          <h2>FACTURA DE VENTA</h2>
-          <button 
-            className="btn-close" 
-            onClick={onClose}
-            aria-label="Cerrar"
-          >
-            ×
-          </button>
+    <div className="factura-modal" onClick={onClose}>
+      <div className="factura-modal-content" onClick={(e) => e.stopPropagation()}>
+        <div className="factura-modal-header">
+          <h3>🧾 Factura</h3>
+          <button onClick={onClose}>✕</button>
         </div>
         
-        <div className="factura-content" id="factura-print">
-          {/* Encabezado de la factura */}
-          <div className="factura-empresa">
-            <h3>{venta.negocio_nombre}</h3>
-            <p>NIT: {venta.negocio_ruc_nit}</p>
-            <p>Dirección: {venta.negocio_direccion}</p>
-            <p>Teléfono: {venta.negocio_telefono}</p>
+        <div ref={facturaRef} className="factura-content">
+          {/* Cabecera de la factura */}
+          <div className="factura-header">
+            <h2>{venta.negocio_nombre || 'Mi Negocio'}</h2>
+            <p>{venta.negocio_direccion || ''}</p>
+            <p>Tel: {venta.negocio_telefono || ''}</p>
+            <p>NIT: {venta.negocio_ruc_nit || ''}</p>
+            {venta.modulo_nombre && (
+              <p><strong>Módulo:</strong> {venta.modulo_nombre}</p>
+            )}
+            <hr />
+            <p><strong>Factura N°:</strong> {venta.numero_factura}</p>
+            <p><strong>Fecha:</strong> {new Date(venta.fecha_venta).toLocaleString()}</p>
+            <p><strong>Vendedor:</strong> {venta.vendedor_nombre || 'N/A'}</p>
           </div>
-          
-          {/* Información de la factura */}
-          <div className="factura-info">
-            <div className="factura-numero">
-              <strong>Factura No:</strong> {venta.numero_factura}
+
+          {/* Datos del cliente */}
+          {venta.cliente_nombre && (
+            <div className="factura-cliente">
+              <p><strong>Cliente:</strong> {venta.cliente_nombre}</p>
+              {venta.cliente_documento && <p><strong>Documento:</strong> {venta.cliente_documento}</p>}
+              {venta.cliente_direccion && <p><strong>Dirección:</strong> {venta.cliente_direccion}</p>}
+              {venta.cliente_telefono && <p><strong>Teléfono:</strong> {venta.cliente_telefono}</p>}
             </div>
-            <div className="factura-fecha">
-              <strong>Fecha:</strong> {new Date(venta.fecha_venta).toLocaleDateString()}
-            </div>
-          </div>
-          
-          {/* Información del cliente */}
-          <div className="factura-cliente">
-            <h4>DATOS DEL CLIENTE</h4>
-            <p><strong>Nombre:</strong> {venta.cliente_nombre || 'Consumidor Final'}</p>
-            <p><strong>Documento:</strong> {venta.cliente_documento || 'No especificado'}</p>
-            {venta.cliente_telefono && <p><strong>Teléfono:</strong> {venta.cliente_telefono}</p>}
-          </div>
-          
-          {/* Detalles de los productos */}
-          <table className="factura-detalles">
-            <thead>
-              <tr>
-                <th>Producto</th>
-                <th>Cantidad</th>
-                <th>Precio Unitario</th>
-                <th>Subtotal</th>
-              </tr>
-            </thead>
-            <tbody>
-              {venta.detalles.map((detalle, index) => (
-                <tr key={index}>
-                  <td>{detalle.producto_nombre}</td>
-                  <td>{detalle.cantidad}</td>
-                  <td>${detalle.precio_unitario.toLocaleString()}</td>
-                  <td>${detalle.subtotal.toLocaleString()}</td>
+          )}
+
+          {/* Detalles de la factura */}
+          <div className="factura-items">
+            <table>
+              <thead>
+                <tr>
+                  <th>Producto</th>
+                  <th>Cant</th>
+                  <th>Precio</th>
+                  <th>Subtotal</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-          
-          {/* Totales */}
-          <div className="factura-totales">
-            <div className="total-line">
-              <span>Subtotal:</span>
-              <span>${venta.subtotal.toLocaleString()}</span>
-            </div>
-            <div className="total-line">
-              <span>IVA (19%):</span>
-              <span>${venta.iva.toLocaleString()}</span>
-            </div>
-            <div className="total-line total-final">
-              <span>TOTAL:</span>
-              <span>${venta.total.toLocaleString()}</span>
-            </div>
+              </thead>
+              <tbody>
+                {venta.detalles && venta.detalles.map((detalle, index) => (
+                  <tr key={index}>
+                    <td>{detalle.producto_nombre}</td>
+                    <td>{detalle.cantidad}</td>
+                    <td>${Number(detalle.precio_unitario).toLocaleString()}</td>
+                    <td>${Number(detalle.subtotal).toLocaleString()}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
-          
-          {/* Información adicional */}
+
+          {/* Totales (sin IVA) */}
+          <div className="factura-totales">
+            <div className="total-linea">
+              <span>Subtotal:</span>
+              <span>${Number(venta.subtotal || 0).toLocaleString()}</span>
+            </div>
+            <div className="total-linea total">
+              <span><strong>Total:</strong></span>
+              <span><strong>${Number(venta.total || 0).toLocaleString()}</strong></span>
+            </div>
+            {venta.metodo_pago && (
+              <div className="total-linea">
+                <span>Método de pago:</span>
+                <span>{venta.metodo_pago}</span>
+              </div>
+            )}
+          </div>
+
+          {/* Pie de factura */}
           <div className="factura-footer">
-            <p><strong>Método de pago:</strong> {venta.metodo_pago}</p>
-            <p><strong>Vendedor:</strong> {venta.vendedor_nombre}</p>
-            <p className="factura-leyenda">¡Gracias por su compra!</p>
+            <p>¡Gracias por tu compra!</p>
           </div>
         </div>
-        
-        <div className="factura-actions">
-          <button 
-            ref={printButtonRef}
-            className="btn btn-primary" 
-            onClick={handlePrint}
-            autoFocus
-          >
-            🖨️ Imprimir Factura (Enter)
+
+        <div className="factura-modal-footer">
+          <button onClick={imprimirFactura} className="btn-imprimir">
+            🖨️ Imprimir
           </button>
-          <button 
-            ref={closeButtonRef}
-            className="btn btn-secondary" 
-            onClick={onClose}
-          >
-            Cerrar (Enter/Esc)
+          <button onClick={onClose} className="btn-cerrar-factura">
+            Cerrar
           </button>
         </div>
       </div>

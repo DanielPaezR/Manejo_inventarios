@@ -1,553 +1,307 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
+import api from '../services/api';
+import { useModulo } from '../hooks/useModulo';
 import './GestionInventario.css';
 
 const GestionInventario = ({ user }) => {
-  const [codigoEAN, setCodigoEAN] = useState('');
-  const [productoEncontrado, setProductoEncontrado] = useState(null);
-  const [cantidad, setCantidad] = useState('');
-  const [motivo, setMotivo] = useState('');
-  const [tipoMovimiento, setTipoMovimiento] = useState('agregar'); // agregar, ajustar, devolucion
-  const [mostrarModal, setMostrarModal] = useState(false);
-  const [mensaje, setMensaje] = useState('');
+  const { moduloActivo } = useModulo();
+  const [productos, setProductos] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [clienteInfo, setClienteInfo] = useState({
-    nombre: '',
-    documento: '',
-    telefono: '',
-    motivo_devolucion: ''
-  });
-  const eanInputRef = useRef(null);
+  const [selectedProducto, setSelectedProducto] = useState(null);
+  const [cantidad, setCantidad] = useState('');
+  const [nuevoStock, setNuevoStock] = useState('');
+  const [motivo, setMotivo] = useState('');
+  const [tipoOperacion, setTipoOperacion] = useState('agregar'); // 'agregar' o 'ajustar'
+  const [mensaje, setMensaje] = useState('');
 
-  const API_BASE_URL = 'https://manejoinventarios-production.up.railway.app';
+  // Verificar permisos (solo admin)
+  const puedeGestionar = user?.rol === 'admin' || user?.rol === 'super_admin';
 
   useEffect(() => {
-    if (mostrarModal && eanInputRef.current) {
-      eanInputRef.current.focus();
+    if (moduloActivo && puedeGestionar) {
+      cargarProductos();
     }
-  }, [mostrarModal]);
+  }, [moduloActivo]);
 
-  const buscarProductoPorEAN = async (ean) => {
-    if (!ean) {
-      setMensaje('❌ Ingrese un código EAN');
-      return;
-    }
-
-    setLoading(true);
-    setMensaje('🔍 Buscando producto...');
-    
+  const cargarProductos = async () => {
     try {
-      const token = localStorage.getItem('token');
-      
-      const response = await fetch(`${API_BASE_URL}/api/productos?search=${encodeURIComponent(ean)}`, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      let productos = [];
-      try {
-        const responseText = await response.text();
-        productos = JSON.parse(responseText);
-      } catch (parseError) {
-        console.error('❌ Error parseando respuesta:', parseError);
-        setMensaje('❌ Error del servidor');
-        return;
-      }
-
-      if (response.ok) {
-        const productoExacto = productos.find(p => p.codigo_ean === ean);
-        
-        if (productoExacto) {
-          setProductoEncontrado(productoExacto);
-          setMensaje(`✅ Producto encontrado: ${productoExacto.nombre}`);
-          setTimeout(() => {
-            const cantidadInput = document.querySelector('input[type="number"]');
-            if (cantidadInput) cantidadInput.focus();
-          }, 100);
-        } else if (productos.length > 0) {
-          setProductoEncontrado(null);
-          setMensaje(`❌ No hay coincidencia exacta. Productos similares: ${productos.length}`);
-        } else {
-          setProductoEncontrado(null);
-          setMensaje('❌ No se encontró ningún producto');
-        }
-      } else {
-        setMensaje('❌ Error del servidor');
-      }
+      setLoading(true);
+      const response = await api.get('/productos');
+      setProductos(response.data);
     } catch (error) {
-      console.error('❌ Error buscando producto:', error);
-      setProductoEncontrado(null);
-      setMensaje('❌ Error de conexión');
+      console.error('Error cargando productos:', error);
+      alert('Error al cargar productos');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleAgregarStock = async (e) => {
-    e.preventDefault();
-    
-    if (!productoEncontrado) {
-      setMensaje('❌ Primero debe buscar un producto válido');
+  const handleAgregarStock = async () => {
+    if (!selectedProducto) {
+      alert('Selecciona un producto');
       return;
     }
 
-    if (!cantidad || cantidad < 1) {
-      setMensaje('❌ Ingrese una cantidad válida');
+    if (!cantidad || parseInt(cantidad) <= 0) {
+      alert('Ingresa una cantidad válida');
       return;
     }
 
-    setLoading(true);
-    
     try {
-      const token = localStorage.getItem('token');
-      
-      const response = await fetch(`${API_BASE_URL}/api/inventario/agregar-stock`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          producto_id: productoEncontrado.id,
-          cantidad: parseInt(cantidad),
-          motivo: motivo || 'Reabastecimiento'
-        })
+      setLoading(true);
+      await api.post('/inventario/agregar-stock', {
+        producto_id: selectedProducto.id,
+        cantidad: parseInt(cantidad),
+        motivo: motivo || 'Sin motivo'
       });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        setMensaje(`✅ Stock agregado: ${productoEncontrado.nombre} +${cantidad} unidades`);
-        // Actualizar el stock localmente
-        setProductoEncontrado({
-          ...productoEncontrado,
-          stock_actual: productoEncontrado.stock_actual + parseInt(cantidad)
-        });
-        
-        setTimeout(() => {
-          setMostrarModal(false);
-          limpiarFormulario();
-        }, 2000);
-      } else {
-        setMensaje(`❌ Error: ${data.error}`);
-      }
+      
+      setMensaje(`✅ Stock agregado correctamente a "${selectedProducto.nombre}"`);
+      setCantidad('');
+      setMotivo('');
+      cargarProductos();
+      setTimeout(() => setMensaje(''), 3000);
     } catch (error) {
-      console.error('❌ Error:', error);
-      setMensaje('❌ Error de conexión');
+      console.error('Error agregando stock:', error);
+      alert(error.response?.data?.error || 'Error al agregar stock');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleAjustarStock = async (e) => {
-    e.preventDefault();
-    
-    if (!productoEncontrado) {
-      setMensaje('❌ Primero debe buscar un producto válido');
+  const handleAjustarStock = async () => {
+    if (!selectedProducto) {
+      alert('Selecciona un producto');
       return;
     }
 
-    if (!cantidad || cantidad < 0) {
-      setMensaje('❌ Ingrese un stock válido');
+    if (!nuevoStock || parseInt(nuevoStock) < 0) {
+      alert('Ingresa un stock válido');
       return;
     }
 
-    setLoading(true);
-    
     try {
-      const token = localStorage.getItem('token');
-      
-      const response = await fetch(`${API_BASE_URL}/api/inventario/ajustar-stock`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          producto_id: productoEncontrado.id,
-          nuevo_stock: parseInt(cantidad),
-          motivo: motivo || 'Ajuste de inventario'
-        })
+      setLoading(true);
+      await api.post('/inventario/ajustar-stock', {
+        producto_id: selectedProducto.id,
+        nuevo_stock: parseInt(nuevoStock),
+        motivo: motivo || 'Sin motivo'
       });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        setMensaje(`✅ Stock ajustado: ${productoEncontrado.nombre} → ${cantidad} unidades`);
-        // Actualizar el stock localmente
-        setProductoEncontrado({
-          ...productoEncontrado,
-          stock_actual: parseInt(cantidad)
-        });
-        
-        setTimeout(() => {
-          setMostrarModal(false);
-          limpiarFormulario();
-        }, 2000);
-      } else {
-        setMensaje(`❌ Error: ${data.error}`);
-      }
+      
+      setMensaje(`✅ Stock ajustado correctamente para "${selectedProducto.nombre}"`);
+      setNuevoStock('');
+      setMotivo('');
+      cargarProductos();
+      setTimeout(() => setMensaje(''), 3000);
     } catch (error) {
-      console.error('❌ Error:', error);
-      setMensaje('❌ Error de conexión');
+      console.error('Error ajustando stock:', error);
+      alert(error.response?.data?.error || 'Error al ajustar stock');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleDevolucion = async (e) => {
-    e.preventDefault();
-    
-    if (!productoEncontrado) {
-      setMensaje('❌ Primero debe buscar un producto válido');
-      return;
-    }
+  if (!puedeGestionar) {
+    return (
+      <div className="gestion-inventario-container">
+        <div className="alert alert-warning">
+          ⚠️ No tienes permisos para gestionar inventario. Solo administradores pueden acceder a esta sección.
+        </div>
+      </div>
+    );
+  }
 
-    if (!cantidad || cantidad < 1) {
-      setMensaje('❌ Ingrese una cantidad válida');
-      return;
-    }
-
-    if (!clienteInfo.nombre.trim()) {
-      setMensaje('❌ Ingrese el nombre del cliente para la devolución');
-      return;
-    }
-
-    setLoading(true);
-    
-    try {
-      const token = localStorage.getItem('token');
-      
-      // PRIMERO: Agregar stock (devolución)
-      const responseStock = await fetch(`${API_BASE_URL}/api/inventario/agregar-stock`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          producto_id: productoEncontrado.id,
-          cantidad: parseInt(cantidad),
-          motivo: `Devolución: ${clienteInfo.motivo_devolucion || 'Sin motivo especificado'}`
-        })
-      });
-
-      const dataStock = await responseStock.json();
-
-      if (!responseStock.ok) {
-        throw new Error(dataStock.error || 'Error agregando stock');
-      }
-
-      // SEGUNDO: Crear venta negativa (devolución)
-      const ventaData = {
-        detalles: [{
-          producto_id: productoEncontrado.id,
-          producto_nombre: productoEncontrado.nombre,
-          cantidad: parseInt(cantidad),
-          precio_unitario: productoEncontrado.precio_venta,
-          subtotal: productoEncontrado.precio_venta * parseInt(cantidad)
-        }],
-        cliente_nombre: clienteInfo.nombre,
-        cliente_documento: clienteInfo.documento || '',
-        cliente_telefono: clienteInfo.telefono || '',
-        metodo_pago: 'devolucion',
-        es_devolucion: true,
-        motivo_devolucion: clienteInfo.motivo_devolucion || ''
-      };
-
-      const responseVenta = await fetch(`${API_BASE_URL}/api/ventas/devolucion`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(ventaData)
-      });
-
-      if (!responseVenta.ok) {
-        const errorData = await responseVenta.json();
-        throw new Error(errorData.error || 'Error registrando devolución');
-      }
-
-      setMensaje(`✅ Devolución registrada: ${productoEncontrado.nombre} +${cantidad} unidades`);
-      
-      // Actualizar el stock localmente
-      setProductoEncontrado({
-        ...productoEncontrado,
-        stock_actual: productoEncontrado.stock_actual + parseInt(cantidad)
-      });
-      
-      setTimeout(() => {
-        setMostrarModal(false);
-        limpiarFormulario();
-        setClienteInfo({
-          nombre: '',
-          documento: '',
-          telefono: '',
-          motivo_devolucion: ''
-        });
-      }, 2000);
-
-    } catch (error) {
-      console.error('❌ Error en devolución:', error);
-      setMensaje(`❌ Error: ${error.message}`);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const limpiarFormulario = () => {
-    setCodigoEAN('');
-    setProductoEncontrado(null);
-    setCantidad('');
-    setMotivo('');
-    setTimeout(() => setMensaje(''), 5000);
-  };
-
-  const handleEANChange = (e) => {
-    const value = e.target.value;
-    setCodigoEAN(value);
-    
-    if (value.length === 13) {
-      buscarProductoPorEAN(value);
-    }
-  };
-
-  const handleEANKeyPress = (e) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      buscarProductoPorEAN(codigoEAN);
-    }
-  };
-
-  const getTituloModal = () => {
-    switch(tipoMovimiento) {
-      case 'agregar': return '➕ Agregar Stock';
-      case 'ajustar': return '📊 Ajustar Stock';
-      case 'devolucion': return '↩️ Registrar Devolución';
-      default: return '📦 Gestión de Inventario';
-    }
-  };
-
-  const handleSubmit = (e) => {
-    switch(tipoMovimiento) {
-      case 'agregar': return handleAgregarStock(e);
-      case 'ajustar': return handleAjustarStock(e);
-      case 'devolucion': return handleDevolucion(e);
-      default: e.preventDefault();
-    }
-  };
+  if (!moduloActivo) {
+    return (
+      <div className="gestion-inventario-container">
+        <div className="alert alert-warning">
+          ⚠️ No hay módulo activo. Selecciona un módulo para gestionar el inventario.
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="gestion-inventario">
-      <div className="inventario-header">
+    <div className="gestion-inventario-container">
+      <div className="gestion-header">
         <h2>📦 Gestión de Inventario</h2>
-        
-        {mensaje && <div className={`mensaje-alerta ${mensaje.includes('✅') ? 'success' : 'error'}`}>
-          {mensaje}
-        </div>}
-
-        <div className="botones-accion">
-          <button 
-            className="btn btn-primary"
-            onClick={() => { setTipoMovimiento('agregar'); setMostrarModal(true); }}
-          >
-            ➕ Agregar Stock
-          </button>
-          <button 
-            className="btn btn-secondary"
-            onClick={() => { setTipoMovimiento('ajustar'); setMostrarModal(true); }}
-          >
-            📊 Ajustar Stock
-          </button>
-          <button 
-            className="btn btn-warning"
-            onClick={() => { setTipoMovimiento('devolucion'); setMostrarModal(true); }}
-          >
-            ↩️ Registrar Devolución
-          </button>
+        <div className="modulo-indicador">
+          <span className="badge">Módulo: {moduloActivo.nombre}</span>
         </div>
       </div>
 
-      {/* Modal para gestión de inventario */}
-      {mostrarModal && (
-        <div className="modal-overlay">
-          <div className="modal inventario-modal">
-            <div className="modal-header">
-              <h3>{getTituloModal()}</h3>
-              <button onClick={() => { setMostrarModal(false); limpiarFormulario(); }}>×</button>
-            </div>
-            
-            <form onSubmit={handleSubmit}>
-              <div className="form-group">
-                <label>🔍 Código EAN:</label>
-                <div className="ean-search-container">
-                  <input 
-                    ref={eanInputRef}
-                    type="text" 
-                    value={codigoEAN} 
-                    onChange={handleEANChange}
-                    onKeyPress={handleEANKeyPress}
-                    placeholder="Escanear código EAN (13 dígitos)..."
-                    className="ean-input"
-                    required
-                  />
-                  <button 
-                    type="button" 
-                    onClick={() => buscarProductoPorEAN(codigoEAN)}
-                    className="search-btn"
-                    disabled={loading || !codigoEAN}
-                  >
-                    {loading ? '⏳' : '🔍'}
-                  </button>
-                </div>
-                <small>Ingrese 13 dígitos o presione Enter después de escanear</small>
-              </div>
+      {mensaje && (
+        <div className="mensaje-flotante exito">
+          {mensaje}
+        </div>
+      )}
 
-              {productoEncontrado && (
+      <div className="gestion-grid">
+        {/* Selección de producto */}
+        <div className="card seleccion-producto">
+          <h3>1. Seleccionar Producto</h3>
+          {loading ? (
+            <div className="loading">Cargando productos...</div>
+          ) : (
+            <div className="producto-selector">
+              <select 
+                value={selectedProducto?.id || ''}
+                onChange={(e) => {
+                  const producto = productos.find(p => p.id === parseInt(e.target.value));
+                  setSelectedProducto(producto);
+                  setCantidad('');
+                  setNuevoStock('');
+                }}
+              >
+                <option value="">Seleccionar producto...</option>
+                {productos.map(producto => (
+                  <option key={producto.id} value={producto.id}>
+                    {producto.nombre} - Stock: {producto.stock_actual}
+                  </option>
+                ))}
+              </select>
+              
+              {selectedProducto && (
                 <div className="producto-info">
-                  <div className="producto-card">
-                    <h4>📦 Producto Encontrado</h4>
-                    <div className="producto-details">
-                      <strong>{productoEncontrado.nombre}</strong>
-                      <div className="producto-meta">
-                        <span>Código: {productoEncontrado.codigo_ean || 'N/A'}</span>
-                        <span>Stock actual: <strong>{productoEncontrado.stock_actual}</strong></span>
-                        <span>Precio: ${productoEncontrado.precio_venta?.toLocaleString() || '0'}</span>
-                        {productoEncontrado.stock_minimo && (
-                          <span>Mínimo: {productoEncontrado.stock_minimo}</span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
+                  <p><strong>Stock actual:</strong> {selectedProducto.stock_actual}</p>
+                  <p><strong>Stock mínimo:</strong> {selectedProducto.stock_minimo}</p>
+                  <p><strong>Precio compra:</strong> ${Number(selectedProducto.precio_compra).toLocaleString()}</p>
+                  <p><strong>Precio venta:</strong> ${Number(selectedProducto.precio_venta).toLocaleString()}</p>
                 </div>
               )}
+            </div>
+          )}
+        </div>
 
+        {/* Operaciones de stock */}
+        <div className="card operaciones-stock">
+          <h3>2. Operaciones</h3>
+          
+          <div className="tipo-operacion">
+            <button 
+              className={`btn-tipo ${tipoOperacion === 'agregar' ? 'active' : ''}`}
+              onClick={() => setTipoOperacion('agregar')}
+            >
+              ➕ Agregar Stock
+            </button>
+            <button 
+              className={`btn-tipo ${tipoOperacion === 'ajustar' ? 'active' : ''}`}
+              onClick={() => setTipoOperacion('ajustar')}
+            >
+              🔧 Ajustar Stock
+            </button>
+          </div>
+
+          {tipoOperacion === 'agregar' ? (
+            <div className="operacion-form">
               <div className="form-group">
-                <label>
-                  {tipoMovimiento === 'agregar' ? '📦 Cantidad a agregar:' : 
-                   tipoMovimiento === 'ajustar' ? '🎯 Nuevo stock:' : 
-                   '↩️ Cantidad devuelta:'}
-                </label>
-                <input 
-                  type="number" 
-                  value={cantidad} 
+                <label>Cantidad a agregar *</label>
+                <input
+                  type="number"
+                  value={cantidad}
                   onChange={(e) => setCantidad(e.target.value)}
-                  min={tipoMovimiento === 'devolucion' ? "1" : "0"}
-                  required
-                  disabled={!productoEncontrado}
-                  placeholder={
-                    tipoMovimiento === 'agregar' ? "Ej: 50" : 
-                    tipoMovimiento === 'ajustar' ? "Ej: 100" : 
-                    "Ej: 2"
-                  }
+                  placeholder="Ej: 10"
+                  min="1"
+                  disabled={!selectedProducto}
                 />
               </div>
-
-              {tipoMovimiento === 'devolucion' && (
-                <>
-                  <div className="form-group">
-                    <label>👤 Cliente (requerido):</label>
-                    <input 
-                      type="text" 
-                      value={clienteInfo.nombre}
-                      onChange={(e) => setClienteInfo({...clienteInfo, nombre: e.target.value})}
-                      placeholder="Nombre del cliente"
-                      required
-                    />
-                  </div>
-
-                  <div className="form-group">
-                    <label>📄 Documento (opcional):</label>
-                    <input 
-                      type="text" 
-                      value={clienteInfo.documento}
-                      onChange={(e) => setClienteInfo({...clienteInfo, documento: e.target.value})}
-                      placeholder="Número de documento"
-                    />
-                  </div>
-
-                  <div className="form-group">
-                    <label>📞 Teléfono (opcional):</label>
-                    <input 
-                      type="text" 
-                      value={clienteInfo.telefono}
-                      onChange={(e) => setClienteInfo({...clienteInfo, telefono: e.target.value})}
-                      placeholder="Teléfono del cliente"
-                    />
-                  </div>
-                </>
-              )}
-
               <div className="form-group">
-                <label>📝 {tipoMovimiento === 'devolucion' ? 'Motivo de devolución:' : 'Motivo (opcional):'}</label>
-                <textarea 
-                  value={tipoMovimiento === 'devolucion' ? clienteInfo.motivo_devolucion : motivo}
-                  onChange={(e) => {
-                    if (tipoMovimiento === 'devolucion') {
-                      setClienteInfo({...clienteInfo, motivo_devolucion: e.target.value});
-                    } else {
-                      setMotivo(e.target.value);
-                    }
-                  }}
-                  placeholder={
-                    tipoMovimiento === 'agregar' 
-                      ? "Ej: Compra a proveedor, Reabastecimiento..." 
-                      : tipoMovimiento === 'ajustar'
-                      ? "Ej: Ajuste por inventario físico, Corrección..."
-                      : "Ej: Producto defectuoso, No le gustó, Talla incorrecta..."
-                  }
-                  disabled={!productoEncontrado}
+                <label>Motivo (opcional)</label>
+                <input
+                  type="text"
+                  value={motivo}
+                  onChange={(e) => setMotivo(e.target.value)}
+                  placeholder="Ej: Reposición de stock"
+                  disabled={!selectedProducto}
                 />
               </div>
-
-              <div className="resumen-movimiento">
-                {productoEncontrado && cantidad && (
-                  <div className="resumen-card">
-                    <h4>📋 Resumen del Movimiento</h4>
-                    <p><strong>Producto:</strong> {productoEncontrado.nombre}</p>
-                    <p><strong>Tipo:</strong> {getTituloModal()}</p>
-                    {tipoMovimiento === 'agregar' && (
-                      <p><strong>Stock resultante:</strong> {productoEncontrado.stock_actual} + {cantidad} = {productoEncontrado.stock_actual + parseInt(cantidad)}</p>
-                    )}
-                    {tipoMovimiento === 'ajustar' && (
-                      <p><strong>Cambio:</strong> {productoEncontrado.stock_actual} → {cantidad} ({parseInt(cantidad) - productoEncontrado.stock_actual >= 0 ? '+' : ''}{parseInt(cantidad) - productoEncontrado.stock_actual})</p>
-                    )}
-                    {tipoMovimiento === 'devolucion' && (
-                      <>
-                        <p><strong>Cliente:</strong> {clienteInfo.nombre}</p>
-                        <p><strong>Valor devuelto:</strong> ${(productoEncontrado.precio_venta * parseInt(cantidad)).toLocaleString()}</p>
-                        <p><strong>Stock resultante:</strong> {productoEncontrado.stock_actual} + {cantidad} = {productoEncontrado.stock_actual + parseInt(cantidad)}</p>
-                      </>
-                    )}
+              <button 
+                onClick={handleAgregarStock} 
+                className="btn-agregar-stock"
+                disabled={!selectedProducto || loading}
+              >
+                {loading ? 'Procesando...' : '✅ Agregar Stock'}
+              </button>
+            </div>
+          ) : (
+            <div className="operacion-form">
+              <div className="form-group">
+                <label>Nuevo stock total *</label>
+                <input
+                  type="number"
+                  value={nuevoStock}
+                  onChange={(e) => setNuevoStock(e.target.value)}
+                  placeholder="Ej: 50"
+                  min="0"
+                  disabled={!selectedProducto}
+                />
+                {selectedProducto && nuevoStock && (
+                  <div className="stock-diferencia">
+                    <span>Diferencia: {parseInt(nuevoStock) - selectedProducto.stock_actual}</span>
                   </div>
                 )}
               </div>
-
-              <div className="modal-actions">
-                <button 
-                  type="button" 
-                  onClick={() => { setMostrarModal(false); limpiarFormulario(); }}
-                >
-                  Cancelar
-                </button>
-                <button 
-                  type="submit" 
-                  className={`btn-${tipoMovimiento === 'devolucion' ? 'warning' : 'primary'}`}
-                  disabled={!productoEncontrado || !cantidad || loading}
-                >
-                  {loading ? 'Procesando...' : 
-                   tipoMovimiento === 'agregar' ? 'Agregar Stock' : 
-                   tipoMovimiento === 'ajustar' ? 'Ajustar Stock' : 
-                   'Registrar Devolución'}
-                </button>
+              <div className="form-group">
+                <label>Motivo (opcional)</label>
+                <input
+                  type="text"
+                  value={motivo}
+                  onChange={(e) => setMotivo(e.target.value)}
+                  placeholder="Ej: Corrección de inventario físico"
+                  disabled={!selectedProducto}
+                />
               </div>
-            </form>
-          </div>
+              <button 
+                onClick={handleAjustarStock} 
+                className="btn-ajustar-stock"
+                disabled={!selectedProducto || loading}
+              >
+                {loading ? 'Procesando...' : '✅ Ajustar Stock'}
+              </button>
+            </div>
+          )}
         </div>
-      )}
+      </div>
+
+      {/* Tabla de productos con stock bajo */}
+      <div className="card alertas-stock">
+        <h3>⚠️ Alertas de Stock Bajo</h3>
+        {loading ? (
+          <div className="loading">Cargando alertas...</div>
+        ) : (
+          <div className="alertas-lista">
+            {productos.filter(p => p.stock_actual <= p.stock_minimo).length > 0 ? (
+              <table>
+                <thead>
+                  <tr>
+                    <th>Producto</th>
+                    <th>Stock Actual</th>
+                    <th>Stock Mínimo</th>
+                    <th>Estado</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {productos
+                    .filter(p => p.stock_actual <= p.stock_minimo)
+                    .map(producto => (
+                      <tr key={producto.id} className="alerta-row">
+                        <td>{producto.nombre}</td>
+                        <td className="stock-critico">{producto.stock_actual}</td>
+                        <td>{producto.stock_minimo}</td>
+                        <td>
+                          <span className={`estado-badge ${producto.stock_actual === 0 ? 'agotado' : 'bajo'}`}>
+                            {producto.stock_actual === 0 ? 'Agotado' : 'Stock Bajo'}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            ) : (
+              <p className="sin-alertas">✅ Todos los productos tienen stock adecuado</p>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 };

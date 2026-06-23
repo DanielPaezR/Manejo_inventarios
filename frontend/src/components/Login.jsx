@@ -3,30 +3,38 @@ import api from '../services/api';
 import './Login.css';
 
 const Login = ({ onLogin }) => {
-  const [formData, setFormData] = useState({
-    email: '',
-    password: ''
-  });
-  const [loading, setLoading] = useState(false);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [error, setError] = useState('');
-
-  const handleChange = (e) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value
-    });
-  };
+  const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setLoading(true);
     setError('');
+    setLoading(true);
 
     try {
-      const response = await api.post('/login', formData);
-      onLogin(response.data.user, response.data.token);
-    } catch (error) {
-      setError(error.response?.data?.error || 'Error de conexión');
+      const response = await api.post('/login', { email, password });
+      
+      if (response.data.token && response.data.user) {
+        // Guardar usuario y token
+        onLogin(response.data.user, response.data.token);
+        
+        // Si el usuario tiene módulos, guardar el primero como activo
+        if (response.data.user.modulos && response.data.user.modulos.length > 0) {
+          localStorage.setItem('moduloActivo', JSON.stringify(response.data.user.modulos[0]));
+        }
+        
+        // Redirigir según el rol
+        if (response.data.user.rol === 'super_admin') {
+          window.location.href = '/negocios';
+        } else {
+          window.location.href = '/ventas';
+        }
+      }
+    } catch (err) {
+      console.error('Error en login:', err);
+      setError(err.response?.data?.error || 'Error al iniciar sesión');
     } finally {
       setLoading(false);
     }
@@ -34,33 +42,38 @@ const Login = ({ onLogin }) => {
 
   return (
     <div className="login-container">
-      <div className="login-form">
-        <h2>Sistema de Inventario</h2>
+      <div className="login-card">
+        <h1>📊 Sistema de Inventario</h1>
+        <h2>Iniciar Sesión</h2>
+        
+        {error && <div className="error-message">{error}</div>}
+        
         <form onSubmit={handleSubmit}>
           <div className="form-group">
-            <label>Email:</label>
+            <label htmlFor="email">Correo Electrónico</label>
             <input
               type="email"
-              name="email"
-              value={formData.email}
-              onChange={handleChange}
+              id="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="ejemplo@correo.com"
               required
-              placeholder="admin@negocio.com"
             />
           </div>
+          
           <div className="form-group">
-            <label>Contraseña:</label>
+            <label htmlFor="password">Contraseña</label>
             <input
               type="password"
-              name="password"
-              value={formData.password}
-              onChange={handleChange}
+              id="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="********"
               required
-              placeholder="password"
             />
           </div>
-          {error && <div className="error-message">{error}</div>}
-          <button type="submit" className="btn" disabled={loading}>
+          
+          <button type="submit" disabled={loading}>
             {loading ? 'Iniciando sesión...' : 'Iniciar Sesión'}
           </button>
         </form>
