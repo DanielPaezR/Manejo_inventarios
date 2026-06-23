@@ -1,5 +1,4 @@
 const PDFDocument = require('pdfkit');
-const { pool } = require('../server'); // ⚠️ Esto no funciona así, necesitamos pasar la conexión
 
 // Mejor: exportamos una función que recibe la conexión
 module.exports = async function generarReporteVentasDiarias(pool, negocioId, moduloId, fechaInicio, fechaFin) {
