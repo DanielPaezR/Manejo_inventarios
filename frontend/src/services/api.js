@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 // ✅ USAR VARIABLE DE ENTORNO
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+const API_BASE_URL = 'https://manejoinventarios-production.up.railway.app';
 
 // Configurar la base URL
 const api = axios.create({
