@@ -59,7 +59,7 @@ function App() {
   return (
     <ModuloProvider>
       <Router>
-        <div className="app">
+        <div className="app" data-version="2.0.0-proveedores">
           <Routes>
             <Route 
               path="/login" 
