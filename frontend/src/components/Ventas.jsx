@@ -1,119 +1,218 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import api from '../services/api';
 import { useModulo } from '../hooks/useModulo';
+import Html5Qrcode from 'html5-qrcode';
 import './Ventas.css';
 
 const Ventas = ({ user }) => {
   const { moduloActivo } = useModulo();
   const [productos, setProductos] = useState([]);
-  const [carrito, setCarrito] = useState([]);
+  const [carrito, setCarrito] = useState(() => {
+    // Recuperar carrito del localStorage al iniciar
+    const saved = localStorage.getItem('carrito');
+    return saved ? JSON.parse(saved) : [];
+  });
   const [busqueda, setBusqueda] = useState('');
-  const [cliente, setCliente] = useState({
-    nombre: '',
-    documento: '',
-    direccion: '',
-    telefono: ''
+  const [cliente, setCliente] = useState(() => {
+    const saved = localStorage.getItem('cliente');
+    return saved ? JSON.parse(saved) : {
+      nombre: '',
+      documento: '',
+      direccion: '',
+      telefono: ''
+    };
   });
   const [metodoPago, setMetodoPago] = useState('efectivo');
   const [loading, setLoading] = useState(false);
   const [mostrarFactura, setMostrarFactura] = useState(false);
   const [facturaData, setFacturaData] = useState(null);
   const [modoScanner, setModoScanner] = useState(false);
+  const [scannerActivo, setScannerActivo] = useState(false);
+  const [error, setError] = useState(null);
   const inputRef = useRef(null);
+  const scannerRef = useRef(null);
+
+  // Guardar carrito en localStorage cuando cambie
+  useEffect(() => {
+    localStorage.setItem('carrito', JSON.stringify(carrito));
+  }, [carrito]);
+
+  // Guardar cliente en localStorage cuando cambie
+  useEffect(() => {
+    localStorage.setItem('cliente', JSON.stringify(cliente));
+  }, [cliente]);
 
   // Cargar productos al iniciar o cambiar de módulo
   useEffect(() => {
     if (moduloActivo) {
       cargarProductos();
-      // Limpiar carrito al cambiar de módulo
-      setCarrito([]);
+      // Limpiar carrito al cambiar de módulo (opcional)
+      // setCarrito([]);
     }
+    return () => {
+      // Limpiar scanner al desmontar
+      if (scannerRef.current) {
+        scannerRef.current.stop().catch(err => console.log('Scanner stopped'));
+      }
+    };
   }, [moduloActivo]);
 
-  const cargarProductos = async () => {
+  const cargarProductos = useCallback(async () => {
     try {
       setLoading(true);
+      setError(null);
       const response = await api.get('/productos');
       setProductos(response.data);
     } catch (error) {
       console.error('Error cargando productos:', error);
-      alert('Error al cargar productos');
+      setError('Error al cargar productos. Intenta de nuevo.');
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  // Buscar productos por nombre o código
-  const buscarProductos = async (termino) => {
+  // Buscar productos con debounce
+  const buscarProductos = useCallback(async (termino) => {
+    if (!termino || termino.length < 2) {
+      cargarProductos();
+      return;
+    }
+    
     try {
       setLoading(true);
+      setError(null);
       const response = await api.get('/productos', {
         params: { search: termino }
       });
       setProductos(response.data);
     } catch (error) {
       console.error('Error buscando productos:', error);
+      setError('Error al buscar productos');
     } finally {
       setLoading(false);
     }
-  };
+  }, [cargarProductos]);
 
   // Buscar producto por EAN (scanner)
-  const buscarPorEAN = async (ean) => {
+  const buscarPorEAN = useCallback(async (ean) => {
+    if (!ean || ean.trim() === '') return;
+    
     try {
-      const response = await api.get(`/productos/buscar/${ean}`);
+      setError(null);
+      const response = await api.get(`/productos/buscar/${ean.trim()}`);
       if (response.data) {
         agregarAlCarrito(response.data);
         setBusqueda('');
-        // Enfocar input para siguiente escaneo
+        // Feedback visual
         if (inputRef.current) {
           inputRef.current.focus();
+          inputRef.current.style.borderColor = '#48bb78';
+          setTimeout(() => {
+            inputRef.current.style.borderColor = '';
+          }, 500);
         }
       }
     } catch (error) {
       if (error.response?.status === 404) {
-        alert('Producto no encontrado');
+        setError(`❌ Producto con código ${ean} no encontrado`);
+        // Vibración (si está disponible)
+        if (navigator.vibrate) navigator.vibrate(200);
       } else {
         console.error('Error buscando producto:', error);
+        setError('Error al buscar el producto');
       }
     }
-  };
+  }, []);
 
-  // Manejar búsqueda
-  const handleSearch = (e) => {
+  // Manejar búsqueda con debounce
+  const handleSearch = useCallback((e) => {
     const valor = e.target.value;
     setBusqueda(valor);
     
     if (modoScanner) {
-      // Si está en modo scanner, buscar automáticamente al presionar Enter
+      // En modo scanner, buscar al presionar Enter
       if (e.key === 'Enter' && valor) {
         buscarPorEAN(valor);
         e.preventDefault();
       }
     } else {
       // Búsqueda normal con debounce
-      if (valor.length > 2) {
-        buscarProductos(valor);
-      } else if (valor.length === 0) {
-        cargarProductos();
-      }
+      const timeoutId = setTimeout(() => {
+        if (valor.length > 2 || valor.length === 0) {
+          buscarProductos(valor);
+        }
+      }, 300);
+      return () => clearTimeout(timeoutId);
     }
-  };
+  }, [modoScanner, buscarPorEAN, buscarProductos]);
+
+  // Iniciar escaneo con cámara
+  const iniciarScanner = useCallback(() => {
+    if (!modoScanner) {
+      setModoScanner(true);
+      return;
+    }
+
+    // Si ya está activo, desactivar
+    if (scannerActivo) {
+      if (scannerRef.current) {
+        scannerRef.current.stop().catch(err => console.log('Scanner stopped'));
+        scannerRef.current = null;
+      }
+      setScannerActivo(false);
+      setModoScanner(false);
+      return;
+    }
+
+    // Iniciar scanner
+    const html5QrCode = new Html5Qrcode('scanner-container');
+    scannerRef.current = html5QrCode;
+
+    const config = {
+      fps: 10,
+      qrbox: { width: 250, height: 250 },
+      aspectRatio: 1.0
+    };
+
+    html5QrCode.start(
+      { facingMode: "environment" },
+      config,
+      (decodedText) => {
+        // Éxito: código escaneado
+        buscarPorEAN(decodedText);
+        // Vibrar para feedback
+        if (navigator.vibrate) navigator.vibrate(50);
+        // Opcional: detener scanner después de escanear
+        // html5QrCode.stop();
+        // setScannerActivo(false);
+        // setModoScanner(false);
+      },
+      (errorMessage) => {
+        // Error al escanear (ignorar, es normal)
+        // console.log('Error escaneando:', errorMessage);
+      }
+    ).then(() => {
+      setScannerActivo(true);
+    }).catch((err) => {
+      console.error('Error iniciando scanner:', err);
+      setError('❌ No se pudo acceder a la cámara. Verifica los permisos.');
+      setModoScanner(false);
+    });
+  }, [modoScanner, scannerActivo, buscarPorEAN]);
 
   // Agregar al carrito
-  const agregarAlCarrito = (producto) => {
-    // Verificar stock
+  const agregarAlCarrito = useCallback((producto) => {
     if (producto.stock_actual <= 0) {
-      alert(`El producto "${producto.nombre}" no tiene stock disponible`);
+      setError(`❌ "${producto.nombre}" no tiene stock disponible`);
+      if (navigator.vibrate) navigator.vibrate(200);
       return;
     }
 
     setCarrito(prev => {
       const existe = prev.find(item => item.producto_id === producto.id);
       if (existe) {
-        // Verificar que no exceda el stock
         if (existe.cantidad >= producto.stock_actual) {
-          alert(`Stock insuficiente. Solo hay ${producto.stock_actual} unidades disponibles`);
+          setError(`⚠️ Stock insuficiente. Solo hay ${producto.stock_actual} unidades`);
           return prev;
         }
         return prev.map(item =>
@@ -127,24 +226,31 @@ const Ventas = ({ user }) => {
         nombre: producto.nombre,
         precio_unitario: producto.precio_venta,
         cantidad: 1,
-        stock_actual: producto.stock_actual
+        stock_actual: producto.stock_actual,
+        codigo_ean: producto.codigo_ean
       }];
     });
-  };
+    
+    // Limpiar error si existe
+    setError(null);
+  }, []);
 
   // Eliminar del carrito
-  const eliminarDelCarrito = (productoId) => {
+  const eliminarDelCarrito = useCallback((productoId) => {
     setCarrito(prev => prev.filter(item => item.producto_id !== productoId));
-  };
+  }, []);
 
   // Cambiar cantidad
-  const cambiarCantidad = (productoId, cantidad) => {
-    if (cantidad < 1) return;
+  const cambiarCantidad = useCallback((productoId, cantidad) => {
+    if (cantidad < 1) {
+      eliminarDelCarrito(productoId);
+      return;
+    }
     
     setCarrito(prev => {
       const producto = prev.find(item => item.producto_id === productoId);
       if (producto && cantidad > producto.stock_actual) {
-        alert(`Stock insuficiente. Solo hay ${producto.stock_actual} unidades disponibles`);
+        setError(`⚠️ Stock insuficiente. Solo hay ${producto.stock_actual} unidades`);
         return prev;
       }
       return prev.map(item =>
@@ -153,15 +259,34 @@ const Ventas = ({ user }) => {
           : item
       );
     });
-  };
+  }, [eliminarDelCarrito]);
+
+  // Atajo de teclado: F1 para activar scanner, Escape para limpiar
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'F1') {
+        e.preventDefault();
+        iniciarScanner();
+      }
+      if (e.key === 'Escape') {
+        setError(null);
+      }
+      if (e.key === 'F2' && carrito.length > 0) {
+        e.preventDefault();
+        procesarVenta();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [carrito]);
 
   // Calcular totales
   const subtotal = carrito.reduce((sum, item) => sum + (item.precio_unitario * item.cantidad), 0);
 
   // Procesar venta
-  const procesarVenta = async () => {
+  const procesarVenta = useCallback(async () => {
     if (carrito.length === 0) {
-      alert('El carrito está vacío');
+      setError('⚠️ El carrito está vacío');
       return;
     }
 
@@ -173,6 +298,8 @@ const Ventas = ({ user }) => {
 
     try {
       setLoading(true);
+      setError(null);
+      
       const ventaData = {
         detalles: carrito.map(item => ({
           producto_id: item.producto_id,
@@ -200,55 +327,26 @@ const Ventas = ({ user }) => {
         });
         // Recargar productos para actualizar stock
         cargarProductos();
+        
+        // Feedback de éxito
+        if (navigator.vibrate) navigator.vibrate([50, 50, 50]);
       }
     } catch (error) {
       console.error('Error procesando venta:', error);
-      alert(error.response?.data?.error || 'Error al procesar la venta');
+      setError(error.response?.data?.error || '❌ Error al procesar la venta');
+      if (navigator.vibrate) navigator.vibrate(200);
     } finally {
       setLoading(false);
     }
-  };
+  }, [carrito, cliente, metodoPago, cargarProductos]);
 
-  // Imprimir factura
-  const imprimirFactura = () => {
-    const contenido = document.getElementById('factura-content');
-    if (!contenido) return;
-    
-    const ventana = window.open('', '_blank', 'width=400,height=600');
-    if (!ventana) {
-      alert('Por favor, permite las ventanas emergentes para imprimir');
-      return;
-    }
-    
-    ventana.document.write(`
-      <html>
-        <head>
-          <title>Factura</title>
-          <style>
-            body { font-family: monospace; padding: 20px; max-width: 350px; margin: 0 auto; }
-            .factura-header { text-align: center; border-bottom: 1px dashed #000; padding-bottom: 10px; margin-bottom: 10px; }
-            .factura-detalle { border-bottom: 1px solid #ddd; padding: 5px 0; }
-            .factura-total { font-weight: bold; font-size: 1.2em; text-align: right; margin-top: 10px; }
-            .factura-pie { text-align: center; margin-top: 20px; font-size: 0.9em; }
-            @media print { .no-print { display: none; } }
-          </style>
-        </head>
-        <body>
-          <div id="factura-print">
-            ${contenido.innerHTML}
-          </div>
-          <div class="no-print" style="text-align:center;margin-top:20px;">
-            <button onclick="window.print()">🖨️ Imprimir</button>
-            <button onclick="window.close()">Cerrar</button>
-          </div>
-          <script>
-            window.print();
-          <\/script>
-        </body>
-      </html>
-    `);
-    ventana.document.close();
-  };
+  // Limpiar todo
+  const limpiarTodo = useCallback(() => {
+    if (carrito.length > 0 && !confirm('¿Limpiar todo el carrito?')) return;
+    setCarrito([]);
+    setError(null);
+    setBusqueda('');
+  }, [carrito]);
 
   // Si no hay módulo activo
   if (!moduloActivo) {
@@ -264,9 +362,19 @@ const Ventas = ({ user }) => {
   return (
     <div className="ventas-container">
       <div className="ventas-header">
-        <h2>🛒 Punto de Venta</h2>
-        <div className="modulo-indicador">
-          <span className="badge">Módulo: {moduloActivo.nombre}</span>
+        <div className="header-left">
+          <h2>🛒 Punto de Venta</h2>
+          <div className="modulo-indicador">
+            <span className="badge">📁 {moduloActivo.nombre}</span>
+          </div>
+        </div>
+        <div className="header-right">
+          <div className="shortcuts-hint">
+            <kbd>F1</kbd> Scanner <kbd>F2</kbd> Vender <kbd>Esc</kbd> Limpiar
+          </div>
+          <button onClick={limpiarTodo} className="btn-limpiar-todo" title="Limpiar carrito">
+            🗑️
+          </button>
         </div>
       </div>
 
@@ -279,46 +387,81 @@ const Ventas = ({ user }) => {
             value={busqueda}
             onChange={handleSearch}
             onKeyPress={handleSearch}
-            placeholder={modoScanner ? "📷 Escanea un código de barras..." : "🔍 Buscar producto por nombre o código..."}
+            placeholder={modoScanner ? "📷 Escanea un código..." : "🔍 Buscar por nombre o código..."}
             className={modoScanner ? 'scanner-active' : ''}
+            autoFocus
           />
           <button
-            onClick={() => {
-              setModoScanner(!modoScanner);
-              setBusqueda('');
-              if (!modoScanner && inputRef.current) {
-                inputRef.current.focus();
-              }
-            }}
+            onClick={iniciarScanner}
             className={`btn-scanner ${modoScanner ? 'active' : ''}`}
-            title="Activar modo scanner"
+            title="Activar/Desactivar scanner (F1)"
           >
             {modoScanner ? '📷' : '📷'}
           </button>
-          <button onClick={cargarProductos} className="btn-refresh">
+          <button onClick={cargarProductos} className="btn-refresh" title="Recargar productos">
             🔄
           </button>
         </div>
         
+        {error && (
+          <div className="error-message">
+            {error}
+            <button onClick={() => setError(null)} className="btn-cerrar-error">✕</button>
+          </div>
+        )}
+
         {modoScanner && (
           <div className="scanner-info">
-            💡 Modo scanner activo: Escanea un código y se agregará automáticamente
+            💡 Modo scanner activo. Apunta la cámara al código de barras.
+            {!scannerActivo && (
+              <button onClick={iniciarScanner} className="btn-iniciar-camara">
+                📷 Iniciar Cámara
+              </button>
+            )}
           </div>
         )}
       </div>
 
+      {/* Contenedor del scanner */}
+      {scannerActivo && (
+        <div className="scanner-container-wrapper">
+          <div id="scanner-container" className="scanner-container"></div>
+          <button 
+            onClick={() => {
+              if (scannerRef.current) {
+                scannerRef.current.stop().catch(err => console.log('Scanner stopped'));
+                scannerRef.current = null;
+              }
+              setScannerActivo(false);
+              setModoScanner(false);
+            }} 
+            className="btn-cerrar-scanner"
+          >
+            ✕ Cerrar Scanner
+          </button>
+        </div>
+      )}
+
       <div className="ventas-grid">
         {/* Lista de productos */}
         <div className="productos-lista">
-          <h3>Productos</h3>
+          <h3>
+            Productos
+            <span className="productos-count">({productos.length})</span>
+          </h3>
           {loading ? (
             <div className="loading">Cargando productos...</div>
+          ) : productos.length === 0 ? (
+            <div className="sin-productos">
+              <p>No hay productos disponibles</p>
+              <button onClick={cargarProductos} className="btn-refresh">🔄 Recargar</button>
+            </div>
           ) : (
             <div className="productos-grid">
               {productos.map(producto => (
                 <div
                   key={producto.id}
-                  className="producto-card"
+                  className={`producto-card ${producto.stock_actual <= 0 ? 'agotado' : ''}`}
                   onClick={() => agregarAlCarrito(producto)}
                 >
                   <div className="producto-info">
@@ -326,12 +469,18 @@ const Ventas = ({ user }) => {
                     <p className="producto-precio">${producto.precio_venta.toLocaleString()}</p>
                     <p className={`producto-stock ${producto.stock_actual <= producto.stock_minimo ? 'bajo' : ''}`}>
                       Stock: {producto.stock_actual}
+                      {producto.stock_actual <= 0 && ' ❌'}
                     </p>
                     {producto.codigo_ean && (
-                      <small className="producto-ean">Código: {producto.codigo_ean}</small>
+                      <small className="producto-ean">📷 {producto.codigo_ean}</small>
                     )}
                   </div>
-                  <button className="btn-agregar">+</button>
+                  <button 
+                    className="btn-agregar"
+                    disabled={producto.stock_actual <= 0}
+                  >
+                    {producto.stock_actual > 0 ? '+' : '🚫'}
+                  </button>
                 </div>
               ))}
             </div>
@@ -340,7 +489,10 @@ const Ventas = ({ user }) => {
 
         {/* Carrito */}
         <div className="carrito-section">
-          <h3>Carrito</h3>
+          <h3>
+            Carrito
+            <span className="carrito-count">({carrito.length} items)</span>
+          </h3>
           
           {/* Datos del cliente */}
           <div className="cliente-form">
@@ -349,19 +501,21 @@ const Ventas = ({ user }) => {
               placeholder="Nombre del cliente"
               value={cliente.nombre}
               onChange={(e) => setCliente({ ...cliente, nombre: e.target.value })}
+              className="cliente-input"
             />
             <input
               type="text"
               placeholder="Documento"
               value={cliente.documento}
               onChange={(e) => setCliente({ ...cliente, documento: e.target.value })}
+              className="cliente-input"
             />
           </div>
 
           {/* Lista del carrito */}
           <div className="carrito-lista">
             {carrito.length === 0 ? (
-              <p className="carrito-vacio">El carrito está vacío</p>
+              <p className="carrito-vacio">🛒 El carrito está vacío</p>
             ) : (
               carrito.map(item => (
                 <div key={item.producto_id} className="carrito-item">
@@ -370,10 +524,25 @@ const Ventas = ({ user }) => {
                     <span className="item-precio">${item.precio_unitario.toLocaleString()}</span>
                   </div>
                   <div className="item-controls">
-                    <button onClick={() => cambiarCantidad(item.producto_id, item.cantidad - 1)}>−</button>
+                    <button 
+                      onClick={() => cambiarCantidad(item.producto_id, item.cantidad - 1)}
+                      className="btn-cantidad"
+                    >
+                      −
+                    </button>
                     <span className="item-cantidad">{item.cantidad}</span>
-                    <button onClick={() => cambiarCantidad(item.producto_id, item.cantidad + 1)}>+</button>
-                    <button onClick={() => eliminarDelCarrito(item.producto_id)} className="btn-eliminar">
+                    <button 
+                      onClick={() => cambiarCantidad(item.producto_id, item.cantidad + 1)}
+                      className="btn-cantidad"
+                      disabled={item.cantidad >= item.stock_actual}
+                    >
+                      +
+                    </button>
+                    <button 
+                      onClick={() => eliminarDelCarrito(item.producto_id)} 
+                      className="btn-eliminar"
+                      title="Eliminar del carrito"
+                    >
                       ✕
                     </button>
                   </div>
@@ -390,20 +559,20 @@ const Ventas = ({ user }) => {
                 <span>${subtotal.toLocaleString()}</span>
               </div>
               <div className="totales-linea total">
-                <span>Total:</span>
-                <span>${subtotal.toLocaleString()}</span>
+                <span><strong>Total:</strong></span>
+                <span><strong>${subtotal.toLocaleString()}</strong></span>
               </div>
 
               <div className="metodo-pago">
-                <label>Método de pago:</label>
+                <label>💳 Método de pago:</label>
                 <select
                   value={metodoPago}
                   onChange={(e) => setMetodoPago(e.target.value)}
                 >
-                  <option value="efectivo">Efectivo</option>
-                  <option value="tarjeta">Tarjeta</option>
-                  <option value="transferencia">Transferencia</option>
-                  <option value="otros">Otros</option>
+                  <option value="efectivo">💵 Efectivo</option>
+                  <option value="tarjeta">💳 Tarjeta</option>
+                  <option value="transferencia">🏦 Transferencia</option>
+                  <option value="otros">📱 Otros</option>
                 </select>
               </div>
 
@@ -412,7 +581,7 @@ const Ventas = ({ user }) => {
                 className="btn-procesar-venta"
                 disabled={loading}
               >
-                {loading ? 'Procesando...' : '✅ Procesar Venta'}
+                {loading ? '⏳ Procesando...' : '✅ Procesar Venta (F2)'}
               </button>
             </div>
           )}

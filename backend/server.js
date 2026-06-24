@@ -1111,6 +1111,460 @@ app.get('/api/estadisticas/global', authenticateToken, requireAdmin, async (req,
   }
 });
 
+// ==================== RUTAS DE PROVEEDORES ====================
+
+// Obtener todos los proveedores del negocio
+app.get('/api/proveedores', authenticateToken, checkAccess, async (req, res) => {
+  try {
+    const negocioId = req.negocioId;
+    
+    if (!negocioId) {
+      return res.status(400).json({ error: 'Negocio no identificado' });
+    }
+
+    const result = await pool.query(
+      `SELECT p.*, 
+              array_agg(pp.producto_id) as productos_asociados
+       FROM proveedores p
+       LEFT JOIN producto_proveedor pp ON p.id = pp.proveedor_id AND pp.activo = true
+       WHERE p.negocio_id = $1 AND p.activo = true
+       GROUP BY p.id
+       ORDER BY p.nombre`,
+      [negocioId]
+    );
+
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error obteniendo proveedores:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// Crear nuevo proveedor
+app.post('/api/proveedores', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+  try {
+    const negocioId = req.negocioId;
+    const { nombre, contacto, telefono, email, direccion } = req.body;
+
+    if (!nombre) {
+      return res.status(400).json({ error: 'El nombre es requerido' });
+    }
+
+    const result = await pool.query(
+      `INSERT INTO proveedores (negocio_id, nombre, contacto, telefono, email, direccion) 
+       VALUES ($1, $2, $3, $4, $5, $6) 
+       RETURNING *`,
+      [negocioId, nombre, contacto, telefono, email, direccion]
+    );
+
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error('Error creando proveedor:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// Actualizar proveedor
+app.put('/api/proveedores/:id', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const negocioId = req.negocioId;
+    const { nombre, contacto, telefono, email, direccion, activo } = req.body;
+
+    const result = await pool.query(
+      `UPDATE proveedores 
+       SET nombre = $1, 
+           contacto = $2, 
+           telefono = $3, 
+           email = $4, 
+           direccion = $5,
+           activo = $6,
+           fecha_actualizacion = NOW()
+       WHERE id = $7 AND negocio_id = $8
+       RETURNING *`,
+      [nombre, contacto, telefono, email, direccion, activo, id, negocioId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Proveedor no encontrado' });
+    }
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error actualizando proveedor:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// Eliminar proveedor (desactivar)
+app.delete('/api/proveedores/:id', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const negocioId = req.negocioId;
+
+    await pool.query(
+      'UPDATE proveedores SET activo = false WHERE id = $1 AND negocio_id = $2',
+      [id, negocioId]
+    );
+
+    res.json({ message: 'Proveedor eliminado correctamente' });
+  } catch (error) {
+    console.error('Error eliminando proveedor:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// ==================== RUTAS DE PRODUCTO-PROVEEDOR ====================
+
+// Asociar producto con proveedor
+app.post('/api/productos/:productoId/proveedores/:proveedorId', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+  try {
+    const { productoId, proveedorId } = req.params;
+    const { precio_compra, tiempo_entrega_dias, cantidad_minima_pedido } = req.body;
+    const moduloId = req.moduloId;
+
+    // Verificar que el producto existe y pertenece al módulo
+    const productoResult = await pool.query(
+      'SELECT id FROM productos WHERE id = $1 AND modulo_id = $2 AND activo = true',
+      [productoId, moduloId]
+    );
+
+    if (productoResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Producto no encontrado' });
+    }
+
+    // Verificar que el proveedor existe
+    const proveedorResult = await pool.query(
+      'SELECT id FROM proveedores WHERE id = $1 AND activo = true',
+      [proveedorId]
+    );
+
+    if (proveedorResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Proveedor no encontrado' });
+    }
+
+    const result = await pool.query(
+      `INSERT INTO producto_proveedor (producto_id, proveedor_id, precio_compra, tiempo_entrega_dias, cantidad_minima_pedido) 
+       VALUES ($1, $2, $3, $4, $5) 
+       ON CONFLICT (producto_id, proveedor_id) 
+       DO UPDATE SET precio_compra = $3, tiempo_entrega_dias = $4, cantidad_minima_pedido = $5, activo = true
+       RETURNING *`,
+      [productoId, proveedorId, precio_compra, tiempo_entrega_dias, cantidad_minima_pedido]
+    );
+
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error('Error asociando producto con proveedor:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// Obtener proveedores de un producto
+app.get('/api/productos/:productoId/proveedores', authenticateToken, checkAccess, async (req, res) => {
+  try {
+    const { productoId } = req.params;
+    const moduloId = req.moduloId;
+
+    const result = await pool.query(
+      `SELECT p.*, 
+              pp.precio_compra, 
+              pp.tiempo_entrega_dias, 
+              pp.cantidad_minima_pedido
+       FROM proveedores p
+       JOIN producto_proveedor pp ON p.id = pp.proveedor_id
+       WHERE pp.producto_id = $1 AND pp.activo = true AND p.activo = true`,
+      [productoId]
+    );
+
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error obteniendo proveedores del producto:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// ==================== RUTAS DE PEDIDOS ====================
+
+// Crear pedido a proveedor
+app.post('/api/pedidos', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+  const client = await pool.connect();
+  
+  try {
+    await client.query('BEGIN');
+    
+    const { proveedor_id, detalles, observaciones } = req.body;
+    const moduloId = req.moduloId;
+    const negocioId = req.negocioId;
+    const usuarioId = req.user.id;
+
+    if (!proveedor_id || !detalles || detalles.length === 0) {
+      return res.status(400).json({ error: 'Proveedor y detalles son requeridos' });
+    }
+
+    // Verificar que el proveedor existe
+    const proveedorResult = await client.query(
+      'SELECT id FROM proveedores WHERE id = $1 AND activo = true',
+      [proveedor_id]
+    );
+
+    if (proveedorResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Proveedor no encontrado' });
+    }
+
+    // Calcular total
+    let total = 0;
+    for (const detalle of detalles) {
+      const productoResult = await client.query(
+        'SELECT precio_compra FROM productos WHERE id = $1 AND modulo_id = $2',
+        [detalle.producto_id, moduloId]
+      );
+      
+      if (productoResult.rows.length === 0) {
+        throw new Error(`Producto ${detalle.producto_id} no encontrado`);
+      }
+      
+      const precio = detalle.precio_unitario || productoResult.rows[0].precio_compra;
+      total += precio * detalle.cantidad;
+    }
+
+    // Crear pedido
+    const pedidoResult = await client.query(
+      `INSERT INTO pedidos_proveedor 
+       (negocio_id, modulo_id, proveedor_id, total, observaciones, usuario_id) 
+       VALUES ($1, $2, $3, $4, $5, $6) 
+       RETURNING *`,
+      [negocioId, moduloId, proveedor_id, total, observaciones, usuarioId]
+    );
+
+    const pedido = pedidoResult.rows[0];
+
+    // Crear detalles del pedido
+    for (const detalle of detalles) {
+      const productoResult = await client.query(
+        'SELECT precio_compra FROM productos WHERE id = $1',
+        [detalle.producto_id]
+      );
+      
+      const precio = detalle.precio_unitario || productoResult.rows[0].precio_compra;
+      const subtotal = precio * detalle.cantidad;
+      
+      await client.query(
+        `INSERT INTO pedido_detalle (pedido_id, producto_id, cantidad, precio_unitario, subtotal) 
+         VALUES ($1, $2, $3, $4, $5)`,
+        [pedido.id, detalle.producto_id, detalle.cantidad, precio, subtotal]
+      );
+    }
+
+    await client.query('COMMIT');
+    
+    // Obtener el pedido completo con detalles
+    const pedidoCompleto = await client.query(
+      `SELECT p.*, 
+              pr.nombre as proveedor_nombre,
+              pr.telefono as proveedor_telefono,
+              pr.contacto as proveedor_contacto,
+              json_agg(
+                json_build_object(
+                  'producto_id', pd.producto_id,
+                  'producto_nombre', prod.nombre,
+                  'cantidad', pd.cantidad,
+                  'precio_unitario', pd.precio_unitario,
+                  'subtotal', pd.subtotal
+                )
+              ) as detalles
+       FROM pedidos_proveedor p
+       JOIN proveedores pr ON p.proveedor_id = pr.id
+       LEFT JOIN pedido_detalle pd ON p.id = pd.pedido_id
+       LEFT JOIN productos prod ON pd.producto_id = prod.id
+       WHERE p.id = $1
+       GROUP BY p.id, pr.id`,
+      [pedido.id]
+    );
+
+    res.status(201).json(pedidoCompleto.rows[0]);
+
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Error creando pedido:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  } finally {
+    client.release();
+  }
+});
+
+// Obtener pedidos del módulo
+app.get('/api/pedidos', authenticateToken, checkAccess, async (req, res) => {
+  try {
+    const moduloId = req.moduloId;
+    const { estado, limit = 50 } = req.query;
+
+    let query = `
+      SELECT p.*, 
+             pr.nombre as proveedor_nombre,
+             pr.telefono as proveedor_telefono
+      FROM pedidos_proveedor p
+      JOIN proveedores pr ON p.proveedor_id = pr.id
+      WHERE p.modulo_id = $1
+    `;
+    let params = [moduloId];
+    let paramIndex = 2;
+
+    if (estado) {
+      query += ` AND p.estado = $${paramIndex}`;
+      params.push(estado);
+      paramIndex++;
+    }
+
+    query += ` ORDER BY p.fecha_pedido DESC LIMIT $${paramIndex}`;
+    params.push(limit);
+
+    const result = await pool.query(query, params);
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error obteniendo pedidos:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// Obtener pedido específico con detalles
+app.get('/api/pedidos/:id', authenticateToken, checkAccess, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const moduloId = req.moduloId;
+
+    const result = await pool.query(
+      `SELECT p.*, 
+              pr.nombre as proveedor_nombre,
+              pr.telefono as proveedor_telefono,
+              pr.contacto as proveedor_contacto,
+              json_agg(
+                json_build_object(
+                  'producto_id', pd.producto_id,
+                  'producto_nombre', prod.nombre,
+                  'cantidad', pd.cantidad,
+                  'precio_unitario', pd.precio_unitario,
+                  'subtotal', pd.subtotal
+                )
+              ) as detalles
+       FROM pedidos_proveedor p
+       JOIN proveedores pr ON p.proveedor_id = pr.id
+       LEFT JOIN pedido_detalle pd ON p.id = pd.pedido_id
+       LEFT JOIN productos prod ON pd.producto_id = prod.id
+       WHERE p.id = $1 AND p.modulo_id = $2
+       GROUP BY p.id, pr.id`,
+      [id, moduloId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Pedido no encontrado' });
+    }
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error obteniendo pedido:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// Actualizar estado del pedido
+app.put('/api/pedidos/:id/estado', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const moduloId = req.moduloId;
+    const { estado, fecha_entrega_estimada } = req.body;
+
+    const estadosValidos = ['pendiente', 'enviado', 'recibido', 'cancelado'];
+    if (!estadosValidos.includes(estado)) {
+      return res.status(400).json({ error: 'Estado inválido' });
+    }
+
+    const result = await pool.query(
+      `UPDATE pedidos_proveedor 
+       SET estado = $1, 
+           fecha_entrega_estimada = COALESCE($2, fecha_entrega_estimada)
+       WHERE id = $3 AND modulo_id = $4
+       RETURNING *`,
+      [estado, fecha_entrega_estimada, id, moduloId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Pedido no encontrado' });
+    }
+
+    // Si el pedido se marca como "recibido", actualizar el stock
+    if (estado === 'recibido') {
+      // Obtener detalles del pedido
+      const detalles = await pool.query(
+        'SELECT producto_id, cantidad FROM pedido_detalle WHERE pedido_id = $1',
+        [id]
+      );
+
+      // Actualizar stock de cada producto
+      for (const detalle of detalles.rows) {
+        await pool.query(
+          'UPDATE productos SET stock_actual = stock_actual + $1, fecha_actualizacion = NOW() WHERE id = $2',
+          [detalle.cantidad, detalle.producto_id]
+        );
+      }
+    }
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error actualizando estado del pedido:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// ==================== RUTAS DE ALERTAS MEJORADAS ====================
+
+// Obtener productos con stock bajo Y sus proveedores
+app.get('/api/alertas/stock-bajo-completo', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+  try {
+    const moduloId = req.moduloId;
+
+    if (!moduloId) {
+      return res.status(400).json({ error: 'Se requiere un módulo' });
+    }
+
+    const result = await pool.query(
+      `SELECT p.*, 
+              c.nombre as categoria_nombre,
+              (p.stock_actual <= p.stock_minimo) as necesita_reponer,
+              CASE 
+                WHEN p.stock_actual = 0 THEN 'Agotado'
+                WHEN p.stock_actual <= p.stock_minimo THEN 'Bajo'
+                ELSE 'Normal'
+              END as estado_stock,
+              json_agg(
+                json_build_object(
+                  'id', prov.id,
+                  'nombre', prov.nombre,
+                  'telefono', prov.telefono,
+                  'contacto', prov.contacto,
+                  'precio_compra', pp.precio_compra,
+                  'tiempo_entrega', pp.tiempo_entrega_dias,
+                  'cantidad_minima', pp.cantidad_minima_pedido
+                )
+              ) as proveedores
+       FROM productos p 
+       LEFT JOIN categorias c ON p.categoria_id = c.id
+       LEFT JOIN producto_proveedor pp ON p.id = pp.producto_id AND pp.activo = true
+       LEFT JOIN proveedores prov ON pp.proveedor_id = prov.id AND prov.activo = true
+       WHERE p.activo = true 
+       AND p.modulo_id = $1
+       AND p.stock_actual <= p.stock_minimo
+       GROUP BY p.id, c.nombre
+       ORDER BY p.stock_actual ASC`,
+      [moduloId]
+    );
+    
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error obteniendo alertas completas:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
 // ==================== RUTAS DE REPORTES ====================
 
 app.get('/api/reportes', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
