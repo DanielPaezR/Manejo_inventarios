@@ -3,8 +3,11 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "build": "npm install --prefix frontend && npm run build --prefix frontend && npm install --prefix backend",
-    "start": "node backend/server.js"
+    "clean": "node -e \"const fs=require('fs');const path='frontend/dist';if(fs.existsSync(path)){fs.rmSync(path,{recursive:true,force:true});console.log('✅ frontend/dist eliminado')}\"",
+    "prebuild": "npm run clean",
+    "build": "npm run clean && npm install --prefix frontend && npm run build --prefix frontend && npm install --prefix backend",
+    "start": "node backend/server.js",
+    "postinstall": "npm run build"
   },
   "engines": {
     "node": ">=16.0.0"
