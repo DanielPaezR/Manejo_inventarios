@@ -4,6 +4,7 @@ import { useModulo } from '../hooks/useModulo';
 import { Html5Qrcode } from 'html5-qrcode';
 import './Ventas.css';
 
+
 const Ventas = ({ user }) => {
   const { moduloActivo } = useModulo();
   const [productos, setProductos] = useState([]);
