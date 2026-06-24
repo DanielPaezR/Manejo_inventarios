@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import api from '../services/api';
 import { useModulo } from '../hooks/useModulo';
-import Html5Qrcode from 'html5-qrcode';
+import { Html5Qrcode } from 'html5-qrcode';
 import './Ventas.css';
 
 const Ventas = ({ user }) => {
