@@ -500,7 +500,7 @@
 }
 
 /* ============================================================
-   SIDEBAR
+   SIDEBAR - CORREGIDO PARA MEJOR LECTURA
    ============================================================ */
 .dashboard-container {
   display: flex;
@@ -510,7 +510,7 @@
 .sidebar {
   width: 240px;
   min-height: calc(100vh - 68px - 58px);
-  background: white;
+  background: #ffffff; /* Blanco puro forzado */
   border-right: 1px solid #e2e8f0;
   display: flex;
   flex-direction: column;
@@ -534,6 +534,7 @@
   margin: 2px 0;
 }
 
+/* ===== ESTILOS DEL MENÚ - CORREGIDOS ===== */
 .nav-item a,
 .nav-item .nav-link-btn {
   display: flex;
@@ -541,7 +542,7 @@
   gap: 12px;
   padding: 10px 14px;
   border-radius: 10px;
-  color: #4a5568;
+  color: #1a202c !important; /* Negro intenso forzado */
   text-decoration: none;
   font-size: 14px;
   font-weight: 500;
@@ -554,13 +555,13 @@
 
 .nav-item a:hover,
 .nav-item .nav-link-btn:hover {
-  background: #f7fafc;
-  color: #2d3748;
+  background: #edf2f7;
+  color: #000000 !important; /* Negro puro en hover */
 }
 
 .nav-item.active a {
   background: #ebf8ff;
-  color: #2b6cb0;
+  color: #1a56db !important; /* Azul intenso */
   font-weight: 600;
 }
 
@@ -573,11 +574,19 @@
   width: 28px;
   text-align: center;
   flex-shrink: 0;
+  color: #4a5568;
+}
+
+.nav-item.active a .nav-icon {
+  color: #1a56db;
 }
 
 .nav-label {
   white-space: nowrap;
+  color: #1a202c !important; /* Negro intenso forzado */
 }
+
+/* ===== FIN ESTILOS DEL MENÚ ===== */
 
 .nav-separator {
   height: 1px;
@@ -590,7 +599,7 @@
   padding: 14px 16px;
   border-top: 1px solid #e2e8f0;
   font-size: 11px;
-  color: #a0aec0;
+  color: #4a5568;
 }
 
 .sidebar-version {
