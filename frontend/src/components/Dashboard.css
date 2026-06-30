@@ -4,10 +4,6 @@
 
 /* ----------------------------------------------------------
    TOKENS DE COLOR
-   Centralizados para que el contraste se pueda auditar y
-   ajustar en un solo lugar. Todos los grises de texto sobre
-   fondo claro cumplen AA (≥4.5:1); el resto de combinaciones
-   también fue verificado.
    ---------------------------------------------------------- */
 :root {
   --bg-app: #f0f4f8;
@@ -16,21 +12,21 @@
   --navbar-grad-2: #2d3748;
 
   --text-on-dark: #ffffff;
-  --text-on-dark-muted: rgba(255, 255, 255, 0.7);   /* antes 0.5, subido para legibilidad de texto pequeño */
-  --text-on-dark-faint: rgba(255, 255, 255, 0.45);  /* solo para elementos decorativos (flechita) */
+  --text-on-dark-muted: rgba(255, 255, 255, 0.7);
+  --text-on-dark-faint: rgba(255, 255, 255, 0.45);
 
-  --text-strong: #1a202c;   /* texto principal */
-  --text-default: #2d3748;  /* texto secundario fuerte */
-  --text-muted: #4a5568;    /* texto apagado, AA garantizado (7.5:1 sobre blanco) */
-  --text-muted-soft: #5a6678; /* variante intermedia, AA garantizado (5.8:1 sobre blanco) */
+  --text-strong: #1a202c;
+  --text-default: #2d3748;
+  --text-muted: #4a5568;
+  --text-muted-soft: #5a6678;
 
-  --link: #2b6cb0;          /* antes #4299e1 (3.0:1) -> ahora 5.4:1 sobre blanco */
+  --link: #2b6cb0;
   --link-bg-hover: #ebf8ff;
 
   --accent-blue: #1a56db;
-  --accent-blue-soft: #4299e1; /* reservado para elementos NO textuales (avatares, iconos grandes) */
+  --accent-blue-soft: #4299e1;
 
-  --danger: #c53030;        /* antes #fc8181 / #e53e3e en texto -> ahora 5.5:1 con texto blanco */
+  --danger: #c53030;
   --danger-soft-bg: #fff5f5;
 
   --border: #e2e8f0;
@@ -47,7 +43,7 @@
 }
 
 /* ============================================================
-   NAVBAR SUPERIOR - MODERNA CON GRADIENTE
+   NAVBAR SUPERIOR
    ============================================================ */
 .navbar {
   display: flex;
@@ -70,7 +66,6 @@
   gap: 16px;
 }
 
-/* Botón toggle sidebar */
 .btn-toggle-sidebar {
   background: rgba(255, 255, 255, 0.08);
   border: none;
@@ -94,12 +89,6 @@
   transform: scale(0.95);
 }
 
-.btn-toggle-sidebar:focus-visible {
-  outline: 2px solid var(--focus-ring);
-  outline-offset: 2px;
-}
-
-/* Marca */
 .navbar-brand {
   display: flex;
   align-items: center;
@@ -112,8 +101,6 @@
   margin: 0;
   color: var(--text-on-dark);
   letter-spacing: -0.3px;
-  /* Gradiente decorativo: ambos extremos siguen siendo claros sobre
-     fondo oscuro, así que el contraste se mantiene alto en todo el texto */
   background: linear-gradient(90deg, #ffffff 60%, #cbd5e0 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
@@ -141,7 +128,6 @@
   gap: 12px;
 }
 
-/* Buscador */
 .navbar-search {
   position: relative;
 }
@@ -158,7 +144,7 @@
 }
 
 .navbar-search .search-input::placeholder {
-  color: rgba(255, 255, 255, 0.6); /* antes 0.4, difícil de leer */
+  color: rgba(255, 255, 255, 0.6);
 }
 
 .navbar-search .search-input:focus {
@@ -179,7 +165,6 @@
   opacity: 0.6;
 }
 
-/* Notificaciones */
 .navbar-notificaciones {
   position: relative;
 }
@@ -200,17 +185,11 @@
   background: rgba(255, 255, 255, 0.1);
 }
 
-.btn-notificaciones:focus-visible,
-.btn-user:focus-visible {
-  outline: 2px solid var(--focus-ring);
-  outline-offset: 2px;
-}
-
 .badge-notificacion {
   position: absolute;
   top: 4px;
   right: 4px;
-  background: var(--danger); /* antes #fc8181, sólo 2.4:1 con texto blanco */
+  background: var(--danger);
   color: white;
   font-size: 10px;
   font-weight: 700;
@@ -221,12 +200,14 @@
   box-shadow: 0 2px 6px rgba(197, 48, 48, 0.45);
 }
 
-/* Dropdown notificaciones */
+/* ============================================================
+   DROPDOWN NOTIFICACIONES - CORREGIDO
+   ============================================================ */
 .dropdown-notificaciones {
   position: absolute;
   top: calc(100% + 8px);
   right: 0;
-  background: white;
+  background: #ffffff !important; /* Forzado blanco */
   border-radius: 14px;
   box-shadow: 0 12px 48px rgba(0, 0, 0, 0.2);
   min-width: 340px;
@@ -265,10 +246,10 @@
   padding: 14px 18px;
   border-bottom: 1px solid var(--border);
   font-weight: 600;
-  color: var(--text-default);
+  color: #1a202c !important; /* Forzado oscuro */
   position: sticky;
   top: 0;
-  background: white;
+  background: #ffffff !important;
   border-radius: 14px 14px 0 0;
   z-index: 1;
 }
@@ -276,7 +257,7 @@
 .btn-marcar-leidas {
   background: none;
   border: none;
-  color: var(--link); /* antes #4299e1, sólo 3.05:1 -> ahora 5.4:1 */
+  color: var(--link);
   font-size: 12px;
   cursor: pointer;
   padding: 4px 10px;
@@ -289,11 +270,6 @@
   background: var(--link-bg-hover);
 }
 
-.btn-marcar-leidas:focus-visible {
-  outline: 2px solid var(--focus-ring);
-  outline-offset: 1px;
-}
-
 .notificacion-item {
   display: flex;
   align-items: center;
@@ -302,25 +278,33 @@
   border-bottom: 1px solid var(--border-soft);
   transition: background 0.2s;
   cursor: default;
+  color: #1a202c !important; /* Forzado oscuro */
+  background: #ffffff !important;
 }
 
 .notificacion-item:hover {
-  background: var(--border-soft);
+  background: #f7fafc !important;
 }
 
 .notificacion-item.leido {
-  opacity: 0.7; /* antes 0.6, mantiene el texto secundario legible */
+  opacity: 0.7;
 }
 
 .notificacion-icono {
   font-size: 18px;
 }
 
+.notificacion-mensaje {
+  color: #1a202c !important; /* Forzado oscuro */
+  font-size: 14px;
+}
+
 .sin-notificaciones {
   padding: 24px;
   text-align: center;
-  color: var(--text-muted-soft); /* antes #a0aec0, sólo 2.25:1 -> ahora 5.8:1 */
+  color: #4a5568 !important;
   font-size: 14px;
+  background: #ffffff !important;
 }
 
 /* ============================================================
@@ -377,7 +361,7 @@
 
 .user-rol {
   font-size: 10px;
-  color: var(--text-on-dark-muted); /* antes 0.5, subido a 0.7 por ser texto muy pequeño en mayúsculas */
+  color: var(--text-on-dark-muted);
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
@@ -442,7 +426,7 @@
 
 .user-info-large span {
   font-size: 13px;
-  color: var(--text-muted-soft); /* antes #718096 sobre fondo claro -> insuficiente, ahora 5.8:1 */
+  color: var(--text-muted-soft);
 }
 
 .user-rol-badge {
@@ -487,13 +471,8 @@
   background: var(--border-soft);
 }
 
-.dropdown-user-menu button:focus-visible {
-  outline: 2px solid var(--focus-ring);
-  outline-offset: -2px;
-}
-
 .btn-logout-dropdown {
-  color: var(--danger) !important; /* antes #e53e3e (4.1:1, límite) -> ahora 5.5:1 */
+  color: var(--danger) !important;
   font-weight: 500;
 }
 
@@ -540,7 +519,7 @@
 
 .modulo-label {
   font-size: 13px;
-  color: var(--text-muted-soft); /* antes #718096 (4.0:1, insuficiente) -> ahora 5.8:1 */
+  color: var(--text-muted-soft);
   font-weight: 500;
 }
 
@@ -556,12 +535,12 @@
 
 .modulo-descripcion {
   font-size: 13px;
-  color: var(--text-muted-soft); /* antes #718096, mismo problema que arriba */
+  color: var(--text-muted-soft);
   font-style: italic;
 }
 
 /* ============================================================
-   SIDEBAR
+   SIDEBAR - CORREGIDO CON COLORES FORZADOS
    ============================================================ */
 .dashboard-container {
   display: flex;
@@ -571,7 +550,7 @@
 .sidebar {
   width: 240px;
   min-height: calc(100vh - 68px - 58px);
-  background: #ffffff;
+  background: #ffffff !important;
   border-right: 1px solid var(--border);
   display: flex;
   flex-direction: column;
@@ -595,6 +574,7 @@
   margin: 2px 0;
 }
 
+/* ===== ESTILOS DEL MENÚ - CORREGIDOS ===== */
 .nav-item a,
 .nav-item .nav-link-btn {
   display: flex;
@@ -602,7 +582,7 @@
   gap: 12px;
   padding: 10px 14px;
   border-radius: 10px;
-  color: var(--text-strong) !important;
+  color: #1a202c !important; /* Negro forzado */
   text-decoration: none;
   font-size: 14px;
   font-weight: 500;
@@ -615,19 +595,13 @@
 
 .nav-item a:hover,
 .nav-item .nav-link-btn:hover {
-  background: #edf2f7;
+  background: #edf2f7 !important;
   color: #000000 !important;
 }
 
-.nav-item a:focus-visible,
-.nav-item .nav-link-btn:focus-visible {
-  outline: 2px solid var(--focus-ring);
-  outline-offset: -2px;
-}
-
 .nav-item.active a {
-  background: #ebf8ff;
-  color: var(--accent-blue) !important;
+  background: #ebf8ff !important;
+  color: #1a56db !important;
   font-weight: 600;
 }
 
@@ -640,17 +614,19 @@
   width: 28px;
   text-align: center;
   flex-shrink: 0;
-  color: var(--text-muted);
+  color: #4a5568 !important;
 }
 
 .nav-item.active a .nav-icon {
-  color: var(--accent-blue);
+  color: #1a56db !important;
 }
 
 .nav-label {
   white-space: nowrap;
-  color: var(--text-strong) !important;
+  color: #1a202c !important; /* Negro forzado */
 }
+
+/* ===== FIN ESTILOS DEL MENÚ ===== */
 
 .nav-separator {
   height: 1px;
@@ -673,7 +649,7 @@
 }
 
 .sidebar-modulos-count {
-  color: var(--text-muted-soft); /* antes #718096 (4.0:1) -> ahora 5.8:1 */
+  color: var(--text-muted-soft);
   font-weight: 500;
 }
 
@@ -823,7 +799,7 @@
 }
 
 /* ============================================================
-   ACCESIBILIDAD: respeta preferencia de reducción de movimiento
+   ACCESIBILIDAD
    ============================================================ */
 @media (prefers-reduced-motion: reduce) {
   * {
