@@ -1,0 +1,683 @@
+/* ============================================================
+   PROVEEDORES - GESTIÓN PREMIUM
+   ============================================================ */
+.proveedores-container {
+  padding: 20px;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+/* ============================================================
+   HEADER
+   ============================================================ */
+.proveedores-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-bottom: 24px;
+  padding-bottom: 16px;
+  border-bottom: 2px solid #e2e8f0;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.header-left h2 {
+  margin: 0;
+  font-size: 24px;
+  color: #2d3748;
+  font-weight: 700;
+}
+
+.badge {
+  display: inline-block;
+  padding: 4px 14px;
+  background: #ebf8ff;
+  color: #2b6cb0;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 600;
+  border: 1px solid #bee3f8;
+}
+
+.btn-agregar {
+  padding: 10px 24px;
+  background: linear-gradient(135deg, #48bb78 0%, #38a169 100%);
+  color: white;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 14px;
+  transition: all 0.3s ease;
+  white-space: nowrap;
+}
+
+.btn-agregar:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(56, 161, 105, 0.35);
+}
+
+/* ============================================================
+   GRID DE PROVEEDORES
+   ============================================================ */
+.proveedores-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: 20px;
+}
+
+/* ============================================================
+   TARJETA DE PROVEEDOR
+   ============================================================ */
+.proveedor-card {
+  background: white;
+  border-radius: 16px;
+  border: 1px solid #e2e8f0;
+  padding: 20px;
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.proveedor-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, #4299e1, #48bb78, #4299e1);
+  background-size: 200% 100%;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.proveedor-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.08);
+}
+
+.proveedor-card:hover::before {
+  opacity: 1;
+}
+
+/* Cabecera de la tarjeta */
+.proveedor-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 14px;
+  gap: 12px;
+}
+
+.proveedor-nombre {
+  flex: 1;
+  min-width: 0;
+}
+
+.proveedor-nombre h3 {
+  margin: 0;
+  font-size: 17px;
+  color: #2d3748;
+  font-weight: 700;
+  word-break: break-word;
+}
+
+.proveedor-contacto {
+  display: inline-block;
+  margin-top: 4px;
+  font-size: 13px;
+  color: #718096;
+  background: #f7fafc;
+  padding: 2px 12px;
+  border-radius: 12px;
+}
+
+.proveedor-actions {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.proveedor-actions button {
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 16px;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.proveedor-actions .btn-editar {
+  color: #4299e1;
+}
+
+.proveedor-actions .btn-editar:hover {
+  background: #ebf8ff;
+  transform: scale(1.1);
+}
+
+.proveedor-actions .btn-eliminar {
+  color: #fc8181;
+}
+
+.proveedor-actions .btn-eliminar:hover {
+  background: #fff5f5;
+  transform: scale(1.1);
+}
+
+/* Cuerpo de la tarjeta */
+.proveedor-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 14px;
+  padding: 10px 0;
+  border-top: 1px solid #f0f4f8;
+  border-bottom: 1px solid #f0f4f8;
+}
+
+.proveedor-info-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: #4a5568;
+  padding: 2px 0;
+}
+
+.info-icon {
+  width: 24px;
+  font-size: 15px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.info-value {
+  flex: 1;
+  word-break: break-word;
+}
+
+.btn-whatsapp {
+  background: #25D366;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  padding: 2px 10px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+
+.btn-whatsapp:hover {
+  background: #128C7E;
+  transform: scale(1.05);
+}
+
+/* Footer de la tarjeta */
+.proveedor-card-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.productos-count {
+  font-size: 13px;
+  color: #718096;
+  font-weight: 500;
+}
+
+.btn-asociar {
+  padding: 4px 14px;
+  background: #ebf8ff;
+  color: #2b6cb0;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  transition: all 0.2s;
+}
+
+.btn-asociar:hover {
+  background: #bee3f8;
+  transform: scale(1.05);
+}
+
+/* Productos asociados */
+.productos-lista-mini {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid #f0f4f8;
+}
+
+.producto-tag {
+  background: #f7fafc;
+  padding: 2px 10px;
+  border-radius: 12px;
+  font-size: 11px;
+  color: #4a5568;
+  border: 1px solid #edf2f7;
+}
+
+.producto-tag-mas {
+  font-size: 11px;
+  color: #718096;
+  padding: 2px 8px;
+  font-weight: 500;
+}
+
+/* ============================================================
+   SIN DATOS
+   ============================================================ */
+.sin-datos {
+  text-align: center;
+  padding: 60px 20px;
+  color: #718096;
+  background: white;
+  border-radius: 16px;
+  border: 2px dashed #e2e8f0;
+  grid-column: 1 / -1;
+}
+
+.sin-datos p {
+  font-size: 16px;
+  margin-bottom: 16px;
+}
+
+.btn-agregar-primero {
+  padding: 10px 24px;
+  background: linear-gradient(135deg, #4299e1 0%, #3182ce 100%);
+  color: white;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 14px;
+  transition: all 0.3s ease;
+}
+
+.btn-agregar-primero:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(66, 153, 225, 0.3);
+}
+
+/* ============================================================
+   MODAL
+   ============================================================ */
+.modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 20px;
+  animation: fadeIn 0.2s ease;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.modal-content {
+  background: white;
+  border-radius: 20px;
+  padding: 32px;
+  max-width: 600px;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+}
+
+.modal-content::-webkit-scrollbar {
+  width: 6px;
+}
+
+.modal-content::-webkit-scrollbar-thumb {
+  background: #cbd5e0;
+  border-radius: 4px;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+  padding-bottom: 16px;
+  border-bottom: 2px solid #e2e8f0;
+}
+
+.modal-header h3 {
+  margin: 0;
+  font-size: 20px;
+  color: #2d3748;
+  font-weight: 700;
+}
+
+.modal-header button {
+  background: none;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+  color: #a0aec0;
+  transition: all 0.2s;
+  padding: 0 8px;
+}
+
+.modal-header button:hover {
+  color: #e53e3e;
+  transform: rotate(90deg);
+}
+
+/* ============================================================
+   FORMULARIO DEL MODAL
+   ============================================================ */
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.form-group {
+  margin-bottom: 16px;
+}
+
+.form-group label {
+  display: block;
+  font-size: 14px;
+  font-weight: 600;
+  color: #2d3748;
+  margin-bottom: 6px;
+}
+
+.form-group label .required {
+  color: #e53e3e;
+  margin-left: 2px;
+}
+
+.form-group input,
+.form-group select {
+  width: 100%;
+  padding: 10px 14px;
+  border: 2px solid #e2e8f0;
+  border-radius: 10px;
+  font-size: 14px;
+  color: #2d3748;
+  background: #f7fafc;
+  transition: all 0.3s ease;
+  font-family: inherit;
+}
+
+.form-group input:focus,
+.form-group select:focus {
+  outline: none;
+  border-color: #4299e1;
+  background: white;
+  box-shadow: 0 0 0 4px rgba(66, 153, 225, 0.1);
+}
+
+.form-group input::placeholder {
+  color: #a0aec0;
+}
+
+.form-group select {
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%234a5568' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+  cursor: pointer;
+}
+
+/* ============================================================
+   ACCIONES DEL FORMULARIO
+   ============================================================ */
+.form-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 2px solid #e2e8f0;
+}
+
+.btn-guardar {
+  flex: 1;
+  padding: 12px 24px;
+  background: linear-gradient(135deg, #4299e1 0%, #3182ce 100%);
+  color: white;
+  border: none;
+  border-radius: 10px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.btn-guardar:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(66, 153, 225, 0.35);
+}
+
+.btn-guardar:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.btn-cancelar {
+  padding: 12px 24px;
+  background: #edf2f7;
+  color: #4a5568;
+  border: none;
+  border-radius: 10px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.btn-cancelar:hover {
+  background: #e2e8f0;
+}
+
+/* ============================================================
+   ASOCIACIÓN DE PRODUCTOS
+   ============================================================ */
+.asociacion-form .form-group select option {
+  padding: 6px;
+}
+
+/* ============================================================
+   UTILIDADES
+   ============================================================ */
+.loading {
+  text-align: center;
+  padding: 40px 0;
+  color: #718096;
+  font-size: 15px;
+}
+
+.alert-warning {
+  padding: 16px 20px;
+  background: #fff5f5;
+  border: 1px solid #fc8181;
+  border-radius: 10px;
+  color: #742a2a;
+  text-align: center;
+  font-weight: 500;
+}
+
+/* ============================================================
+   RESPONSIVE
+   ============================================================ */
+@media (max-width: 1024px) {
+  .proveedores-grid {
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  }
+}
+
+@media (max-width: 768px) {
+  .proveedores-container {
+    padding: 12px;
+  }
+
+  .proveedores-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .header-left h2 {
+    font-size: 20px;
+  }
+
+  .badge {
+    font-size: 12px;
+    padding: 2px 12px;
+  }
+
+  .btn-agregar {
+    width: 100%;
+    text-align: center;
+  }
+
+  .proveedores-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .proveedor-card {
+    padding: 16px;
+  }
+
+  .form-row {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+
+  .modal-content {
+    padding: 20px;
+    max-width: 100%;
+    margin: 10px;
+    border-radius: 16px;
+  }
+
+  .modal-header h3 {
+    font-size: 18px;
+  }
+
+  .form-actions {
+    flex-direction: column;
+  }
+
+  .btn-guardar,
+  .btn-cancelar {
+    width: 100%;
+    text-align: center;
+  }
+
+  .proveedor-card-footer {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .btn-asociar {
+    width: 100%;
+    text-align: center;
+    padding: 6px;
+  }
+
+  .proveedor-nombre h3 {
+    font-size: 15px;
+  }
+
+  .sin-datos {
+    padding: 40px 20px;
+  }
+}
+
+@media (max-width: 480px) {
+  .proveedores-container {
+    padding: 8px;
+  }
+
+  .header-left h2 {
+    font-size: 18px;
+  }
+
+  .badge {
+    font-size: 11px;
+    padding: 2px 10px;
+  }
+
+  .proveedor-card {
+    padding: 12px;
+    border-radius: 12px;
+  }
+
+  .proveedor-card-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .proveedor-actions {
+    align-self: flex-end;
+  }
+
+  .proveedor-info-item {
+    font-size: 13px;
+  }
+
+  .modal-content {
+    padding: 16px;
+  }
+
+  .form-group input,
+  .form-group select {
+    font-size: 13px;
+    padding: 8px 12px;
+  }
+
+  .btn-guardar,
+  .btn-cancelar {
+    font-size: 14px;
+    padding: 10px;
+  }
+
+  .productos-lista-mini {
+    gap: 4px;
+  }
+
+  .producto-tag {
+    font-size: 10px;
+    padding: 2px 8px;
+  }
+}

@@ -204,7 +204,13 @@ const Dashboard = ({ user, onLogout }) => {
                   </li>
                   <li className="dropdown-divider"></li>
                   <li>
-                    <button onClick={handleLogout} className="btn-logout-dropdown">
+                    <button 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleLogout();
+                      }} 
+                      className="btn-logout-dropdown"
+                    >
                       🚪 Cerrar Sesión
                     </button>
                   </li>

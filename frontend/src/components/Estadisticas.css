@@ -1,5 +1,5 @@
 /* ============================================================
-   ESTADISTICAS - ESTILOS PREMIUM
+   ESTADISTICAS - PANEL ANALÍTICO PREMIUM
    ============================================================ */
 .estadisticas-container {
   padding: 20px;
@@ -17,6 +17,8 @@
   flex-wrap: wrap;
   gap: 16px;
   margin-bottom: 24px;
+  padding-bottom: 16px;
+  border-bottom: 2px solid #e2e8f0;
 }
 
 .header-left {
@@ -29,33 +31,48 @@
   margin: 0;
   font-size: 24px;
   color: #2d3748;
+  font-weight: 700;
+}
+
+.badge {
+  display: inline-block;
+  padding: 4px 14px;
+  background: #ebf8ff;
+  color: #2b6cb0;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 600;
+  border: 1px solid #bee3f8;
 }
 
 .header-right {
   display: flex;
   gap: 8px;
+  flex-wrap: wrap;
 }
 
 .btn-vista {
-  padding: 8px 16px;
+  padding: 8px 18px;
   border: 2px solid #e2e8f0;
   background: white;
-  border-radius: 8px;
+  border-radius: 10px;
   cursor: pointer;
   font-size: 14px;
   font-weight: 500;
   color: #4a5568;
-  transition: all 0.2s;
+  transition: all 0.3s ease;
 }
 
 .btn-vista:hover {
   background: #f7fafc;
+  transform: translateY(-1px);
 }
 
 .btn-vista.active {
   background: #4299e1;
   color: white;
   border-color: #4299e1;
+  box-shadow: 0 4px 12px rgba(66, 153, 225, 0.3);
 }
 
 /* ============================================================
@@ -69,24 +86,27 @@
   background: white;
   padding: 16px 20px;
   border-radius: 12px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  border: 1px solid #e2e8f0;
   margin-bottom: 24px;
 }
 
 .periodo-selector {
   display: flex;
   gap: 4px;
+  flex-wrap: wrap;
 }
 
 .btn-periodo {
   padding: 6px 16px;
   border: none;
   background: transparent;
-  border-radius: 6px;
+  border-radius: 8px;
   cursor: pointer;
   font-size: 14px;
   color: #4a5568;
-  transition: all 0.2s;
+  transition: all 0.2s ease;
+  font-weight: 500;
 }
 
 .btn-periodo:hover {
@@ -97,6 +117,7 @@
   background: #ebf8ff;
   color: #2b6cb0;
   font-weight: 600;
+  box-shadow: 0 0 0 2px #bee3f8;
 }
 
 .fechas-personalizadas {
@@ -108,28 +129,39 @@
 
 .input-fecha {
   padding: 6px 12px;
-  border: 1px solid #e2e8f0;
-  border-radius: 6px;
+  border: 2px solid #e2e8f0;
+  border-radius: 8px;
   font-size: 14px;
+  background: #f7fafc;
+  transition: all 0.2s;
+}
+
+.input-fecha:focus {
+  outline: none;
+  border-color: #4299e1;
+  background: white;
+  box-shadow: 0 0 0 3px rgba(66, 153, 225, 0.1);
 }
 
 .fecha-separador {
   color: #a0aec0;
+  font-weight: 600;
 }
 
 .btn-aplicar {
   padding: 6px 16px;
-  background: #48bb78;
+  background: linear-gradient(135deg, #48bb78 0%, #38a169 100%);
   color: white;
   border: none;
-  border-radius: 6px;
+  border-radius: 8px;
   cursor: pointer;
-  font-weight: 500;
-  transition: background 0.2s;
+  font-weight: 600;
+  transition: all 0.3s ease;
 }
 
 .btn-aplicar:hover {
-  background: #38a169;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(56, 161, 105, 0.3);
 }
 
 /* ============================================================
@@ -141,11 +173,14 @@
   align-items: center;
   justify-content: center;
   padding: 60px 20px;
+  background: white;
+  border-radius: 16px;
+  border: 1px solid #e2e8f0;
 }
 
 .spinner {
-  width: 40px;
-  height: 40px;
+  width: 48px;
+  height: 48px;
   border: 4px solid #e2e8f0;
   border-top: 4px solid #4299e1;
   border-radius: 50%;
@@ -157,6 +192,12 @@
   100% { transform: rotate(360deg); }
 }
 
+.loading-container p {
+  margin-top: 16px;
+  color: #718096;
+  font-size: 16px;
+}
+
 /* ============================================================
    GRID PRINCIPAL
    ============================================================ */
@@ -166,18 +207,24 @@
   gap: 20px;
 }
 
-.estadisticas-grid .card {
+.card {
   background: white;
-  border-radius: 12px;
-  padding: 20px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
   border: 1px solid #e2e8f0;
+  transition: box-shadow 0.3s ease;
 }
 
-.estadisticas-grid .card h3 {
-  margin: 0 0 16px 0;
+.card:hover {
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+}
+
+.card h3 {
+  margin: 0 0 20px 0;
   font-size: 16px;
   color: #2d3748;
+  font-weight: 600;
 }
 
 /* ============================================================
@@ -196,26 +243,28 @@
 .metrica-item {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 12px;
+  gap: 14px;
+  padding: 16px 20px;
   background: #f7fafc;
-  border-radius: 8px;
-  transition: transform 0.2s;
+  border-radius: 12px;
+  transition: all 0.3s ease;
 }
 
 .metrica-item:hover {
   transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
 }
 
 .metrica-icono {
-  font-size: 28px;
-  width: 48px;
-  height: 48px;
+  font-size: 32px;
+  width: 56px;
+  height: 56px;
   display: flex;
   align-items: center;
   justify-content: center;
   background: white;
-  border-radius: 10px;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
 }
 
 .metrica-info {
@@ -224,14 +273,16 @@
 }
 
 .metrica-valor {
-  font-size: 20px;
+  font-size: 22px;
   font-weight: 700;
   color: #2d3748;
+  line-height: 1.2;
 }
 
 .metrica-label {
   font-size: 13px;
   color: #718096;
+  font-weight: 500;
 }
 
 /* ============================================================
@@ -250,9 +301,9 @@
 .grafico-barras {
   display: flex;
   align-items: flex-end;
-  gap: 8px;
-  min-height: 200px;
-  padding: 0 10px;
+  gap: 10px;
+  min-height: 220px;
+  padding: 0 4px;
 }
 
 .barra-container {
@@ -260,36 +311,39 @@
   flex-direction: column;
   align-items: center;
   flex: 1;
-  min-width: 40px;
+  min-width: 36px;
   height: 200px;
   justify-content: flex-end;
 }
 
 .barra {
   width: 100%;
-  max-width: 50px;
-  background: #4299e1;
-  border-radius: 4px 4px 0 0;
+  max-width: 40px;
+  background: linear-gradient(180deg, #4299e1 0%, #3182ce 100%);
+  border-radius: 6px 6px 0 0;
   min-height: 8px;
-  transition: height 0.5s ease;
+  transition: height 0.6s ease;
   position: relative;
   cursor: pointer;
 }
 
 .barra:hover {
-  opacity: 0.8;
+  opacity: 0.85;
+  transform: scaleY(1.02);
+  transform-origin: bottom;
 }
 
 .barra-valor {
   position: absolute;
-  top: -20px;
+  top: -24px;
   left: 50%;
   transform: translateX(-50%);
   font-size: 10px;
-  color: #4a5568;
+  font-weight: 600;
+  color: #2d3748;
   white-space: nowrap;
   opacity: 0;
-  transition: opacity 0.2s;
+  transition: opacity 0.3s ease;
 }
 
 .barra:hover .barra-valor {
@@ -299,8 +353,8 @@
 .barra-fecha {
   font-size: 11px;
   color: #718096;
-  margin-top: 8px;
-  text-align: center;
+  margin-top: 10px;
+  font-weight: 500;
 }
 
 /* ============================================================
@@ -313,14 +367,14 @@
 .top-productos-lista {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
 }
 
 .producto-top-item {
-  padding: 10px 12px;
+  padding: 12px 16px;
   background: #f7fafc;
-  border-radius: 8px;
-  transition: all 0.2s;
+  border-radius: 10px;
+  transition: all 0.2s ease;
   cursor: default;
 }
 
@@ -333,52 +387,54 @@
   display: flex;
   align-items: center;
   gap: 12px;
-  margin-bottom: 4px;
+  margin-bottom: 6px;
 }
 
 .producto-posicion {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
-  height: 24px;
+  width: 28px;
+  height: 28px;
   background: #4299e1;
   color: white;
   border-radius: 50%;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 700;
+  flex-shrink: 0;
 }
 
 .producto-top-nombre {
   flex: 1;
   font-weight: 500;
   color: #2d3748;
+  font-size: 14px;
 }
 
 .producto-top-cantidad {
   font-size: 13px;
   color: #718096;
+  font-weight: 500;
 }
 
 .producto-top-bar {
   width: 100%;
   height: 6px;
   background: #edf2f7;
-  border-radius: 3px;
+  border-radius: 4px;
   overflow: hidden;
-  margin-top: 4px;
 }
 
 .producto-top-progreso {
   height: 100%;
-  border-radius: 3px;
-  transition: width 0.6s ease;
+  border-radius: 4px;
+  transition: width 0.8s ease;
 }
 
 .producto-top-monto {
   display: block;
   text-align: right;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
   color: #2d3748;
   margin-top: 4px;
@@ -400,26 +456,35 @@
 .rapida-item {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 12px;
+  gap: 14px;
+  padding: 14px 16px;
   background: #f7fafc;
-  border-radius: 8px;
+  border-radius: 10px;
+  transition: all 0.2s ease;
+}
+
+.rapida-item:hover {
+  background: #edf2f7;
 }
 
 .rapida-icono {
-  font-size: 24px;
+  font-size: 28px;
+  width: 48px;
+  text-align: center;
 }
 
 .rapida-valor {
   display: block;
-  font-size: 18px;
+  font-size: 20px;
   font-weight: 700;
   color: #2d3748;
+  line-height: 1.2;
 }
 
 .rapida-label {
   font-size: 12px;
   color: #718096;
+  font-weight: 500;
 }
 
 /* ============================================================
@@ -437,13 +502,13 @@
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 16px;
-  margin-bottom: 20px;
+  margin-bottom: 24px;
 }
 
 .stat-item {
-  padding: 12px;
+  padding: 16px;
   background: #f7fafc;
-  border-radius: 8px;
+  border-radius: 10px;
   text-align: center;
 }
 
@@ -451,20 +516,22 @@
   display: block;
   font-size: 13px;
   color: #718096;
+  font-weight: 500;
 }
 
 .stat-item strong {
   display: block;
-  font-size: 24px;
+  font-size: 28px;
   margin-top: 4px;
+  color: #2d3748;
 }
 
 .text-warning {
-  color: #ed8936;
+  color: #ed8936 !important;
 }
 
 .text-danger {
-  color: #fc8181;
+  color: #e53e3e !important;
 }
 
 .tabla-top-productos {
@@ -475,7 +542,7 @@
 
 .tabla-top-productos th {
   text-align: left;
-  padding: 10px 12px;
+  padding: 10px 14px;
   background: #f7fafc;
   font-weight: 600;
   color: #4a5568;
@@ -483,7 +550,7 @@
 }
 
 .tabla-top-productos td {
-  padding: 10px 12px;
+  padding: 10px 14px;
   border-bottom: 1px solid #edf2f7;
 }
 
@@ -493,7 +560,7 @@
 
 .porcentaje-badge {
   display: inline-block;
-  padding: 2px 10px;
+  padding: 2px 12px;
   background: #ebf8ff;
   color: #2b6cb0;
   border-radius: 12px;
@@ -516,32 +583,39 @@
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 16px;
-  margin-bottom: 20px;
+  margin-bottom: 24px;
 }
 
 .venta-metrica {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 16px;
+  gap: 16px;
+  padding: 18px 20px;
   background: #f7fafc;
-  border-radius: 8px;
+  border-radius: 10px;
+  transition: all 0.2s ease;
+}
+
+.venta-metrica:hover {
+  background: #edf2f7;
 }
 
 .venta-metrica-icono {
-  font-size: 28px;
+  font-size: 32px;
 }
 
 .venta-metrica-valor {
   display: block;
-  font-size: 20px;
+  font-size: 22px;
   font-weight: 700;
   color: #2d3748;
+  line-height: 1.2;
 }
 
 .venta-metrica-label {
   font-size: 13px;
   color: #718096;
+  font-weight: 500;
 }
 
 .ventas-metodos {
@@ -549,18 +623,18 @@
 }
 
 .ventas-metodos h4 {
-  font-size: 14px;
+  font-size: 15px;
   color: #4a5568;
-  margin-bottom: 10px;
+  margin: 0 0 12px 0;
 }
 
 .metodo-popular {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 12px 16px;
+  padding: 14px 20px;
   background: #f0fff4;
-  border-radius: 8px;
+  border-radius: 10px;
   border: 1px solid #c6f6d5;
 }
 
@@ -572,12 +646,13 @@
 
 .metodo-detalle {
   color: #2d3748;
+  font-size: 14px;
 }
 
 .ventas-periodo-info h4 {
-  font-size: 14px;
+  font-size: 15px;
   color: #4a5568;
-  margin-bottom: 10px;
+  margin: 0 0 12px 0;
 }
 
 .periodo-detalles {
@@ -587,54 +662,61 @@
 }
 
 .periodo-detalles span {
-  padding: 8px 12px;
+  padding: 10px 14px;
   background: #f7fafc;
-  border-radius: 6px;
-  font-size: 13px;
+  border-radius: 8px;
+  font-size: 14px;
+  color: #2d3748;
 }
 
 /* ============================================================
    UTILIDADES
    ============================================================ */
 .sin-datos {
-  padding: 20px;
+  padding: 30px 20px;
   text-align: center;
   color: #a0aec0;
   font-style: italic;
+  font-size: 15px;
 }
 
 .alert-warning {
   padding: 16px 20px;
   background: #fff5f5;
   border: 1px solid #fc8181;
-  border-radius: 8px;
+  border-radius: 10px;
   color: #742a2a;
   text-align: center;
-}
-
-.badge {
-  display: inline-block;
-  padding: 4px 12px;
-  background: #ebf8ff;
-  color: #2b6cb0;
-  border-radius: 20px;
-  font-size: 13px;
-  font-weight: 600;
+  font-weight: 500;
 }
 
 /* ============================================================
    RESPONSIVE
    ============================================================ */
-@media (max-width: 1024px) {
+@media (max-width: 1200px) {
   .metricas-grid {
     grid-template-columns: repeat(2, 1fr);
   }
-  
-  .metricas-rapidas-grid {
-    grid-template-columns: 1fr 1fr;
-  }
-  
+
   .periodo-detalles {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 1024px) {
+  .top-productos {
+    grid-column: 1 / -1;
+  }
+
+  .metricas-rapidas {
+    grid-column: 1 / -1;
+  }
+
+  .metricas-rapidas-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+
+  .ventas-metricas-grid {
     grid-template-columns: repeat(2, 1fr);
   }
 }
@@ -643,113 +725,182 @@
   .estadisticas-container {
     padding: 12px;
   }
-  
+
+  .estadisticas-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .header-left h2 {
+    font-size: 20px;
+  }
+
+  .header-right {
+    flex-wrap: wrap;
+  }
+
+  .btn-vista {
+    flex: 1;
+    text-align: center;
+    font-size: 13px;
+    padding: 6px 12px;
+  }
+
+  .filtros-periodo {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .periodo-selector {
+    flex-wrap: wrap;
+  }
+
+  .btn-periodo {
+    flex: 1;
+    text-align: center;
+    font-size: 13px;
+    padding: 6px 12px;
+  }
+
+  .fechas-personalizadas {
+    flex-wrap: wrap;
+  }
+
+  .fechas-personalizadas input {
+    flex: 1;
+    min-width: 100px;
+  }
+
   .estadisticas-grid {
     grid-template-columns: 1fr;
   }
-  
+
   .metricas-principales,
   .grafico-ventas-dia,
   .top-productos,
   .metricas-rapidas {
     grid-column: 1 / -1;
   }
-  
+
   .metricas-grid {
     grid-template-columns: 1fr 1fr;
   }
-  
+
   .metricas-rapidas-grid {
     grid-template-columns: 1fr 1fr;
   }
-  
-  .estadisticas-header {
-    flex-direction: column;
-    align-items: stretch;
-  }
-  
-  .header-right {
-    flex-wrap: wrap;
-  }
-  
-  .btn-vista {
-    flex: 1;
-    text-align: center;
-    padding: 6px 12px;
-    font-size: 13px;
-  }
-  
-  .filtros-periodo {
-    flex-direction: column;
-    align-items: stretch;
-  }
-  
-  .periodo-selector {
-    flex-wrap: wrap;
-  }
-  
-  .btn-periodo {
-    flex: 1;
-    text-align: center;
-    padding: 8px 12px;
-    font-size: 13px;
-  }
-  
-  .fechas-personalizadas {
-    flex-wrap: wrap;
-  }
-  
-  .fechas-personalizadas input {
-    flex: 1;
-    min-width: 100px;
-  }
-  
+
   .grafico-barras {
-    gap: 4px;
-    min-height: 150px;
+    gap: 6px;
+    min-height: 160px;
   }
-  
+
   .barra-container {
     min-width: 30px;
-    height: 150px;
+    height: 160px;
   }
-  
+
   .barra-fecha {
     font-size: 9px;
   }
-  
+
   .productos-stats {
     grid-template-columns: 1fr;
   }
-  
+
   .ventas-metricas-grid {
     grid-template-columns: 1fr;
   }
-  
+
   .periodo-detalles {
-    grid-template-columns: 1fr;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .card {
+    padding: 16px;
   }
 }
 
 @media (max-width: 480px) {
+  .estadisticas-container {
+    padding: 8px;
+  }
+
+  .header-left h2 {
+    font-size: 18px;
+  }
+
+  .badge {
+    font-size: 11px;
+    padding: 2px 10px;
+  }
+
   .metricas-grid {
     grid-template-columns: 1fr;
   }
-  
+
   .metricas-rapidas-grid {
     grid-template-columns: 1fr;
   }
-  
-  .header-left h2 {
-    font-size: 20px;
+
+  .grafico-barras {
+    gap: 4px;
+    min-height: 140px;
   }
-  
+
+  .barra-container {
+    min-width: 24px;
+    height: 140px;
+  }
+
+  .barra-valor {
+    font-size: 8px;
+    top: -20px;
+  }
+
+  .metrica-item {
+    padding: 12px 14px;
+  }
+
+  .metrica-valor {
+    font-size: 18px;
+  }
+
+  .metrica-icono {
+    font-size: 24px;
+    width: 44px;
+    height: 44px;
+  }
+
+  .periodo-detalles {
+    grid-template-columns: 1fr;
+  }
+
+  .metodo-popular {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+
+  .btn-vista {
+    font-size: 12px;
+    padding: 4px 10px;
+  }
+
   .tabla-top-productos {
     font-size: 12px;
   }
-  
+
   .tabla-top-productos th,
   .tabla-top-productos td {
     padding: 6px 8px;
+  }
+
+  .venta-metrica {
+    padding: 12px 14px;
+  }
+
+  .venta-metrica-valor {
+    font-size: 18px;
   }
 }

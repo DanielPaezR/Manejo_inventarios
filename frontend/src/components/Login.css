@@ -1,82 +1,472 @@
+/* ============================================================
+   LOGIN - VERSIÓN PREMIUM
+   ============================================================ */
+
+/* Contenedor principal con gradiente animado */
 .login-container {
   display: flex;
   justify-content: center;
   align-items: center;
   min-height: 100vh;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background-size: 400% 400%;
+  animation: gradientShift 15s ease infinite;
+  padding: 20px;
 }
 
-.login-form {
-  background: white;
-  padding: 2rem;
-  border-radius: 10px;
-  box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+/* Animación del gradiente de fondo */
+@keyframes gradientShift {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+/* ============================================================
+   TARJETA DE LOGIN
+   ============================================================ */
+.login-card {
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(10px);
+  padding: 40px 36px;
+  border-radius: 20px;
+  box-shadow: 
+    0 20px 60px rgba(0, 0, 0, 0.3),
+    0 0 0 1px rgba(255, 255, 255, 0.1) inset;
   width: 100%;
-  max-width: 400px;
+  max-width: 420px;
+  animation: slideUp 0.6s ease-out;
+  position: relative;
+  overflow: hidden;
 }
 
-.login-form h2 {
+/* Animación de entrada */
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Línea decorativa superior */
+.login-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, #667eea, #764ba2, #667eea);
+  background-size: 200% 100%;
+  animation: shimmer 3s linear infinite;
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+/* Icono decorativo */
+.login-icon {
   text-align: center;
-  margin-bottom: 1.5rem;
-  color: #333;
+  font-size: 48px;
+  margin-bottom: 8px;
+  display: block;
 }
 
+.login-card h1 {
+  text-align: center;
+  font-size: 28px;
+  font-weight: 700;
+  color: #2d3748;
+  margin: 0 0 4px 0;
+  letter-spacing: -0.5px;
+}
+
+.login-card .subtitle {
+  text-align: center;
+  font-size: 14px;
+  color: #718096;
+  margin-bottom: 24px;
+  font-weight: 400;
+}
+
+/* ============================================================
+   ERROR MESSAGE
+   ============================================================ */
+.error-message {
+  background: #fff5f5;
+  color: #c53030;
+  padding: 12px 16px;
+  border-radius: 10px;
+  margin-bottom: 20px;
+  border-left: 4px solid #fc8181;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  animation: shake 0.4s ease;
+}
+
+.error-message::before {
+  content: '⚠️';
+  font-size: 18px;
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-6px); }
+  75% { transform: translateX(6px); }
+}
+
+/* ============================================================
+   FORMULARIO
+   ============================================================ */
 .form-group {
-  margin-bottom: 1rem;
+  margin-bottom: 20px;
+  position: relative;
 }
 
 .form-group label {
   display: block;
-  margin-bottom: 0.5rem;
-  color: #555;
+  font-size: 14px;
+  font-weight: 600;
+  color: #2d3748;
+  margin-bottom: 6px;
+}
+
+.form-group label .required {
+  color: #fc8181;
+  margin-left: 2px;
 }
 
 .form-group input {
   width: 100%;
-  padding: 0.75rem;
-  border: 1px solid #ddd;
-  border-radius: 5px;
-  font-size: 1rem;
+  padding: 12px 16px;
+  border: 2px solid #e2e8f0;
+  border-radius: 10px;
+  font-size: 15px;
+  color: #2d3748;
+  background: #f7fafc;
+  transition: all 0.3s ease;
+  outline: none;
 }
 
-.btn {
-  width: 100%;
-  padding: 0.75rem;
-  background: #667eea;
-  color: white;
-  border: none;
-  border-radius: 5px;
-  font-size: 1rem;
-  cursor: pointer;
-  transition: background 0.3s;
+.form-group input:focus {
+  border-color: #667eea;
+  background: white;
+  box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.15);
 }
 
-.btn:hover {
-  background: #5a6fd8;
+.form-group input::placeholder {
+  color: #a0aec0;
+  font-size: 14px;
 }
 
-.btn:disabled {
-  background: #ccc;
+.form-group input:disabled {
+  opacity: 0.6;
   cursor: not-allowed;
 }
 
-.error-message {
-  background: #f8d7da;
-  color: #721c24;
-  padding: 0.75rem;
-  border-radius: 5px;
-  margin-bottom: 1rem;
-  border: 1px solid #f5c6cb;
+/* Icono dentro del input */
+.form-group .input-icon {
+  position: absolute;
+  right: 14px;
+  top: 42px;
+  color: #a0aec0;
+  font-size: 18px;
+  pointer-events: none;
 }
 
-.login-info {
-  margin-top: 1.5rem;
-  padding: 1rem;
-  background: #e9ecef;
-  border-radius: 5px;
-  font-size: 0.9rem;
+/* ============================================================
+   BOTÓN DE LOGIN
+   ============================================================ */
+.btn-login {
+  width: 100%;
+  padding: 14px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  border-radius: 10px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+  margin-top: 4px;
 }
 
-.login-info p {
-  margin: 0.25rem 0;
+.btn-login:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
+}
+
+.btn-login:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.btn-login:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.btn-login .spinner {
+  display: inline-block;
+  width: 20px;
+  height: 20px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: white;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  vertical-align: middle;
+  margin-right: 8px;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Efecto de onda al hacer click */
+.btn-login::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.2);
+  transform: translate(-50%, -50%);
+  transition: width 0.6s, height 0.6s;
+}
+
+.btn-login:active:not(:disabled)::after {
+  width: 300px;
+  height: 300px;
+}
+
+/* ============================================================
+   OPCIONES ADICIONALES
+   ============================================================ */
+.login-options {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 16px;
+  font-size: 14px;
+}
+
+.login-options .remember-me {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #4a5568;
+  cursor: pointer;
+}
+
+.login-options .remember-me input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: #667eea;
+  cursor: pointer;
+}
+
+.login-options a {
+  color: #667eea;
+  text-decoration: none;
+  font-weight: 500;
+  transition: color 0.2s;
+}
+
+.login-options a:hover {
+  color: #5a6fd8;
+  text-decoration: underline;
+}
+
+/* ============================================================
+   CREDENCIALES DE PRUEBA
+   ============================================================ */
+.login-credentials {
+  margin-top: 24px;
+  padding: 16px 20px;
+  background: #f7fafc;
+  border-radius: 10px;
+  border: 1px solid #e2e8f0;
+}
+
+.login-credentials p {
+  margin: 0 0 8px 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: #2d3748;
+  text-align: center;
+}
+
+.login-credentials .credential-item {
+  display: flex;
+  justify-content: space-between;
+  padding: 4px 0;
+  font-size: 12px;
+  color: #4a5568;
+}
+
+.login-credentials .credential-item .role {
+  font-weight: 600;
+  color: #2d3748;
+}
+
+.login-credentials .credential-item .email {
+  color: #667eea;
+  font-weight: 500;
+}
+
+.login-credentials .credential-item .password {
+  color: #718096;
+  font-family: monospace;
+}
+
+/* ============================================================
+   FOOTER
+   ============================================================ */
+.login-footer {
+  text-align: center;
+  margin-top: 20px;
+  font-size: 12px;
+  color: #a0aec0;
+}
+
+.login-footer a {
+  color: #667eea;
+  text-decoration: none;
+}
+
+.login-footer a:hover {
+  text-decoration: underline;
+}
+
+/* ============================================================
+   RESPONSIVE
+   ============================================================ */
+@media (max-width: 480px) {
+  .login-card {
+    padding: 28px 20px;
+    border-radius: 16px;
+  }
+
+  .login-card h1 {
+    font-size: 22px;
+  }
+
+  .login-card .subtitle {
+    font-size: 13px;
+  }
+
+  .form-group input {
+    padding: 10px 14px;
+    font-size: 14px;
+  }
+
+  .btn-login {
+    padding: 12px;
+    font-size: 15px;
+  }
+
+  .login-options {
+    flex-direction: column;
+    gap: 10px;
+    align-items: flex-start;
+  }
+
+  .login-credentials .credential-item {
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .login-credentials .credential-item .email {
+    font-size: 11px;
+  }
+}
+
+@media (max-width: 360px) {
+  .login-card {
+    padding: 20px 16px;
+  }
+
+  .login-card h1 {
+    font-size: 20px;
+  }
+
+  .form-group input {
+    font-size: 13px;
+  }
+
+  .btn-login {
+    font-size: 14px;
+  }
+}
+
+/* ============================================================
+   MODO OSCURO (Opcional)
+   ============================================================ */
+@media (prefers-color-scheme: dark) {
+  .login-card {
+    background: rgba(26, 32, 44, 0.95);
+  }
+
+  .login-card h1 {
+    color: white;
+  }
+
+  .login-card .subtitle {
+    color: #a0aec0;
+  }
+
+  .form-group label {
+    color: #e2e8f0;
+  }
+
+  .form-group input {
+    background: #2d3748;
+    border-color: #4a5568;
+    color: white;
+  }
+
+  .form-group input:focus {
+    border-color: #667eea;
+    background: #2d3748;
+  }
+
+  .form-group input::placeholder {
+    color: #718096;
+  }
+
+  .login-credentials {
+    background: #2d3748;
+    border-color: #4a5568;
+  }
+
+  .login-credentials p {
+    color: #e2e8f0;
+  }
+
+  .login-credentials .credential-item {
+    color: #a0aec0;
+  }
+
+  .login-credentials .credential-item .role {
+    color: #e2e8f0;
+  }
+
+  .login-options .remember-me {
+    color: #a0aec0;
+  }
+
+  .login-footer {
+    color: #718096;
+  }
 }

@@ -1,166 +1,69 @@
-/* Pedidos Sugeridos */
-.pedidos-sugeridos {
-  margin-bottom: 20px;
-  background: #f8f9fa;
-  border-left: 4px solid #f6ad55;
+/* ============================================================
+   GESTIÓN DE INVENTARIO - PREMIUM
+   ============================================================ */
+.gestion-inventario-container {
+  padding: 20px;
+  max-width: 1400px;
+  margin: 0 auto;
 }
 
-.badge-pedidos {
-  background: #f6ad55;
-  color: white;
-  padding: 2px 10px;
-  border-radius: 20px;
-  font-size: 12px;
-  margin-left: 10px;
-}
-
-.pedidos-grid {
-  display: grid;
-  gap: 15px;
-  margin-top: 15px;
-}
-
-.pedido-proveedor-card {
-  background: white;
-  border-radius: 8px;
-  padding: 15px;
-  border: 1px solid #e2e8f0;
-}
-
-.proveedor-header {
+/* ============================================================
+   HEADER
+   ============================================================ */
+.gestion-header {
   display: flex;
   justify-content: space-between;
-  align-items: center;
-  margin-bottom: 10px;
-  padding-bottom: 10px;
-  border-bottom: 1px solid #e2e8f0;
-}
-
-.proveedor-info {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.proveedor-telefono {
-  font-size: 12px;
-  color: #718096;
-}
-
-.btn-pedir-todo {
-  background: #48bb78;
-  color: white;
-  border: none;
-  padding: 6px 12px;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 12px;
-}
-
-.btn-pedir-todo:hover {
-  background: #38a169;
-}
-
-.productos-pedido {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.producto-pedido-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 8px 12px;
-  background: #f7fafc;
-  border-radius: 6px;
-}
-
-.producto-pedido-item.urgente {
-  background: #fff5f5;
-  border-left: 3px solid #fc8181;
-}
-
-.producto-pedido-info {
-  display: flex;
-  gap: 15px;
   align-items: center;
   flex-wrap: wrap;
+  gap: 16px;
+  margin-bottom: 24px;
+  padding-bottom: 16px;
+  border-bottom: 2px solid #e2e8f0;
 }
 
-.producto-nombre {
-  font-weight: 500;
-}
-
-.producto-stock {
-  font-size: 12px;
-  color: #718096;
-}
-
-.producto-cantidad-sugerida {
-  font-size: 12px;
-  color: #4299e1;
-  font-weight: 600;
-}
-
-.badge-urgente {
-  background: #fc8181;
-  color: white;
-  padding: 2px 8px;
-  border-radius: 12px;
-  font-size: 10px;
+.gestion-header h2 {
+  margin: 0;
+  font-size: 24px;
+  color: #2d3748;
   font-weight: 700;
 }
 
-.btn-pedir-individual {
-  background: #4299e1;
-  color: white;
-  border: none;
-  padding: 4px 10px;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 12px;
+.badge {
+  display: inline-block;
+  padding: 4px 14px;
+  background: #ebf8ff;
+  color: #2b6cb0;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 600;
+  border: 1px solid #bee3f8;
 }
 
-.btn-pedir-individual:hover {
-  background: #3182ce;
-}
-
-.btn-pedir-whatsapp {
-  background: #25D366;
-  color: white;
-  border: none;
-  padding: 4px 10px;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 12px;
-}
-
-.btn-pedir-whatsapp:hover {
-  background: #128C7E;
-}
-
-.sin-proveedor {
-  font-size: 12px;
-  color: #a0aec0;
-}
-
-.btn-cerrar-mensaje {
-  background: none;
-  border: none;
-  color: inherit;
-  cursor: pointer;
-  font-size: 16px;
-  padding: 0 5px;
-}
-
+/* ============================================================
+   MENSAJES FLOTANTES
+   ============================================================ */
 .mensaje-flotante {
-  padding: 12px 16px;
-  border-radius: 8px;
-  margin: 10px 0;
+  padding: 14px 20px;
+  border-radius: 12px;
+  margin-bottom: 20px;
   display: flex;
   justify-content: space-between;
   align-items: center;
+  font-weight: 500;
+  font-size: 14px;
+  animation: slideDown 0.3s ease;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .mensaje-flotante.exito {
@@ -177,29 +80,632 @@
 
 .mensaje-flotante.info {
   background: #ebf8ff;
-  border: 1px solid #4299e1;
+  border: 1px solid #63b3ed;
   color: #2a4365;
 }
 
-/* Responsive */
-@media (max-width: 768px) {
-  .producto-pedido-info {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 4px;
+.btn-cerrar-mensaje {
+  background: none;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  font-size: 18px;
+  padding: 0 4px;
+  opacity: 0.6;
+  transition: opacity 0.2s;
+}
+
+.btn-cerrar-mensaje:hover {
+  opacity: 1;
+}
+
+/* ============================================================
+   PEDIDOS SUGERIDOS
+   ============================================================ */
+.card {
+  background: white;
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+  border: 1px solid #e2e8f0;
+  margin-bottom: 20px;
+}
+
+.card h3 {
+  margin: 0 0 20px 0;
+  font-size: 17px;
+  color: #2d3748;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.pedidos-sugeridos {
+  border-left: 4px solid #ed8936;
+  background: #fffbeb;
+}
+
+.badge-pedidos {
+  background: #ed8936;
+  color: white;
+  padding: 2px 14px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.pedidos-grid {
+  display: grid;
+  gap: 16px;
+}
+
+.pedido-proveedor-card {
+  background: white;
+  border-radius: 12px;
+  padding: 16px 20px;
+  border: 1px solid #e2e8f0;
+  transition: box-shadow 0.2s;
+}
+
+.pedido-proveedor-card:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+}
+
+.proveedor-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #f0f4f8;
+}
+
+.proveedor-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.proveedor-info strong {
+  font-size: 15px;
+  color: #2d3748;
+}
+
+.proveedor-telefono {
+  font-size: 12px;
+  color: #718096;
+}
+
+.btn-pedir-todo {
+  padding: 6px 16px;
+  background: linear-gradient(135deg, #48bb78 0%, #38a169 100%);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 13px;
+  transition: all 0.3s ease;
+}
+
+.btn-pedir-todo:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(56, 161, 105, 0.3);
+}
+
+.productos-pedido {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.producto-pedido-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 10px 14px;
+  background: #f7fafc;
+  border-radius: 8px;
+  transition: background 0.2s;
+}
+
+.producto-pedido-item:hover {
+  background: #edf2f7;
+}
+
+.producto-pedido-item.urgente {
+  background: #fff5f5;
+  border-left: 3px solid #fc8181;
+}
+
+.producto-pedido-info {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.producto-nombre {
+  font-weight: 500;
+  color: #2d3748;
+  font-size: 14px;
+}
+
+.producto-stock {
+  font-size: 12px;
+  color: #718096;
+}
+
+.producto-cantidad-sugerida {
+  font-size: 12px;
+  color: #4299e1;
+  font-weight: 600;
+}
+
+.badge-urgente {
+  background: #fc8181;
+  color: white;
+  padding: 2px 10px;
+  border-radius: 12px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+.btn-pedir-individual {
+  padding: 4px 14px;
+  background: #4299e1;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  transition: all 0.2s;
+}
+
+.btn-pedir-individual:hover {
+  background: #3182ce;
+  transform: scale(1.05);
+}
+
+/* ============================================================
+   GRID PRINCIPAL
+   ============================================================ */
+.gestion-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
+/* ============================================================
+   SELECCIÓN DE PRODUCTO
+   ============================================================ */
+.seleccion-producto select {
+  width: 100%;
+  padding: 10px 14px;
+  border: 2px solid #e2e8f0;
+  border-radius: 10px;
+  font-size: 14px;
+  color: #2d3748;
+  background: #f7fafc;
+  transition: all 0.3s ease;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%234a5568' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+  cursor: pointer;
+}
+
+.seleccion-producto select:focus {
+  outline: none;
+  border-color: #4299e1;
+  background: white;
+  box-shadow: 0 0 0 4px rgba(66, 153, 225, 0.1);
+}
+
+.producto-info {
+  margin-top: 16px;
+  padding: 16px;
+  background: #f7fafc;
+  border-radius: 10px;
+}
+
+.info-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px 20px;
+}
+
+.info-grid p {
+  margin: 4px 0;
+  font-size: 14px;
+  color: #2d3748;
+}
+
+.info-grid p strong {
+  color: #4a5568;
+}
+
+/* ============================================================
+   OPERACIONES DE STOCK
+   ============================================================ */
+.tipo-operacion {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.btn-tipo {
+  flex: 1;
+  padding: 10px 16px;
+  border: 2px solid #e2e8f0;
+  background: white;
+  border-radius: 10px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 14px;
+  color: #4a5568;
+  transition: all 0.3s ease;
+}
+
+.btn-tipo:hover {
+  background: #f7fafc;
+}
+
+.btn-tipo.active {
+  background: #ebf8ff;
+  border-color: #4299e1;
+  color: #2b6cb0;
+}
+
+.operacion-form .form-group {
+  margin-bottom: 14px;
+}
+
+.operacion-form .form-group label {
+  display: block;
+  font-size: 14px;
+  font-weight: 500;
+  color: #4a5568;
+  margin-bottom: 4px;
+}
+
+.operacion-form .form-group input {
+  width: 100%;
+  padding: 8px 12px;
+  border: 2px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 14px;
+  transition: all 0.3s ease;
+}
+
+.operacion-form .form-group input:focus {
+  outline: none;
+  border-color: #4299e1;
+  box-shadow: 0 0 0 4px rgba(66, 153, 225, 0.1);
+}
+
+.operacion-form .form-group input:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-agregar-stock,
+.btn-ajustar-stock {
+  width: 100%;
+  padding: 12px;
+  border: none;
+  border-radius: 10px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  margin-top: 4px;
+}
+
+.btn-agregar-stock {
+  background: linear-gradient(135deg, #48bb78 0%, #38a169 100%);
+  color: white;
+}
+
+.btn-agregar-stock:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(56, 161, 105, 0.3);
+}
+
+.btn-ajustar-stock {
+  background: linear-gradient(135deg, #ed8936 0%, #dd6b20 100%);
+  color: white;
+}
+
+.btn-ajustar-stock:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(237, 137, 54, 0.3);
+}
+
+.btn-agregar-stock:disabled,
+.btn-ajustar-stock:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.stock-diferencia {
+  margin-top: 6px;
+  font-size: 13px;
+  color: #718096;
+}
+
+.stock-diferencia span {
+  background: #edf2f7;
+  padding: 2px 10px;
+  border-radius: 4px;
+}
+
+/* ============================================================
+   ALERTAS DE STOCK
+   ============================================================ */
+.alertas-stock {
+  grid-column: 1 / -1;
+}
+
+.alertas-lista {
+  overflow-x: auto;
+}
+
+.alertas-lista table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.alertas-lista th {
+  text-align: left;
+  padding: 10px 14px;
+  background: #f7fafc;
+  font-weight: 600;
+  color: #4a5568;
+  border-bottom: 2px solid #e2e8f0;
+}
+
+.alertas-lista td {
+  padding: 10px 14px;
+  border-bottom: 1px solid #edf2f7;
+}
+
+.alertas-lista tr:hover td {
+  background: #f7fafc;
+}
+
+.stock-critico {
+  font-weight: 700;
+  color: #e53e3e;
+}
+
+.estado-badge {
+  display: inline-block;
+  padding: 2px 12px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.estado-badge.agotado {
+  background: #fc8181;
+  color: white;
+}
+
+.estado-badge.bajo {
+  background: #f6ad55;
+  color: white;
+}
+
+.btn-pedir-whatsapp {
+  padding: 4px 14px;
+  background: #25D366;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  transition: all 0.2s;
+}
+
+.btn-pedir-whatsapp:hover {
+  background: #128C7E;
+  transform: scale(1.05);
+}
+
+.sin-proveedor {
+  font-size: 12px;
+  color: #a0aec0;
+  font-style: italic;
+}
+
+.sin-alertas {
+  text-align: center;
+  padding: 24px;
+  color: #48bb78;
+  font-weight: 500;
+  font-size: 16px;
+}
+
+/* ============================================================
+   UTILIDADES
+   ============================================================ */
+.loading {
+  text-align: center;
+  padding: 30px 0;
+  color: #718096;
+  font-size: 15px;
+}
+
+.alert-warning {
+  padding: 16px 20px;
+  background: #fff5f5;
+  border: 1px solid #fc8181;
+  border-radius: 10px;
+  color: #742a2a;
+  text-align: center;
+  font-weight: 500;
+}
+
+/* ============================================================
+   RESPONSIVE
+   ============================================================ */
+@media (max-width: 1024px) {
+  .gestion-grid {
+    grid-template-columns: 1fr;
   }
-  
+
+  .alertas-stock {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 768px) {
+  .gestion-inventario-container {
+    padding: 12px;
+  }
+
+  .gestion-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .gestion-header h2 {
+    font-size: 20px;
+  }
+
+  .badge {
+    font-size: 12px;
+    padding: 2px 12px;
+  }
+
+  .card {
+    padding: 16px;
+  }
+
+  .card h3 {
+    font-size: 15px;
+  }
+
+  .info-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .pedido-proveedor-card {
+    padding: 12px 16px;
+  }
+
   .proveedor-header {
     flex-direction: column;
-    gap: 8px;
+    align-items: stretch;
   }
-  
+
   .btn-pedir-todo {
     width: 100%;
   }
-  
+
   .producto-pedido-item {
     flex-direction: column;
-    gap: 8px;
+    align-items: stretch;
+  }
+
+  .producto-pedido-info {
+    flex-wrap: wrap;
+  }
+
+  .btn-pedir-individual {
+    align-self: flex-start;
+  }
+
+  .alertas-lista table {
+    font-size: 13px;
+  }
+
+  .alertas-lista th,
+  .alertas-lista td {
+    padding: 8px 10px;
+  }
+
+  .tipo-operacion {
+    flex-direction: column;
+  }
+
+  .mensaje-flotante {
+    font-size: 13px;
+    padding: 12px 16px;
+  }
+}
+
+@media (max-width: 480px) {
+  .gestion-inventario-container {
+    padding: 8px;
+  }
+
+  .gestion-header h2 {
+    font-size: 18px;
+  }
+
+  .card {
+    padding: 12px;
+    border-radius: 12px;
+  }
+
+  .card h3 {
+    font-size: 14px;
+  }
+
+  .alertas-lista table {
+    font-size: 12px;
+  }
+
+  .alertas-lista th,
+  .alertas-lista td {
+    padding: 6px 8px;
+  }
+
+  .btn-agregar-stock,
+  .btn-ajustar-stock {
+    font-size: 14px;
+    padding: 10px;
+  }
+
+  .producto-pedido-info {
+    gap: 6px;
+  }
+
+  .producto-nombre {
+    font-size: 13px;
+  }
+
+  .info-grid p {
+    font-size: 13px;
+  }
+
+  .seleccion-producto select {
+    font-size: 13px;
+    padding: 8px 12px;
+  }
+
+  .operacion-form .form-group input {
+    font-size: 13px;
+    padding: 6px 10px;
   }
 }

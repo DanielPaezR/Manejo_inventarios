@@ -73,10 +73,18 @@ const Login = ({ onLogin }) => {
             />
           </div>
           
-          <button type="submit" disabled={loading}>
-            {loading ? 'Iniciando sesión...' : 'Iniciar Sesión'}
+          <button type="submit" className="btn-login" disabled={loading}>
+            {loading ? (
+              <>
+                <span className="spinner"></span>
+                Iniciando sesión...
+              </>
+            ) : (
+              'Iniciar Sesión'
+            )}
           </button>
         </form>
+        <p className="subtitle">Accede a tu cuenta para gestionar tu negocio</p>
       </div>
     </div>
   );
