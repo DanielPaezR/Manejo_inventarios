@@ -1267,9 +1267,10 @@ app.get('/api/estadisticas/global', authenticateToken, requireAdmin, async (req,
     }
 
     const ventasGlobales = await pool.query(
-      `SELECT COUNT(*) as total, COALESCE(SUM(total), 0) as monto 
-       FROM ventas 
-       WHERE negocio_id = $1 AND fecha_venta BETWEEN $2 AND $3`,
+      `SELECT COUNT(*) as total, COALESCE(SUM(v.total), 0) as monto
+       FROM ventas v
+       JOIN modulos m ON v.modulo_id = m.id
+       WHERE m.negocio_id = $1 AND v.fecha_venta BETWEEN $2 AND $3`,
       [negocioId, startDate, endDate]
     );
 
