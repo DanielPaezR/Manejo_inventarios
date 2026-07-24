@@ -753,8 +753,8 @@ app.post('/api/ventas', authenticateToken, checkAccess, async (req, res) => {
                 )
               ) as detalles
        FROM ventas v
-       JOIN negocios n ON v.negocio_id = n.id
        JOIN modulos m ON v.modulo_id = m.id
+       JOIN negocios n ON m.negocio_id = n.id
        JOIN usuarios u ON v.usuario_id = u.id
        LEFT JOIN detalle_venta dv ON v.id = dv.venta_id
        LEFT JOIN productos p ON dv.producto_id = p.id
@@ -762,7 +762,7 @@ app.post('/api/ventas', authenticateToken, checkAccess, async (req, res) => {
        GROUP BY v.id, n.id, m.id, u.id`,
       [venta.id]
     );
-    
+
     res.status(201).json(ventaCompleta.rows[0]);
 
   } catch (error) {
@@ -832,8 +832,8 @@ app.get('/api/ventas/:id/factura', authenticateToken, checkAccess, async (req, r
                 )
               ) as detalles
        FROM ventas v
-       JOIN negocios n ON v.negocio_id = n.id
        JOIN modulos m ON v.modulo_id = m.id
+       JOIN negocios n ON m.negocio_id = n.id
        JOIN usuarios u ON v.usuario_id = u.id
        LEFT JOIN detalle_venta dv ON v.id = dv.venta_id
        LEFT JOIN productos p ON dv.producto_id = p.id
@@ -1274,16 +1274,18 @@ app.get('/api/estadisticas/global', authenticateToken, requireAdmin, async (req,
     );
 
     const productosGlobales = await pool.query(
-      `SELECT COUNT(*) as total 
-       FROM productos 
-       WHERE negocio_id = $1 AND activo = true`,
+      `SELECT COUNT(*) as total
+       FROM productos p
+       JOIN modulos m ON p.modulo_id = m.id
+       WHERE m.negocio_id = $1 AND p.activo = true`,
       [negocioId]
     );
 
     const stockBajoGlobal = await pool.query(
-      `SELECT COUNT(*) as total 
-       FROM productos 
-       WHERE negocio_id = $1 AND stock_actual <= stock_minimo AND activo = true`,
+      `SELECT COUNT(*) as total
+       FROM productos p
+       JOIN modulos m ON p.modulo_id = m.id
+       WHERE m.negocio_id = $1 AND p.stock_actual <= p.stock_minimo AND p.activo = true`,
       [negocioId]
     );
 
