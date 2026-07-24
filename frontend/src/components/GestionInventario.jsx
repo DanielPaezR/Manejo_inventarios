@@ -36,14 +36,6 @@ const GestionInventario = ({ user }) => {
     }
   }, [moduloActivo]);
 
-  // Recalcular sugerencias cuando cambien productos o proveedores. Antes se
-  // llamaba una sola vez en el efecto de arriba, con productos/proveedores
-  // todavía vacíos (las cargas son async), y nunca se repetía cuando los
-  // datos reales llegaban.
-  useEffect(() => {
-    calcularPedidosSugeridos();
-  }, [calcularPedidosSugeridos]);
-
   const cargarProductos = async () => {
     try {
       setLoading(true);
@@ -98,6 +90,17 @@ const GestionInventario = ({ user }) => {
     
     setPedidosSugeridos(sugerencias);
   }, [productos, proveedores]);
+
+  // Recalcular sugerencias cuando cambien productos o proveedores. Antes se
+  // llamaba una sola vez en el efecto de montaje, con productos/proveedores
+  // todavía vacíos (las cargas son async), y nunca se repetía cuando los
+  // datos reales llegaban. Este efecto debe declararse DESPUÉS de
+  // calcularPedidosSugeridos: su dependencia se evalúa en el momento del
+  // render, y referenciar un `const` antes de su línea de declaración es un
+  // ReferenceError (temporal dead zone), no solo un problema de closures.
+  useEffect(() => {
+    calcularPedidosSugeridos();
+  }, [calcularPedidosSugeridos]);
 
   const handleAgregarStock = async () => {
     if (!selectedProducto) {
