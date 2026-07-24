@@ -492,7 +492,12 @@
   left: 0;
   right: 0;
   bottom: 0;
-  z-index: 999;
+  /* Debe quedar por debajo del stacking context de .navbar (z-index:100,
+     position:sticky). Si supera ese valor, tapa TODO lo que hay dentro del
+     navbar -incluido el dropdown-user con "Cerrar Sesión"- e intercepta el
+     click aunque ese botón tenga z-index:1000 (ese z-index solo compite
+     dentro del stacking context del navbar, no contra este overlay). */
+  z-index: 90;
 }
 
 /* Backdrop del sidebar (drawer): solo visible en móvil, por detrás del

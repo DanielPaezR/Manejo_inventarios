@@ -30,8 +30,12 @@ const Ventas = ({ user }) => {
   const [modoScanner, setModoScanner] = useState(false);
   const [scannerActivo, setScannerActivo] = useState(false);
   const [error, setError] = useState(null);
+  const [scanToast, setScanToast] = useState(null); // { nombre, cantidad }
   const inputRef = useRef(null);
   const scannerRef = useRef(null);
+  const carritoSectionRef = useRef(null);
+  const pendingScanRef = useRef(null);
+  const scanToastTimeoutRef = useRef(null);
 
   // Guardar carrito en localStorage cuando cambie
   useEffect(() => {
@@ -42,6 +46,26 @@ const Ventas = ({ user }) => {
   useEffect(() => {
     localStorage.setItem('cliente', JSON.stringify(cliente));
   }, [cliente]);
+
+  // Mostrar un toast cuando un escaneo agrega/incrementa un producto en el
+  // carrito, aunque la cámara siga abierta tapando el carrito-section.
+  useEffect(() => {
+    const pending = pendingScanRef.current;
+    if (!pending) return;
+    const item = carrito.find(i => i.producto_id === pending.id);
+    if (!item) return;
+
+    pendingScanRef.current = null;
+    setScanToast({ nombre: pending.nombre, cantidad: item.cantidad });
+    if (scanToastTimeoutRef.current) clearTimeout(scanToastTimeoutRef.current);
+    scanToastTimeoutRef.current = setTimeout(() => setScanToast(null), 1800);
+  }, [carrito]);
+
+  useEffect(() => {
+    return () => {
+      if (scanToastTimeoutRef.current) clearTimeout(scanToastTimeoutRef.current);
+    };
+  }, []);
 
   // Cargar productos al iniciar o cambiar de módulo
   useEffect(() => {
@@ -103,6 +127,10 @@ const Ventas = ({ user }) => {
       const response = await api.get(`/productos/buscar/${ean.trim()}`);
       if (response.data) {
         agregarAlCarrito(response.data);
+        // Marca este producto como "pendiente de confirmar" para el toast
+        // del scanner; el useEffect sobre `carrito` dispara el toast en
+        // cuanto el estado del carrito refleje el resultado del escaneo.
+        pendingScanRef.current = { id: response.data.id, nombre: response.data.nombre };
         setBusqueda('');
         // Feedback visual
         if (inputRef.current) {
@@ -147,6 +175,21 @@ const Ventas = ({ user }) => {
     }
   }, [modoScanner, buscarPorEAN, buscarProductos]);
 
+  // Cerrar scanner: detiene la cámara y deja el carrito visible de inmediato
+  // (sin que el usuario tenga que buscar/scrollear para verlo).
+  const cerrarScanner = useCallback(() => {
+    if (scannerRef.current) {
+      scannerRef.current.stop().catch(err => console.log('Scanner stopped'));
+      scannerRef.current = null;
+    }
+    setScannerActivo(false);
+    setModoScanner(false);
+    setScanToast(null);
+    requestAnimationFrame(() => {
+      carritoSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  }, []);
+
   // Iniciar escaneo con cámara
   const iniciarScanner = useCallback(() => {
     if (!modoScanner) {
@@ -156,12 +199,7 @@ const Ventas = ({ user }) => {
 
     // Si ya está activo, desactivar
     if (scannerActivo) {
-      if (scannerRef.current) {
-        scannerRef.current.stop().catch(err => console.log('Scanner stopped'));
-        scannerRef.current = null;
-      }
-      setScannerActivo(false);
-      setModoScanner(false);
+      cerrarScanner();
       return;
     }
 
@@ -213,7 +251,7 @@ const Ventas = ({ user }) => {
       setError('❌ No se pudo acceder a la cámara. Verifica los permisos.');
       setModoScanner(false);
     });
-  }, [modoScanner, scannerActivo, buscarPorEAN]);
+  }, [modoScanner, scannerActivo, buscarPorEAN, cerrarScanner]);
 
   // Agregar al carrito
   const agregarAlCarrito = useCallback((producto) => {
@@ -442,19 +480,19 @@ const Ventas = ({ user }) => {
           renderiza en cuanto modoScanner es true, no cuando scannerActivo. */}
       {modoScanner && (
         <div className="scanner-container-wrapper">
+          {/* Resumen del carrito siempre visible mientras el scanner está
+              activo, para no tener que cerrar la cámara para saber cómo va */}
+          <div className="scanner-carrito-resumen">
+            🛒 {carrito.length} items · ${subtotal.toLocaleString()}
+          </div>
           <div id="scanner-container" className="scanner-container"></div>
+          {scanToast && (
+            <div className="scanner-toast">
+              ✅ {scanToast.nombre} agregado (x{scanToast.cantidad})
+            </div>
+          )}
           {scannerActivo && (
-            <button
-              onClick={() => {
-                if (scannerRef.current) {
-                  scannerRef.current.stop().catch(err => console.log('Scanner stopped'));
-                  scannerRef.current = null;
-                }
-                setScannerActivo(false);
-                setModoScanner(false);
-              }}
-              className="btn-cerrar-scanner"
-            >
+            <button onClick={cerrarScanner} className="btn-cerrar-scanner">
               ✕ Cerrar Scanner
             </button>
           )}
@@ -507,7 +545,7 @@ const Ventas = ({ user }) => {
         </div>
 
         {/* Carrito */}
-        <div className="carrito-section">
+        <div className="carrito-section" ref={carritoSectionRef}>
           <h3>
             Carrito
             <span className="carrito-count">({carrito.length} items)</span>

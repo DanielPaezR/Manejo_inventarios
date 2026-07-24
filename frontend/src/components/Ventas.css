@@ -267,6 +267,47 @@
   background: rgba(0, 0, 0, 0.8);
 }
 
+/* Barra de resumen del carrito, visible mientras el scanner está activo */
+.scanner-carrito-resumen {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 12px;
+  background: rgba(0, 0, 0, 0.75);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: center;
+}
+
+/* Confirmación de escaneo superpuesta sobre la vista de la cámara */
+.scanner-toast {
+  position: absolute;
+  top: 54px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(72, 187, 120, 0.95);
+  color: white;
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+  z-index: 5;
+  max-width: 90%;
+  text-align: center;
+  pointer-events: none;
+  animation: scannerToastFade 1.8s ease forwards;
+}
+
+@keyframes scannerToastFade {
+  0% { opacity: 0; transform: translate(-50%, -6px); }
+  10% { opacity: 1; transform: translate(-50%, 0); }
+  85% { opacity: 1; }
+  100% { opacity: 0; transform: translate(-50%, -6px); }
+}
+
 /* ============================================================
    GRID PRINCIPAL
    ============================================================ */
