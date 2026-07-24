@@ -8,7 +8,11 @@ const Dashboard = ({ user, onLogout }) => {
   const location = useLocation();
   const navigate = useNavigate();
   const { moduloActivo, modulos } = useModulo();
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  // En móvil el sidebar es un drawer: debe arrancar cerrado (collapsed=true).
+  // En desktop arranca expandido (collapsed=false).
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(
+    () => typeof window !== 'undefined' && window.innerWidth <= 768
+  );
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [notificaciones, setNotificaciones] = useState([]);
   const [showNotificaciones, setShowNotificaciones] = useState(false);
@@ -35,6 +39,14 @@ const Dashboard = ({ user, onLogout }) => {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [sidebarCollapsed]);
+
+  // En móvil, cerrar el sidebar automáticamente al navegar a otra ruta.
+  // En desktop no se toca el estado (respeta el colapso manual con Ctrl+B).
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.innerWidth <= 768) {
+      setSidebarCollapsed(true);
+    }
+  }, [location.pathname]);
 
   // Cargar notificaciones de stock bajo (simulado)
   useEffect(() => {
@@ -233,6 +245,15 @@ const Dashboard = ({ user, onLogout }) => {
           </div>
           <SelectorModulo />
         </div>
+      )}
+
+      {/* Overlay/backdrop del sidebar en móvil: tocar fuera cierra el drawer.
+          En desktop se oculta con CSS (display:none). */}
+      {!sidebarCollapsed && (
+        <div
+          className="sidebar-overlay"
+          onClick={() => setSidebarCollapsed(true)}
+        />
       )}
 
       <div className="dashboard-container">

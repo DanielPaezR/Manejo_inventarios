@@ -57,7 +57,7 @@ function App() {
   }
 
   return (
-    <ModuloProvider>
+    <ModuloProvider user={user}>
       <Router>
         <div className="app" data-version="2.0.0-proveedores">
           <Routes>

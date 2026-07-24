@@ -165,8 +165,22 @@ const Ventas = ({ user }) => {
       return;
     }
 
-    // Iniciar scanner
-    const html5QrCode = new Html5Qrcode('scanner-container');
+    // Iniciar scanner. El elemento #scanner-container debe existir en el DOM
+    // en este punto; si la instanciación falla, mostramos el mismo error que
+    // el .catch() de abajo en vez de fallar silenciosamente.
+    let html5QrCode;
+    try {
+      const contenedor = document.getElementById('scanner-container');
+      if (!contenedor) {
+        throw new Error('El contenedor del scanner no está disponible en el DOM');
+      }
+      html5QrCode = new Html5Qrcode('scanner-container');
+    } catch (err) {
+      console.error('Error iniciando scanner:', err);
+      setError('❌ No se pudo acceder a la cámara. Verifica los permisos.');
+      setModoScanner(false);
+      return;
+    }
     scannerRef.current = html5QrCode;
 
     const config = {
@@ -423,23 +437,27 @@ const Ventas = ({ user }) => {
         )}
       </div>
 
-      {/* Contenedor del scanner */}
-      {scannerActivo && (
+      {/* Contenedor del scanner: debe existir en el DOM (con dimensiones)
+          antes de instanciar Html5Qrcode y llamar a .start(). Por eso se
+          renderiza en cuanto modoScanner es true, no cuando scannerActivo. */}
+      {modoScanner && (
         <div className="scanner-container-wrapper">
           <div id="scanner-container" className="scanner-container"></div>
-          <button 
-            onClick={() => {
-              if (scannerRef.current) {
-                scannerRef.current.stop().catch(err => console.log('Scanner stopped'));
-                scannerRef.current = null;
-              }
-              setScannerActivo(false);
-              setModoScanner(false);
-            }} 
-            className="btn-cerrar-scanner"
-          >
-            ✕ Cerrar Scanner
-          </button>
+          {scannerActivo && (
+            <button
+              onClick={() => {
+                if (scannerRef.current) {
+                  scannerRef.current.stop().catch(err => console.log('Scanner stopped'));
+                  scannerRef.current = null;
+                }
+                setScannerActivo(false);
+                setModoScanner(false);
+              }}
+              className="btn-cerrar-scanner"
+            >
+              ✕ Cerrar Scanner
+            </button>
+          )}
         </div>
       )}
 
