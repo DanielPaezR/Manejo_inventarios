@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import SelectorModulo from './SelectorModulo';
+import CambiarPassword from './CambiarPassword';
 import { useModulo } from '../hooks/useModulo';
 import './Dashboard.css';
 
@@ -8,6 +9,7 @@ const Dashboard = ({ user, onLogout }) => {
   const location = useLocation();
   const navigate = useNavigate();
   const { moduloActivo, modulos } = useModulo();
+  const [showCambiarPassword, setShowCambiarPassword] = useState(false);
   // En móvil el sidebar es un drawer: debe arrancar cerrado (collapsed=true).
   // En desktop arranca expandido (collapsed=false).
   const [sidebarCollapsed, setSidebarCollapsed] = useState(
@@ -84,6 +86,7 @@ const Dashboard = ({ user, onLogout }) => {
       { path: '/inventario', icon: '📋', label: 'Gestión Inventario' },
       { path: '/proveedores', icon: '🤝', label: 'Proveedores' },      // ✅ NUEVO
       { path: '/pedidos', icon: '📦', label: 'Pedidos' },              // ✅ NUEVO
+      { path: '/clientes', icon: '👤', label: 'Clientes' },            // ✅ NUEVO
     ],
     trabajador: [
       { path: '/ventas', icon: '🛒', label: 'Ventas' },
@@ -210,7 +213,7 @@ const Dashboard = ({ user, onLogout }) => {
                 </div>
                 <ul className="dropdown-user-menu">
                   <li>
-                    <button onClick={() => navigate('/cambiar-password')}>
+                    <button onClick={() => { setShowUserMenu(false); setShowCambiarPassword(true); }}>
                       🔑 Cambiar Contraseña
                     </button>
                   </li>
@@ -311,13 +314,17 @@ const Dashboard = ({ user, onLogout }) => {
 
       {/* Overlay para cerrar menús en móvil */}
       {(showUserMenu || showNotificaciones) && (
-        <div 
-          className="dropdown-overlay" 
+        <div
+          className="dropdown-overlay"
           onClick={() => {
             setShowUserMenu(false);
             setShowNotificaciones(false);
           }}
         />
+      )}
+
+      {showCambiarPassword && (
+        <CambiarPassword onClose={() => setShowCambiarPassword(false)} />
       )}
     </div>
   );

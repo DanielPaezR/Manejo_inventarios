@@ -9,19 +9,26 @@ const Ventas = ({ user }) => {
   const { moduloActivo } = useModulo();
   const [productos, setProductos] = useState([]);
   const [carrito, setCarrito] = useState(() => {
-    // Recuperar carrito del localStorage al iniciar
-    const saved = localStorage.getItem('carrito');
-    return saved ? JSON.parse(saved) : [];
+    // Recuperar carrito del localStorage al iniciar. Si quedó corrupto
+    // (escritura interrumpida, edición manual), no debe tumbar el render.
+    try {
+      const saved = localStorage.getItem('carrito');
+      return saved ? JSON.parse(saved) : [];
+    } catch (error) {
+      console.error('Error leyendo carrito de localStorage:', error);
+      return [];
+    }
   });
   const [busqueda, setBusqueda] = useState('');
   const [cliente, setCliente] = useState(() => {
-    const saved = localStorage.getItem('cliente');
-    return saved ? JSON.parse(saved) : {
-      nombre: '',
-      documento: '',
-      direccion: '',
-      telefono: ''
-    };
+    const clienteVacio = { nombre: '', documento: '', direccion: '', telefono: '' };
+    try {
+      const saved = localStorage.getItem('cliente');
+      return saved ? JSON.parse(saved) : clienteVacio;
+    } catch (error) {
+      console.error('Error leyendo cliente de localStorage:', error);
+      return clienteVacio;
+    }
   });
   const [metodoPago, setMetodoPago] = useState('efectivo');
   const [loading, setLoading] = useState(false);
@@ -31,6 +38,13 @@ const Ventas = ({ user }) => {
   const [scannerActivo, setScannerActivo] = useState(false);
   const [error, setError] = useState(null);
   const [scanToast, setScanToast] = useState(null); // { nombre, cantidad }
+  const [clienteSeleccionado, setClienteSeleccionado] = useState(null);
+  const [clienteResultados, setClienteResultados] = useState([]);
+  const [buscandoCliente, setBuscandoCliente] = useState(false);
+  const [mostrarResultadosCliente, setMostrarResultadosCliente] = useState(false);
+  const [mostrarNuevoCliente, setMostrarNuevoCliente] = useState(false);
+  const [nuevoClienteForm, setNuevoClienteForm] = useState({ nombre: '', cedula: '', telefono: '' });
+  const [guardandoCliente, setGuardandoCliente] = useState(false);
   const inputRef = useRef(null);
   const scannerRef = useRef(null);
   const carritoSectionRef = useRef(null);
@@ -46,6 +60,39 @@ const Ventas = ({ user }) => {
   useEffect(() => {
     localStorage.setItem('cliente', JSON.stringify(cliente));
   }, [cliente]);
+
+  // Autocomplete de clientes: buscar con debounce mientras se escribe el
+  // nombre, salvo que ya haya un cliente seleccionado (el texto entonces
+  // coincide con el cliente elegido y no hace falta volver a buscar).
+  useEffect(() => {
+    if (clienteSeleccionado) {
+      setClienteResultados([]);
+      setMostrarResultadosCliente(false);
+      return;
+    }
+
+    const termino = cliente.nombre.trim();
+    if (termino.length < 2) {
+      setClienteResultados([]);
+      setMostrarResultadosCliente(false);
+      return;
+    }
+
+    const timeoutId = setTimeout(async () => {
+      try {
+        setBuscandoCliente(true);
+        const response = await api.get('/clientes', { params: { search: termino } });
+        setClienteResultados(response.data);
+        setMostrarResultadosCliente(true);
+      } catch (error) {
+        console.error('Error buscando clientes:', error);
+      } finally {
+        setBuscandoCliente(false);
+      }
+    }, 300);
+
+    return () => clearTimeout(timeoutId);
+  }, [cliente.nombre, clienteSeleccionado]);
 
   // Mostrar un toast cuando un escaneo agrega/incrementa un producto en el
   // carrito, aunque la cámara siga abierta tapando el carrito-section.
@@ -363,11 +410,12 @@ const Ventas = ({ user }) => {
         cliente_documento: cliente.documento || '',
         cliente_direccion: cliente.direccion || '',
         cliente_telefono: cliente.telefono || '',
-        metodo_pago: metodoPago
+        metodo_pago: metodoPago,
+        ...(clienteSeleccionado && { cliente_id: clienteSeleccionado.id })
       };
 
       const response = await api.post('/ventas', ventaData);
-      
+
       if (response.data) {
         setFacturaData(response.data);
         setMostrarFactura(true);
@@ -378,9 +426,10 @@ const Ventas = ({ user }) => {
           direccion: '',
           telefono: ''
         });
+        setClienteSeleccionado(null);
         // Recargar productos para actualizar stock
         cargarProductos();
-        
+
         // Feedback de éxito
         if (navigator.vibrate) navigator.vibrate([50, 50, 50]);
       }
@@ -391,7 +440,7 @@ const Ventas = ({ user }) => {
     } finally {
       setLoading(false);
     }
-  }, [carrito, cliente, metodoPago, cargarProductos]);
+  }, [carrito, cliente, metodoPago, clienteSeleccionado, cargarProductos]);
 
   // Limpiar todo
   const limpiarTodo = useCallback(() => {
@@ -400,6 +449,49 @@ const Ventas = ({ user }) => {
     setError(null);
     setBusqueda('');
   }, [carrito]);
+
+  // Seleccionar un cliente existente del autocomplete
+  const seleccionarCliente = useCallback((clienteEncontrado) => {
+    setClienteSeleccionado(clienteEncontrado);
+    setCliente(prev => ({
+      ...prev,
+      nombre: clienteEncontrado.nombre,
+      documento: clienteEncontrado.cedula || ''
+    }));
+    setClienteResultados([]);
+    setMostrarResultadosCliente(false);
+  }, []);
+
+  const quitarClienteSeleccionado = useCallback(() => {
+    setClienteSeleccionado(null);
+  }, []);
+
+  const abrirNuevoCliente = useCallback(() => {
+    setNuevoClienteForm({ nombre: cliente.nombre || '', cedula: '', telefono: '' });
+    setMostrarNuevoCliente(true);
+  }, [cliente.nombre]);
+
+  // Registrar un cliente nuevo rápido desde el POS y seleccionarlo
+  const crearClienteRapido = useCallback(async (e) => {
+    e.preventDefault();
+    if (!nuevoClienteForm.nombre.trim()) {
+      setError('⚠️ El nombre del cliente es requerido');
+      return;
+    }
+
+    try {
+      setGuardandoCliente(true);
+      const response = await api.post('/clientes', nuevoClienteForm);
+      seleccionarCliente(response.data);
+      setMostrarNuevoCliente(false);
+      setNuevoClienteForm({ nombre: '', cedula: '', telefono: '' });
+    } catch (error) {
+      console.error('Error creando cliente:', error);
+      setError(error.response?.data?.error || '❌ Error al registrar el cliente');
+    } finally {
+      setGuardandoCliente(false);
+    }
+  }, [nuevoClienteForm, seleccionarCliente]);
 
   // Si no hay módulo activo
   if (!moduloActivo) {
@@ -553,13 +645,46 @@ const Ventas = ({ user }) => {
           
           {/* Datos del cliente */}
           <div className="cliente-form">
-            <input
-              type="text"
-              placeholder="Nombre del cliente"
-              value={cliente.nombre}
-              onChange={(e) => setCliente({ ...cliente, nombre: e.target.value })}
-              className="cliente-input"
-            />
+            <div className="cliente-busqueda-wrapper">
+              <input
+                type="text"
+                placeholder="Buscar o escribir nombre del cliente"
+                value={cliente.nombre}
+                onChange={(e) => {
+                  if (clienteSeleccionado) setClienteSeleccionado(null);
+                  setCliente({ ...cliente, nombre: e.target.value });
+                }}
+                className="cliente-input"
+                autoComplete="off"
+              />
+              {clienteSeleccionado && (
+                <span className="cliente-seleccionado-badge">
+                  ✓ Cliente #{clienteSeleccionado.numero_cliente}
+                  <button type="button" onClick={quitarClienteSeleccionado} title="Quitar cliente seleccionado">✕</button>
+                </span>
+              )}
+              {mostrarResultadosCliente && !clienteSeleccionado && (
+                <div className="cliente-resultados">
+                  {buscandoCliente ? (
+                    <div className="cliente-resultado-info">Buscando...</div>
+                  ) : clienteResultados.length > 0 ? (
+                    clienteResultados.map(c => (
+                      <div key={c.id} className="cliente-resultado-item" onClick={() => seleccionarCliente(c)}>
+                        <strong>{c.nombre}</strong>
+                        {c.cedula && <span> · {c.cedula}</span>}
+                      </div>
+                    ))
+                  ) : (
+                    <div className="cliente-resultado-info">
+                      Sin coincidencias.
+                      <button type="button" onClick={abrirNuevoCliente} className="btn-registrar-cliente">
+                        ➕ Registrar nuevo cliente
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
             <input
               type="text"
               placeholder="Documento"
@@ -722,6 +847,58 @@ const Ventas = ({ user }) => {
                 Cerrar
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Mini-modal para registrar un cliente nuevo desde el POS */}
+      {mostrarNuevoCliente && (
+        <div className="cliente-modal" onClick={() => setMostrarNuevoCliente(false)}>
+          <div className="cliente-modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="cliente-modal-header">
+              <h3>➕ Registrar Cliente</h3>
+              <button onClick={() => setMostrarNuevoCliente(false)}>✕</button>
+            </div>
+
+            <form onSubmit={crearClienteRapido}>
+              <div className="cliente-form-group">
+                <label>Nombre *</label>
+                <input
+                  type="text"
+                  value={nuevoClienteForm.nombre}
+                  onChange={(e) => setNuevoClienteForm({ ...nuevoClienteForm, nombre: e.target.value })}
+                  placeholder="Nombre del cliente"
+                  required
+                />
+              </div>
+              <div className="cliente-form-group">
+                <label>Cédula</label>
+                <input
+                  type="text"
+                  value={nuevoClienteForm.cedula}
+                  onChange={(e) => setNuevoClienteForm({ ...nuevoClienteForm, cedula: e.target.value })}
+                  placeholder="Número de documento"
+                />
+              </div>
+              <div className="cliente-form-group">
+                <label>Teléfono</label>
+                <input
+                  type="tel"
+                  value={nuevoClienteForm.telefono}
+                  onChange={(e) => setNuevoClienteForm({ ...nuevoClienteForm, telefono: e.target.value })}
+                  placeholder="Ej: 3101234567"
+                />
+              </div>
+
+              <div className="cliente-form-actions">
+                <button type="submit" className="btn-guardar-cliente" disabled={guardandoCliente}>
+                  {guardandoCliente ? 'Guardando...' : '✅ Guardar'}
+                </button>
+                <button type="button" onClick={() => setMostrarNuevoCliente(false)} className="btn-cancelar-cliente">
+                  Cancelar
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

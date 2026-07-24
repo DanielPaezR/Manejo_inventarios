@@ -1,4 +1,5 @@
 const jwt = require('jsonwebtoken');
+const { JWT_SECRET } = require('../config/jwtSecret');
 
 /**
  * Middleware de autenticación JWT
@@ -12,7 +13,7 @@ const authenticateToken = (req, res, next) => {
     return res.status(401).json({ error: 'Token requerido' });
   }
 
-  jwt.verify(token, process.env.JWT_SECRET || 'secreto_temporal', (err, user) => {
+  jwt.verify(token, JWT_SECRET, (err, user) => {
     if (err) {
       return res.status(403).json({ error: 'Token inválido o expirado' });
     }

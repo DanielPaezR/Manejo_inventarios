@@ -33,9 +33,16 @@ const GestionInventario = ({ user }) => {
     if (moduloActivo && puedeGestionar) {
       cargarProductos();
       cargarProveedores();
-      calcularPedidosSugeridos();
     }
   }, [moduloActivo]);
+
+  // Recalcular sugerencias cuando cambien productos o proveedores. Antes se
+  // llamaba una sola vez en el efecto de arriba, con productos/proveedores
+  // todavía vacíos (las cargas son async), y nunca se repetía cuando los
+  // datos reales llegaban.
+  useEffect(() => {
+    calcularPedidosSugeridos();
+  }, [calcularPedidosSugeridos]);
 
   const cargarProductos = async () => {
     try {
@@ -70,9 +77,9 @@ const GestionInventario = ({ user }) => {
     
     // Agrupar por proveedor (si tienen)
     productosCriticos.forEach(p => {
-      // Buscar proveedor asociado (simulado, idealmente vendría de la BD)
-      const proveedor = proveedores.find(prov => 
-        prov.productos && prov.productos.includes(p.id)
+      // Buscar proveedor asociado a este producto
+      const proveedor = proveedores.find(prov =>
+        prov.productos_asociados && prov.productos_asociados.includes(p.id)
       );
       
       if (proveedor) {

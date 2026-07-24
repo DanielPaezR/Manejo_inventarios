@@ -11,6 +11,8 @@ require('dotenv').config();
 const { authenticateToken, requireAdmin, requireSuperAdmin } = require('./src/middleware/auth');
 const { checkAccess } = require('./src/middleware/checkAccess');
 const { generarNumeroFactura } = require('./src/helpers/generarNumeroFactura');
+const { generarNumeroCliente } = require('./src/helpers/generarNumeroCliente');
+const { JWT_SECRET } = require('./src/config/jwtSecret');
 
 // ==================== IMPORTS DE REPORTES ====================
 const generarReporteVentasDiarias = require('./src/reports/reporteVentasDiarias');
@@ -67,7 +69,7 @@ app.post('/api/login', async (req, res) => {
 
     const token = jwt.sign(
       { id: user.id, email: user.email, rol: user.rol },
-      process.env.JWT_SECRET || 'secreto_temporal',
+      JWT_SECRET,
       { expiresIn: '8h' }
     );
 
@@ -651,46 +653,65 @@ app.post('/api/ventas', authenticateToken, checkAccess, async (req, res) => {
   try {
     await client.query('BEGIN');
     
-    const { detalles, cliente_nombre, cliente_documento, cliente_direccion, cliente_telefono, metodo_pago } = req.body;
+    const { detalles, cliente_nombre, cliente_documento, cliente_direccion, cliente_telefono, metodo_pago, cliente_id } = req.body;
     const usuario_id = req.user.id;
     const moduloId = req.moduloId;
 
     if (!moduloId) {
+      await client.query('ROLLBACK');
       return res.status(400).json({ error: 'Se requiere un módulo' });
     }
 
     console.log('🛒 Procesando venta - Usuario:', req.user.email, 'Módulo:', moduloId);
 
+    if (!Array.isArray(detalles) || detalles.length === 0) {
+      throw new Error('La venta debe incluir al menos un producto');
+    }
+
     for (const detalle of detalles) {
+      if (!Number.isFinite(detalle.cantidad) || detalle.cantidad <= 0) {
+        throw new Error(`Cantidad inválida para el producto ${detalle.producto_id}`);
+      }
+      if (!Number.isFinite(detalle.precio_unitario) || detalle.precio_unitario < 0) {
+        throw new Error(`Precio unitario inválido para el producto ${detalle.producto_id}`);
+      }
+
+      // FOR UPDATE bloquea la fila hasta el COMMIT/ROLLBACK de esta
+      // transacción: dos ventas concurrentes del mismo producto ya no
+      // pueden leer el mismo stock antes de que ninguna confirme.
       const stockResult = await client.query(
-        'SELECT id, nombre, stock_actual FROM productos WHERE id = $1 AND modulo_id = $2 AND activo = true',
+        'SELECT id, nombre, stock_actual FROM productos WHERE id = $1 AND modulo_id = $2 AND activo = true FOR UPDATE',
         [detalle.producto_id, moduloId]
       );
-      
+
       if (stockResult.rows.length === 0) {
         throw new Error(`Producto no encontrado o inactivo: ${detalle.producto_id}`);
       }
-      
+
       const producto = stockResult.rows[0];
       if (producto.stock_actual < detalle.cantidad) {
         throw new Error(`Stock insuficiente para "${producto.nombre}". Stock actual: ${producto.stock_actual}, solicitado: ${detalle.cantidad}`);
       }
     }
 
-    const numero_factura = await generarNumeroFactura(moduloId);
+    // NOTA: este call le faltaba el segundo argumento (pool), lo que hacía
+    // que pool.connect() reventara dentro del helper y NINGUNA venta pudiera
+    // completarse. Corregido como parte de este cambio porque bloqueaba
+    // directamente la ruta que se está modificando para aceptar cliente_id.
+    const numero_factura = await generarNumeroFactura(moduloId, pool);
     console.log('🧾 Número de factura generado:', numero_factura);
-    
+
     const subtotal = detalles.reduce((sum, detalle) => sum + (detalle.cantidad * detalle.precio_unitario), 0);
     const total = subtotal;
 
     console.log('💰 Totales - Subtotal:', subtotal, 'Total:', total);
-    
+
     const ventaResult = await client.query(
-      `INSERT INTO ventas 
-       (modulo_id, numero_factura, cliente_nombre, cliente_documento, cliente_direccion, cliente_telefono, subtotal, total, usuario_id, metodo_pago) 
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) 
+      `INSERT INTO ventas
+       (modulo_id, numero_factura, cliente_nombre, cliente_documento, cliente_direccion, cliente_telefono, subtotal, total, usuario_id, metodo_pago, cliente_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
        RETURNING *`,
-      [moduloId, numero_factura, cliente_nombre, cliente_documento, cliente_direccion, cliente_telefono, subtotal, total, usuario_id, metodo_pago]
+      [moduloId, numero_factura, cliente_nombre, cliente_documento, cliente_direccion, cliente_telefono, subtotal, total, usuario_id, metodo_pago, cliente_id || null]
     );
     
     const venta = ventaResult.rows[0];
@@ -743,11 +764,16 @@ app.post('/api/ventas', authenticateToken, checkAccess, async (req, res) => {
     );
     
     res.status(201).json(ventaCompleta.rows[0]);
-    
+
   } catch (error) {
     await client.query('ROLLBACK');
-    console.error('❌ ERROR registrando venta:', error.message);
-    res.status(400).json({ error: error.message });
+    console.error('❌ ERROR registrando venta:', error);
+    // error.code solo lo trae el driver de Postgres (errores internos, p.ej.
+    // constraints); los `throw new Error(...)` propios de esta ruta (stock
+    // insuficiente, producto no encontrado, cantidad inválida) no lo tienen
+    // y sí son seguros de mostrar al usuario tal cual.
+    const mensaje = error.code ? 'Error al procesar la venta' : error.message;
+    res.status(400).json({ error: mensaje });
   } finally {
     client.release();
   }
@@ -823,6 +849,176 @@ app.get('/api/ventas/:id/factura', authenticateToken, checkAccess, async (req, r
     res.json(result.rows[0]);
   } catch (error) {
     console.error('Error obteniendo factura:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// ==================== RUTAS DE CLIENTES ====================
+
+// Listar / buscar clientes del negocio (admin y trabajador, para el autocomplete del POS)
+app.get('/api/clientes', authenticateToken, checkAccess, async (req, res) => {
+  try {
+    const negocioId = req.negocioId;
+    const { search } = req.query;
+
+    if (!negocioId) {
+      return res.status(400).json({ error: 'Negocio no identificado' });
+    }
+
+    let query = 'SELECT * FROM clientes WHERE negocio_id = $1 AND activo = true';
+    const params = [negocioId];
+
+    if (search && search.trim() !== '') {
+      params.push(`%${search.trim()}%`);
+      query += ` AND (nombre ILIKE $${params.length} OR cedula ILIKE $${params.length})`;
+    }
+
+    query += ' ORDER BY nombre LIMIT 50';
+
+    const result = await pool.query(query, params);
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error obteniendo clientes:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// Detalle de un cliente (solo admin)
+app.get('/api/clientes/:id', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const negocioId = req.negocioId;
+
+    const result = await pool.query(
+      'SELECT * FROM clientes WHERE id = $1 AND negocio_id = $2',
+      [id, negocioId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Cliente no encontrado' });
+    }
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error obteniendo cliente:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// Historial de compras de un cliente (solo admin)
+app.get('/api/clientes/:id/historial', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const negocioId = req.negocioId;
+
+    // Confirmar que el cliente pertenece al negocio del usuario antes de exponer su historial
+    const clienteResult = await pool.query(
+      'SELECT id FROM clientes WHERE id = $1 AND negocio_id = $2',
+      [id, negocioId]
+    );
+
+    if (clienteResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Cliente no encontrado' });
+    }
+
+    const result = await pool.query(
+      `SELECT v.*,
+              u.nombre as vendedor_nombre,
+              json_agg(
+                json_build_object(
+                  'producto_id', dv.producto_id,
+                  'producto_nombre', p.nombre,
+                  'cantidad', dv.cantidad,
+                  'precio_unitario', dv.precio_unitario,
+                  'subtotal', dv.subtotal
+                )
+              ) as detalles
+       FROM ventas v
+       JOIN modulos m ON v.modulo_id = m.id
+       JOIN usuarios u ON v.usuario_id = u.id
+       LEFT JOIN detalle_venta dv ON v.id = dv.venta_id
+       LEFT JOIN productos p ON dv.producto_id = p.id
+       WHERE v.cliente_id = $1 AND m.negocio_id = $2
+       GROUP BY v.id, u.id
+       ORDER BY v.fecha_venta DESC`,
+      [id, negocioId]
+    );
+
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error obteniendo historial del cliente:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// Crear cliente (admin y trabajador, para registro rápido desde el POS)
+app.post('/api/clientes', authenticateToken, checkAccess, async (req, res) => {
+  try {
+    const negocioId = req.negocioId;
+    const { nombre, cedula, telefono, direccion, email } = req.body;
+
+    if (!negocioId) {
+      return res.status(400).json({ error: 'Negocio no identificado' });
+    }
+
+    if (!nombre || !nombre.trim()) {
+      return res.status(400).json({ error: 'El nombre es requerido' });
+    }
+
+    // UNIQUE(negocio_id, cedula) permite múltiples NULL sin chocar, pero un
+    // string vacío '' sí choca si hay más de un cliente sin cédula.
+    const cedulaLimpia = cedula && cedula.trim() !== '' ? cedula.trim() : null;
+
+    const numero_cliente = await generarNumeroCliente(negocioId, pool);
+
+    const result = await pool.query(
+      `INSERT INTO clientes (negocio_id, numero_cliente, nombre, cedula, telefono, direccion, email)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       RETURNING *`,
+      [negocioId, numero_cliente, nombre.trim(), cedulaLimpia, telefono || null, direccion || null, email || null]
+    );
+
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    if (error.code === '23505') {
+      return res.status(409).json({ error: 'Ya existe un cliente con esa cédula en este negocio' });
+    }
+    console.error('Error creando cliente:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// Editar cliente (solo admin)
+app.put('/api/clientes/:id', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const negocioId = req.negocioId;
+    const { nombre, cedula, telefono, direccion, email } = req.body;
+
+    if (!nombre || !nombre.trim()) {
+      return res.status(400).json({ error: 'El nombre es requerido' });
+    }
+
+    const cedulaLimpia = cedula && cedula.trim() !== '' ? cedula.trim() : null;
+
+    const result = await pool.query(
+      `UPDATE clientes
+       SET nombre = $1, cedula = $2, telefono = $3, direccion = $4, email = $5
+       WHERE id = $6 AND negocio_id = $7
+       RETURNING *`,
+      [nombre.trim(), cedulaLimpia, telefono || null, direccion || null, email || null, id, negocioId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Cliente no encontrado' });
+    }
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    if (error.code === '23505') {
+      return res.status(409).json({ error: 'Ya existe un cliente con esa cédula en este negocio' });
+    }
+    console.error('Error actualizando cliente:', error);
     res.status(500).json({ error: 'Error interno del servidor' });
   }
 });
@@ -1222,6 +1418,7 @@ app.post('/api/productos/:productoId/proveedores/:proveedorId', authenticateToke
     const { productoId, proveedorId } = req.params;
     const { precio_compra, tiempo_entrega_dias, cantidad_minima_pedido } = req.body;
     const moduloId = req.moduloId;
+    const negocioId = req.negocioId;
 
     // Verificar que el producto existe y pertenece al módulo
     const productoResult = await pool.query(
@@ -1233,10 +1430,11 @@ app.post('/api/productos/:productoId/proveedores/:proveedorId', authenticateToke
       return res.status(404).json({ error: 'Producto no encontrado' });
     }
 
-    // Verificar que el proveedor existe
+    // Verificar que el proveedor existe Y pertenece al mismo negocio (evita
+    // asociar productos propios con proveedores de otro negocio)
     const proveedorResult = await pool.query(
-      'SELECT id FROM proveedores WHERE id = $1 AND activo = true',
-      [proveedorId]
+      'SELECT id FROM proveedores WHERE id = $1 AND negocio_id = $2 AND activo = true',
+      [proveedorId, negocioId]
     );
 
     if (proveedorResult.rows.length === 0) {
@@ -1265,10 +1463,21 @@ app.get('/api/productos/:productoId/proveedores', authenticateToken, checkAccess
     const { productoId } = req.params;
     const moduloId = req.moduloId;
 
+    // Verificar que el producto pertenece al módulo del usuario antes de
+    // exponer sus proveedores (evita fuga de datos entre negocios)
+    const productoResult = await pool.query(
+      'SELECT id FROM productos WHERE id = $1 AND modulo_id = $2 AND activo = true',
+      [productoId, moduloId]
+    );
+
+    if (productoResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Producto no encontrado' });
+    }
+
     const result = await pool.query(
-      `SELECT p.*, 
-              pp.precio_compra, 
-              pp.tiempo_entrega_dias, 
+      `SELECT p.*,
+              pp.precio_compra,
+              pp.tiempo_entrega_dias,
               pp.cantidad_minima_pedido
        FROM proveedores p
        JOIN producto_proveedor pp ON p.id = pp.proveedor_id
@@ -1298,16 +1507,18 @@ app.post('/api/pedidos', authenticateToken, checkAccess, requireAdmin, async (re
     const usuarioId = req.user.id;
 
     if (!proveedor_id || !detalles || detalles.length === 0) {
+      await client.query('ROLLBACK');
       return res.status(400).json({ error: 'Proveedor y detalles son requeridos' });
     }
 
-    // Verificar que el proveedor existe
+    // Verificar que el proveedor existe y pertenece al mismo negocio
     const proveedorResult = await client.query(
-      'SELECT id FROM proveedores WHERE id = $1 AND activo = true',
-      [proveedor_id]
+      'SELECT id FROM proveedores WHERE id = $1 AND negocio_id = $2 AND activo = true',
+      [proveedor_id, negocioId]
     );
 
     if (proveedorResult.rows.length === 0) {
+      await client.query('ROLLBACK');
       return res.status(404).json({ error: 'Proveedor no encontrado' });
     }
 
@@ -1627,7 +1838,13 @@ app.post('/api/inventario/agregar-stock', authenticateToken, checkAccess, requir
     const moduloId = req.moduloId;
 
     if (!moduloId) {
+      await client.query('ROLLBACK');
       return res.status(400).json({ error: 'Se requiere un módulo' });
+    }
+
+    const cantidadNum = parseInt(cantidad, 10);
+    if (!Number.isFinite(cantidadNum) || cantidadNum <= 0) {
+      throw new Error('La cantidad a agregar debe ser un número positivo');
     }
 
     const productoResult = await client.query(
@@ -1640,31 +1857,32 @@ app.post('/api/inventario/agregar-stock', authenticateToken, checkAccess, requir
     }
 
     const producto = productoResult.rows[0];
-    const nuevoStock = producto.stock_actual + parseInt(cantidad);
-    
+    const nuevoStock = producto.stock_actual + cantidadNum;
+
     await client.query(
       'UPDATE productos SET stock_actual = $1, fecha_actualizacion = NOW() WHERE id = $2',
       [nuevoStock, producto_id]
     );
 
     await client.query('COMMIT');
-    
-    res.json({ 
-      success: true, 
+
+    res.json({
+      success: true,
       message: 'Stock agregado correctamente',
       producto: {
         id: producto.id,
         nombre: producto.nombre,
         stock_anterior: producto.stock_actual,
         stock_nuevo: nuevoStock,
-        cantidad_agregada: cantidad
+        cantidad_agregada: cantidadNum
       }
     });
 
   } catch (error) {
     await client.query('ROLLBACK');
-    console.error('Error agregando stock:', error.message);
-    res.status(400).json({ error: error.message });
+    console.error('Error agregando stock:', error);
+    const mensaje = error.code ? 'Error al agregar stock' : error.message;
+    res.status(400).json({ error: mensaje });
   } finally {
     client.release();
   }
@@ -1680,7 +1898,13 @@ app.post('/api/inventario/ajustar-stock', authenticateToken, checkAccess, requir
     const moduloId = req.moduloId;
 
     if (!moduloId) {
+      await client.query('ROLLBACK');
       return res.status(400).json({ error: 'Se requiere un módulo' });
+    }
+
+    const nuevoStockNum = Number(nuevo_stock);
+    if (!Number.isFinite(nuevoStockNum) || nuevoStockNum < 0) {
+      throw new Error('El nuevo stock debe ser un número mayor o igual a cero');
     }
 
     const productoResult = await client.query(
@@ -1693,31 +1917,32 @@ app.post('/api/inventario/ajustar-stock', authenticateToken, checkAccess, requir
     }
 
     const producto = productoResult.rows[0];
-    const diferencia = nuevo_stock - producto.stock_actual;
-    
+    const diferencia = nuevoStockNum - producto.stock_actual;
+
     await client.query(
       'UPDATE productos SET stock_actual = $1, fecha_actualizacion = NOW() WHERE id = $2',
-      [nuevo_stock, producto_id]
+      [nuevoStockNum, producto_id]
     );
 
     await client.query('COMMIT');
-    
-    res.json({ 
-      success: true, 
+
+    res.json({
+      success: true,
       message: 'Stock ajustado correctamente',
       producto: {
         id: producto.id,
         nombre: producto.nombre,
         stock_anterior: producto.stock_actual,
-        stock_nuevo: nuevo_stock,
+        stock_nuevo: nuevoStockNum,
         diferencia: diferencia
       }
     });
 
   } catch (error) {
     await client.query('ROLLBACK');
-    console.error('Error ajustando stock:', error.message);
-    res.status(400).json({ error: error.message });
+    console.error('Error ajustando stock:', error);
+    const mensaje = error.code ? 'Error al ajustar stock' : error.message;
+    res.status(400).json({ error: mensaje });
   } finally {
     client.release();
   }

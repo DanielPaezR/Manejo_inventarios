@@ -11,6 +11,7 @@ import Reportes from './components/Reportes';
 import GestionInventario from './components/GestionInventario';
 import Proveedores from './components/Proveedores';
 import Pedidos from './components/Pedidos';
+import Clientes from './components/Clientes';
 import './App.css';
 
 function App() {
@@ -50,6 +51,11 @@ function App() {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     localStorage.removeItem('moduloActivo');
+    // carrito/cliente son datos de la sesión de venta en curso: si no se
+    // limpian, el siguiente usuario que inicie sesión en este navegador ve
+    // el carrito y los datos de cliente del usuario anterior.
+    localStorage.removeItem('carrito');
+    localStorage.removeItem('cliente');
   };
 
   if (loading) {
@@ -82,6 +88,7 @@ function App() {
               <Route path="inventario" element={<GestionInventario user={user} />} />
               <Route path="proveedores" element={<Proveedores user={user} />} />
               <Route path="pedidos" element={<Pedidos user={user} />} />
+              <Route path="clientes" element={<Clientes user={user} />} />
             </Route>
           </Routes>
         </div>

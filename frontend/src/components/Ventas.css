@@ -506,6 +506,206 @@
   box-shadow: 0 0 0 3px rgba(66, 153, 225, 0.1);
 }
 
+/* Autocomplete de clientes */
+.cliente-busqueda-wrapper {
+  position: relative;
+}
+
+.cliente-seleccionado-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+  padding: 3px 10px;
+  background: #f0fff4;
+  border: 1px solid #9ae6b4;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #2f855a;
+  width: fit-content;
+}
+
+.cliente-seleccionado-badge button {
+  background: none;
+  border: none;
+  color: #2f855a;
+  cursor: pointer;
+  font-size: 12px;
+  padding: 0;
+  line-height: 1;
+}
+
+.cliente-resultados {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 20;
+  margin-top: 4px;
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.cliente-resultado-item {
+  padding: 8px 12px;
+  font-size: 13px;
+  color: #2d3748;
+  cursor: pointer;
+  border-bottom: 1px solid #f0f4f8;
+}
+
+.cliente-resultado-item:last-child {
+  border-bottom: none;
+}
+
+.cliente-resultado-item:hover {
+  background: #f7fafc;
+}
+
+.cliente-resultado-item span {
+  color: #718096;
+  font-size: 12px;
+}
+
+.cliente-resultado-info {
+  padding: 10px 12px;
+  font-size: 13px;
+  color: #718096;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.btn-registrar-cliente {
+  background: #ebf8ff;
+  color: #2b6cb0;
+  border: none;
+  padding: 4px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.btn-registrar-cliente:hover {
+  background: #bee3f8;
+}
+
+/* Mini-modal de registro rápido de cliente desde el POS */
+.cliente-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 20px;
+}
+
+.cliente-modal-content {
+  background: white;
+  border-radius: 16px;
+  padding: 24px;
+  max-width: 400px;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+}
+
+.cliente-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 2px solid #e2e8f0;
+}
+
+.cliente-modal-header h3 {
+  margin: 0;
+  font-size: 18px;
+  color: #2d3748;
+}
+
+.cliente-modal-header button {
+  background: none;
+  border: none;
+  font-size: 20px;
+  cursor: pointer;
+  color: #a0aec0;
+}
+
+.cliente-form-group {
+  margin-bottom: 14px;
+}
+
+.cliente-form-group label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: #2d3748;
+  margin-bottom: 4px;
+}
+
+.cliente-form-group input {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 14px;
+}
+
+.cliente-form-group input:focus {
+  outline: none;
+  border-color: #4299e1;
+  box-shadow: 0 0 0 3px rgba(66, 153, 225, 0.1);
+}
+
+.cliente-form-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.btn-guardar-cliente {
+  flex: 1;
+  padding: 10px;
+  background: linear-gradient(135deg, #48bb78 0%, #38a169 100%);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btn-guardar-cliente:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-cancelar-cliente {
+  padding: 10px 16px;
+  background: #edf2f7;
+  color: #4a5568;
+  border: none;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
 /* Lista del carrito */
 .carrito-lista {
   flex: 1;
@@ -693,6 +893,198 @@
   opacity: 0.6;
   cursor: not-allowed;
   transform: none;
+}
+
+/* ============================================================
+   MODAL DE FACTURA
+   El componente Factura.jsx (con impresión/copiar/descargar) nunca se
+   conectó a ninguna ruta; este modal inline es el que realmente se usa,
+   pero no tenía sus clases base definidas aquí (solo un ajuste responsive
+   más abajo), así que renderizaba sin overlay ni centrado.
+   ============================================================ */
+.factura-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 20px;
+  animation: fadeInFactura 0.2s ease;
+}
+
+@keyframes fadeInFactura {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.factura-modal-content {
+  background: white;
+  border-radius: 16px;
+  max-width: 500px;
+  width: 100%;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  overflow: hidden;
+}
+
+.factura-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  border-bottom: 1px solid #e2e8f0;
+  background: #f7fafc;
+  flex-shrink: 0;
+}
+
+.factura-modal-header h3 {
+  margin: 0;
+  font-size: 18px;
+  color: #2d3748;
+}
+
+.factura-modal-header button {
+  background: none;
+  border: none;
+  font-size: 20px;
+  cursor: pointer;
+  color: #a0aec0;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: all 0.2s;
+}
+
+.factura-modal-header button:hover {
+  background: #edf2f7;
+  color: #e53e3e;
+}
+
+.factura-content {
+  padding: 20px 24px;
+  overflow-y: auto;
+  flex: 1;
+  font-family: 'Courier New', monospace;
+  font-size: 13px;
+  background: white;
+  line-height: 1.5;
+}
+
+.factura-header {
+  text-align: center;
+  border-bottom: 2px double #2d3748;
+  padding-bottom: 12px;
+  margin-bottom: 12px;
+}
+
+.factura-header h2 {
+  font-size: 18px;
+  margin: 0 0 4px 0;
+  color: #2d3748;
+}
+
+.factura-header p {
+  font-size: 11px;
+  color: #4a5568;
+  margin: 1px 0;
+}
+
+.factura-detalles table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  margin: 12px 0;
+}
+
+.factura-detalles th {
+  background: #edf2f7;
+  padding: 6px 8px;
+  text-align: left;
+  font-weight: 600;
+  font-size: 11px;
+  color: #2d3748;
+  border-bottom: 2px solid #2d3748;
+}
+
+.factura-detalles td {
+  padding: 5px 8px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.factura-totales {
+  margin-top: 12px;
+  border-top: 2px solid #2d3748;
+  padding-top: 10px;
+}
+
+.factura-totales .total-linea {
+  display: flex;
+  justify-content: space-between;
+  padding: 3px 0;
+  font-size: 13px;
+}
+
+.factura-totales .total-linea.total {
+  font-size: 16px;
+  font-weight: bold;
+  border-top: 1px solid #2d3748;
+  padding-top: 6px;
+  margin-top: 4px;
+}
+
+.factura-footer {
+  text-align: center;
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 1px dashed #cbd5e0;
+  font-size: 12px;
+  color: #4a5568;
+}
+
+.factura-modal-footer {
+  display: flex;
+  gap: 10px;
+  padding: 14px 20px;
+  border-top: 1px solid #e2e8f0;
+  background: #f7fafc;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+.factura-modal-footer button {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  transition: all 0.2s;
+}
+
+.btn-imprimir {
+  background: #4299e1;
+  color: white;
+}
+
+.btn-imprimir:hover {
+  background: #3182ce;
+  transform: translateY(-1px);
+}
+
+.btn-cerrar-factura {
+  background: #e2e8f0;
+  color: #2d3748;
+}
+
+.btn-cerrar-factura:hover {
+  background: #cbd5e0;
 }
 
 /* ============================================================
