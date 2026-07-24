@@ -859,10 +859,26 @@ app.get('/api/ventas/:id/factura', authenticateToken, checkAccess, async (req, r
 app.get('/api/clientes', authenticateToken, checkAccess, async (req, res) => {
   try {
     const negocioId = req.negocioId;
-    const { search } = req.query;
+    const { search, numero_cliente } = req.query;
 
     if (!negocioId) {
       return res.status(400).json({ error: 'Negocio no identificado' });
+    }
+
+    // Búsqueda exacta por numero_cliente: modo distinto al de nombre/cédula,
+    // no se combinan. Si viene, ignora `search` por completo.
+    if (numero_cliente !== undefined) {
+      const numeroClienteStr = String(numero_cliente).trim();
+      if (!/^\d+$/.test(numeroClienteStr) || parseInt(numeroClienteStr, 10) <= 0) {
+        return res.status(400).json({ error: 'numero_cliente debe ser un entero positivo' });
+      }
+
+      const result = await pool.query(
+        'SELECT * FROM clientes WHERE negocio_id = $1 AND activo = true AND numero_cliente = $2',
+        [negocioId, parseInt(numeroClienteStr, 10)]
+      );
+
+      return res.json(result.rows);
     }
 
     let query = 'SELECT * FROM clientes WHERE negocio_id = $1 AND activo = true';

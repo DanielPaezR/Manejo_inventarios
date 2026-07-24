@@ -511,6 +511,27 @@
   position: relative;
 }
 
+/* Búsqueda exacta por número de cliente */
+.cliente-numero-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.cliente-input-numero {
+  width: 100px;
+}
+
+.cliente-numero-info {
+  font-size: 11px;
+  color: #718096;
+}
+
+.cliente-numero-error {
+  font-size: 11px;
+  color: #c53030;
+}
+
 .cliente-seleccionado-badge {
   display: flex;
   align-items: center;

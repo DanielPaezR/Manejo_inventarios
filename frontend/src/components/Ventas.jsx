@@ -45,6 +45,9 @@ const Ventas = ({ user }) => {
   const [mostrarNuevoCliente, setMostrarNuevoCliente] = useState(false);
   const [nuevoClienteForm, setNuevoClienteForm] = useState({ nombre: '', cedula: '', telefono: '' });
   const [guardandoCliente, setGuardandoCliente] = useState(false);
+  const [numeroClienteBusqueda, setNumeroClienteBusqueda] = useState('');
+  const [buscandoPorNumero, setBuscandoPorNumero] = useState(false);
+  const [errorNumeroCliente, setErrorNumeroCliente] = useState('');
   const inputRef = useRef(null);
   const scannerRef = useRef(null);
   const carritoSectionRef = useRef(null);
@@ -460,6 +463,7 @@ const Ventas = ({ user }) => {
     }));
     setClienteResultados([]);
     setMostrarResultadosCliente(false);
+    setErrorNumeroCliente('');
   }, []);
 
   const quitarClienteSeleccionado = useCallback(() => {
@@ -492,6 +496,30 @@ const Ventas = ({ user }) => {
       setGuardandoCliente(false);
     }
   }, [nuevoClienteForm, seleccionarCliente]);
+
+  // Búsqueda exacta por número de cliente: selecciona automáticamente sin
+  // lista de confirmación (prioriza velocidad sobre el flujo de nombre).
+  const buscarPorNumeroCliente = useCallback(async () => {
+    const valor = numeroClienteBusqueda.trim();
+    if (!valor) return;
+
+    try {
+      setBuscandoPorNumero(true);
+      setErrorNumeroCliente('');
+      const response = await api.get('/clientes', { params: { numero_cliente: valor } });
+      if (response.data && response.data.length > 0) {
+        seleccionarCliente(response.data[0]);
+        setNumeroClienteBusqueda('');
+      } else {
+        setErrorNumeroCliente('Cliente no encontrado con ese número');
+      }
+    } catch (error) {
+      console.error('Error buscando cliente por número:', error);
+      setErrorNumeroCliente('Cliente no encontrado con ese número');
+    } finally {
+      setBuscandoPorNumero(false);
+    }
+  }, [numeroClienteBusqueda, seleccionarCliente]);
 
   // Si no hay módulo activo
   if (!moduloActivo) {
@@ -685,6 +713,30 @@ const Ventas = ({ user }) => {
                 </div>
               )}
             </div>
+
+            <div className="cliente-numero-wrapper">
+              <input
+                type="text"
+                inputMode="numeric"
+                placeholder="N° cliente"
+                value={numeroClienteBusqueda}
+                onChange={(e) => {
+                  setNumeroClienteBusqueda(e.target.value);
+                  if (errorNumeroCliente) setErrorNumeroCliente('');
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    buscarPorNumeroCliente();
+                  }
+                }}
+                className="cliente-input cliente-input-numero"
+                title="Buscar cliente por su número exacto (Enter)"
+              />
+              {buscandoPorNumero && <span className="cliente-numero-info">Buscando...</span>}
+              {errorNumeroCliente && <span className="cliente-numero-error">{errorNumeroCliente}</span>}
+            </div>
+
             <input
               type="text"
               placeholder="Documento"
