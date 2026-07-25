@@ -1506,6 +1506,101 @@ app.delete('/api/proveedores/:id', authenticateToken, checkAccess, requireAdmin,
   }
 });
 
+// Sugerencia de cantidad a pedir por proveedor, basada en ventas históricas
+// y tiempo de entrega (producto_proveedor.tiempo_entrega_dias tiene
+// prioridad sobre proveedores.dias_entrega, que a su vez tiene prioridad
+// sobre el default de 3 días).
+app.get('/api/proveedores/:id/sugerencia-pedido', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const negocioId = req.negocioId;
+    const moduloId = req.moduloId;
+    const { dias_historial } = req.query;
+
+    if (!moduloId) {
+      return res.status(400).json({ error: 'Se requiere un módulo' });
+    }
+
+    const proveedorResult = await pool.query(
+      'SELECT id, nombre, dias_entrega FROM proveedores WHERE id = $1 AND negocio_id = $2 AND activo = true',
+      [id, negocioId]
+    );
+
+    if (proveedorResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Proveedor no encontrado' });
+    }
+
+    const proveedor = proveedorResult.rows[0];
+
+    let diasHistorial = 30;
+    if (dias_historial !== undefined) {
+      const diasHistorialStr = String(dias_historial).trim();
+      if (!/^\d+$/.test(diasHistorialStr) || parseInt(diasHistorialStr, 10) <= 0) {
+        return res.status(400).json({ error: 'dias_historial debe ser un entero positivo' });
+      }
+      diasHistorial = parseInt(diasHistorialStr, 10);
+    }
+
+    const productosResult = await pool.query(
+      `SELECT
+          p.id, p.nombre, p.codigo_ean, p.stock_actual, p.stock_minimo,
+          pp.tiempo_entrega_dias, pp.cantidad_minima_pedido, pp.precio_compra
+       FROM productos p
+       JOIN producto_proveedor pp ON pp.producto_id = p.id
+       WHERE pp.proveedor_id = $1
+       AND pp.activo = true
+       AND p.activo = true
+       AND p.modulo_id = $2`,
+      [id, moduloId]
+    );
+
+    const sugerencias = [];
+
+    for (const producto of productosResult.rows) {
+      const ventasResult = await pool.query(
+        `SELECT COALESCE(SUM(dv.cantidad), 0) as total_vendido
+         FROM detalle_venta dv
+         JOIN ventas v ON dv.venta_id = v.id
+         WHERE dv.producto_id = $1
+         AND v.modulo_id = $2
+         AND v.fecha_venta >= NOW() - ($3 || ' days')::interval`,
+        [producto.id, moduloId, diasHistorial]
+      );
+
+      const totalVendido = Number(ventasResult.rows[0]?.total_vendido || 0);
+      const promedioDiario = totalVendido / diasHistorial;
+      const tiempoEntrega = producto.tiempo_entrega_dias || proveedor.dias_entrega || 3;
+      const consumoEsperado = promedioDiario * tiempoEntrega;
+      let cantidadSugerida = Math.ceil(
+        Math.max(0, consumoEsperado + producto.stock_minimo - producto.stock_actual)
+      );
+
+      // Respeta el mínimo de pedido del proveedor si existe
+      if (producto.cantidad_minima_pedido && cantidadSugerida > 0 && cantidadSugerida < producto.cantidad_minima_pedido) {
+        cantidadSugerida = producto.cantidad_minima_pedido;
+      }
+
+      sugerencias.push({
+        producto_id: producto.id,
+        nombre: producto.nombre,
+        codigo_ean: producto.codigo_ean,
+        stock_actual: producto.stock_actual,
+        stock_minimo: producto.stock_minimo,
+        promedioDiario,
+        tiempoEntrega,
+        cantidadSugerida
+      });
+    }
+
+    sugerencias.sort((a, b) => b.cantidadSugerida - a.cantidadSugerida);
+
+    res.json(sugerencias);
+  } catch (error) {
+    console.error('Error calculando sugerencia de pedido:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
 // ==================== RUTAS DE PRODUCTO-PROVEEDOR ====================
 
 // Asociar producto con proveedor

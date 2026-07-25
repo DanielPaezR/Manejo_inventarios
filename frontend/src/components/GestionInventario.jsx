@@ -25,6 +25,11 @@ const GestionInventario = ({ user }) => {
   });
   const [pedidosSugeridos, setPedidosSugeridos] = useState([]);
   const [proveedorSeleccionado, setProveedorSeleccionado] = useState(null);
+  const [proveedorSugerenciaId, setProveedorSugerenciaId] = useState('');
+  const [diasHistorial, setDiasHistorial] = useState(30);
+  const [sugerenciaPedido, setSugerenciaPedido] = useState([]);
+  const [sugerenciaConsultada, setSugerenciaConsultada] = useState(false);
+  const [cargandoSugerencia, setCargandoSugerencia] = useState(false);
 
   // Verificar permisos
   const puedeGestionar = user?.rol === 'admin' || user?.rol === 'super_admin';
@@ -228,6 +233,76 @@ const GestionInventario = ({ user }) => {
     
     setMensaje(`📤 Enviando pedido múltiple a ${proveedor.nombre}...`);
     setTimeout(() => setMensaje(''), 3000);
+  };
+
+  // Sugerencia de pedido para un proveedor específico, basada en ventas
+  // históricas y tiempo de entrega (complementaria a "Pedidos Sugeridos",
+  // que es por stock crítico).
+  const calcularSugerenciaPedido = async () => {
+    if (!proveedorSugerenciaId) {
+      setMensaje('⚠️ Selecciona un proveedor');
+      return;
+    }
+
+    try {
+      setCargandoSugerencia(true);
+      const response = await api.get(`/proveedores/${proveedorSugerenciaId}/sugerencia-pedido`, {
+        params: { dias_historial: diasHistorial || 30 }
+      });
+      setSugerenciaPedido(
+        response.data.map(item => ({
+          ...item,
+          cantidadEditada: item.cantidadSugerida,
+          incluido: item.cantidadSugerida > 0
+        }))
+      );
+      setSugerenciaConsultada(true);
+    } catch (error) {
+      console.error('Error calculando sugerencia de pedido:', error);
+      setMensaje('❌ Error al calcular la sugerencia de pedido');
+    } finally {
+      setCargandoSugerencia(false);
+    }
+  };
+
+  const actualizarCantidadSugerencia = (productoId, valor) => {
+    setSugerenciaPedido(prev => prev.map(item =>
+      item.producto_id === productoId ? { ...item, cantidadEditada: valor } : item
+    ));
+  };
+
+  const toggleIncluidoSugerencia = (productoId) => {
+    setSugerenciaPedido(prev => prev.map(item =>
+      item.producto_id === productoId ? { ...item, incluido: !item.incluido } : item
+    ));
+  };
+
+  // Reutiliza enviarPedidoMultipleWhatsApp adaptando el formato de items
+  // ({ producto, cantidadSugerida }) a partir de la sugerencia editable.
+  const enviarSugerenciaPorWhatsApp = () => {
+    const proveedor = proveedores.find(p => p.id === parseInt(proveedorSugerenciaId));
+    if (!proveedor) {
+      setMensaje('⚠️ Selecciona un proveedor válido');
+      return;
+    }
+
+    const itemsIncluidos = sugerenciaPedido
+      .filter(item => item.incluido && parseInt(item.cantidadEditada) > 0)
+      .map(item => ({
+        producto: {
+          nombre: item.nombre,
+          codigo_ean: item.codigo_ean,
+          stock_actual: item.stock_actual
+        },
+        cantidadSugerida: parseInt(item.cantidadEditada) || 0
+      }));
+
+    if (itemsIncluidos.length === 0) {
+      setMensaje('⚠️ Selecciona al menos un producto con cantidad mayor a 0');
+      return;
+    }
+
+    enviarPedidoMultipleWhatsApp(itemsIncluidos, proveedor);
   };
 
   // Agrupar pedidos sugeridos por proveedor
@@ -525,6 +600,99 @@ const GestionInventario = ({ user }) => {
               <p className="sin-alertas">✅ Todos los productos tienen stock adecuado</p>
             )}
           </div>
+        )}
+      </div>
+
+      {/* Sugerencia de pedido por proveedor específico */}
+      <div className="card sugerencia-pedido-proveedor">
+        <h3>🧮 Sugerencia de Pedido por Proveedor</h3>
+        <p className="sugerencia-descripcion">
+          Calcula cuánto pedir de cada producto asociado a un proveedor, según el promedio de ventas y su tiempo de entrega.
+        </p>
+
+        <div className="sugerencia-controles">
+          <div className="form-group">
+            <label>Proveedor</label>
+            <select
+              value={proveedorSugerenciaId}
+              onChange={(e) => {
+                setProveedorSugerenciaId(e.target.value);
+                setSugerenciaPedido([]);
+                setSugerenciaConsultada(false);
+              }}
+            >
+              <option value="">Seleccionar proveedor...</option>
+              {proveedores.map(proveedor => (
+                <option key={proveedor.id} value={proveedor.id}>{proveedor.nombre}</option>
+              ))}
+            </select>
+          </div>
+          <div className="form-group">
+            <label>Basado en ventas de los últimos {diasHistorial || 30} días</label>
+            <input
+              type="number"
+              min="1"
+              value={diasHistorial}
+              onChange={(e) => setDiasHistorial(e.target.value)}
+            />
+          </div>
+          <button
+            onClick={calcularSugerenciaPedido}
+            className="btn-calcular-sugerencia"
+            disabled={!proveedorSugerenciaId || cargandoSugerencia}
+          >
+            {cargandoSugerencia ? '⏳ Calculando...' : '🧮 Calcular sugerencia'}
+          </button>
+        </div>
+
+        {sugerenciaConsultada && (
+          sugerenciaPedido.length === 0 ? (
+            <p className="sin-alertas">
+              Este proveedor no tiene productos asociados. Ve a <strong>Proveedores</strong> para asociar productos antes de calcular una sugerencia.
+            </p>
+          ) : (
+            <>
+              <table className="tabla-sugerencia-pedido">
+                <thead>
+                  <tr>
+                    <th></th>
+                    <th>Producto</th>
+                    <th>Stock actual</th>
+                    <th>Promedio diario</th>
+                    <th>Cantidad sugerida</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sugerenciaPedido.map(item => (
+                    <tr key={item.producto_id}>
+                      <td>
+                        <input
+                          type="checkbox"
+                          checked={item.incluido}
+                          onChange={() => toggleIncluidoSugerencia(item.producto_id)}
+                        />
+                      </td>
+                      <td>{item.nombre}</td>
+                      <td>{item.stock_actual}</td>
+                      <td>{item.promedioDiario.toFixed(1)} uds/día</td>
+                      <td>
+                        <input
+                          type="number"
+                          min="0"
+                          value={item.cantidadEditada}
+                          onChange={(e) => actualizarCantidadSugerencia(item.producto_id, e.target.value)}
+                          className="input-cantidad-sugerida"
+                        />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <button onClick={enviarSugerenciaPorWhatsApp} className="btn-pedir-todo">
+                📤 Enviar por WhatsApp
+              </button>
+            </>
+          )
         )}
       </div>
     </div>

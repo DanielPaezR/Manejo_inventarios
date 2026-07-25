@@ -546,6 +546,118 @@
 }
 
 /* ============================================================
+   SUGERENCIA DE PEDIDO POR PROVEEDOR
+   ============================================================ */
+.sugerencia-pedido-proveedor {
+  border-left: 4px solid #4299e1;
+}
+
+.sugerencia-descripcion {
+  margin: -10px 0 16px 0;
+  color: #718096;
+  font-size: 14px;
+}
+
+.sugerencia-controles {
+  display: flex;
+  align-items: flex-end;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+
+.sugerencia-controles .form-group {
+  margin-bottom: 0;
+  min-width: 200px;
+}
+
+.sugerencia-controles .form-group label {
+  display: block;
+  font-size: 14px;
+  font-weight: 500;
+  color: #4a5568;
+  margin-bottom: 4px;
+}
+
+.sugerencia-controles .form-group select,
+.sugerencia-controles .form-group input {
+  width: 100%;
+  padding: 8px 12px;
+  border: 2px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 14px;
+  transition: all 0.3s ease;
+}
+
+.sugerencia-controles .form-group select:focus,
+.sugerencia-controles .form-group input:focus {
+  outline: none;
+  border-color: #4299e1;
+  box-shadow: 0 0 0 4px rgba(66, 153, 225, 0.1);
+}
+
+.btn-calcular-sugerencia {
+  padding: 9px 20px;
+  background: linear-gradient(135deg, #4299e1 0%, #3182ce 100%);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  white-space: nowrap;
+}
+
+.btn-calcular-sugerencia:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(66, 153, 225, 0.3);
+}
+
+.btn-calcular-sugerencia:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.tabla-sugerencia-pedido {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+  margin-bottom: 16px;
+}
+
+.tabla-sugerencia-pedido th {
+  text-align: left;
+  padding: 10px 14px;
+  background: #f7fafc;
+  font-weight: 600;
+  color: #4a5568;
+  border-bottom: 2px solid #e2e8f0;
+}
+
+.tabla-sugerencia-pedido td {
+  padding: 8px 14px;
+  border-bottom: 1px solid #edf2f7;
+}
+
+.tabla-sugerencia-pedido tr:hover td {
+  background: #f7fafc;
+}
+
+.input-cantidad-sugerida {
+  width: 80px;
+  padding: 6px 10px;
+  border: 2px solid #e2e8f0;
+  border-radius: 6px;
+  font-size: 14px;
+}
+
+.input-cantidad-sugerida:focus {
+  outline: none;
+  border-color: #4299e1;
+}
+
+/* ============================================================
    UTILIDADES
    ============================================================ */
 .loading {
