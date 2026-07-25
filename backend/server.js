@@ -1110,6 +1110,12 @@ app.get('/api/estadisticas', authenticateToken, checkAccess, requireAdmin, async
         endDate = moment().endOf('day').toDate();
     }
 
+    // Período anterior equivalente (misma duración, inmediatamente antes
+    // de startDate) para comparar el monto de ventas.
+    const duracionMs = endDate.getTime() - startDate.getTime();
+    const startDateAnterior = new Date(startDate.getTime() - duracionMs);
+    const endDateAnterior = new Date(startDate.getTime() - 1);
+
     const ventasPeriodo = await pool.query(
       `SELECT COUNT(*) as total, COALESCE(SUM(total), 0) as monto 
        FROM ventas 
@@ -1119,10 +1125,12 @@ app.get('/api/estadisticas', authenticateToken, checkAccess, requireAdmin, async
     );
 
     const productosStockBajo = await pool.query(
-      `SELECT COUNT(*) as total 
-       FROM productos 
-       WHERE stock_actual <= stock_minimo 
-       AND activo = true 
+      `SELECT
+          COUNT(*) as total,
+          COUNT(*) FILTER (WHERE stock_actual = 0) as agotados
+       FROM productos
+       WHERE stock_actual <= stock_minimo
+       AND activo = true
        AND modulo_id = $1`,
       [moduloId]
     );
@@ -1166,12 +1174,12 @@ app.get('/api/estadisticas', authenticateToken, checkAccess, requireAdmin, async
     );
 
     const metodoPagoPopular = await pool.query(
-      `SELECT 
+      `SELECT
           metodo_pago,
           COUNT(*) as cantidad,
           SUM(total) as monto_total
        FROM ventas
-       WHERE modulo_id = $1 
+       WHERE modulo_id = $1
        AND fecha_venta BETWEEN $2 AND $3
        GROUP BY metodo_pago
        ORDER BY cantidad DESC
@@ -1179,13 +1187,55 @@ app.get('/api/estadisticas', authenticateToken, checkAccess, requireAdmin, async
       [moduloId, startDate, endDate]
     );
 
+    // Productos activos sin ninguna venta en el período actual
+    const productosSinVenta = await pool.query(
+      `SELECT p.id, p.nombre, p.stock_actual, c.nombre as categoria_nombre
+       FROM productos p
+       LEFT JOIN categorias c ON p.categoria_id = c.id
+       WHERE p.activo = true AND p.modulo_id = $1
+       AND NOT EXISTS (
+         SELECT 1 FROM detalle_venta dv
+         JOIN ventas v ON dv.venta_id = v.id
+         WHERE dv.producto_id = p.id
+         AND v.modulo_id = $1
+         AND v.fecha_venta BETWEEN $2 AND $3
+       )
+       ORDER BY p.nombre
+       LIMIT 20`,
+      [moduloId, startDate, endDate]
+    );
+
+    // Ventas del período anterior equivalente, para comparar
+    const ventasPeriodoAnterior = await pool.query(
+      `SELECT COUNT(*) as total, COALESCE(SUM(total), 0) as monto
+       FROM ventas
+       WHERE modulo_id = $1
+       AND fecha_venta BETWEEN $2 AND $3`,
+      [moduloId, startDateAnterior, endDateAnterior]
+    );
+
+    const montoAnterior = Number(ventasPeriodoAnterior.rows[0]?.monto || 0);
+    const montoActual = Number(ventasPeriodo.rows[0]?.monto || 0);
+    // null si el período anterior no tuvo ventas, para evitar división por
+    // cero y para que el frontend sepa que no hay base de comparación
+    // (negocio nuevo, período personalizado sin datos previos, etc.)
+    const cambioMontoPct = montoAnterior > 0
+      ? ((montoActual - montoAnterior) / montoAnterior) * 100
+      : null;
+
     const response = {
       ventasPeriodo: ventasPeriodo.rows[0] || { total: 0, monto: 0 },
-      productosStockBajo: productosStockBajo.rows[0] || { total: 0 },
+      productosStockBajo: productosStockBajo.rows[0] || { total: 0, agotados: 0 },
       topProductos: topProductos.rows,
+      productosSinVenta: productosSinVenta.rows,
       ventasPorDia: ventasPorDia.rows,
       totalProductos: totalProductos.rows[0]?.total || 0,
       metodoPagoPopular: metodoPagoPopular.rows[0] || null,
+      comparacionPeriodoAnterior: {
+        monto: ventasPeriodoAnterior.rows[0]?.monto || 0,
+        total: ventasPeriodoAnterior.rows[0]?.total || 0,
+        cambioMontoPct
+      },
       periodoInfo: {
         tipo: periodo || 'hoy',
         fecha_inicio: moment(startDate).format('YYYY-MM-DD'),
@@ -1359,17 +1409,28 @@ app.get('/api/proveedores', authenticateToken, checkAccess, async (req, res) => 
 app.post('/api/proveedores', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
   try {
     const negocioId = req.negocioId;
-    const { nombre, contacto, telefono, email, direccion } = req.body;
+    const { nombre, contacto, telefono, email, direccion, dias_entrega } = req.body;
 
     if (!nombre) {
       return res.status(400).json({ error: 'El nombre es requerido' });
     }
 
+    // dias_entrega es opcional: null/'' es valido, pero si viene debe ser
+    // un entero positivo (cada cuantos dias trae pedido el proveedor).
+    let diasEntregaValor = null;
+    if (dias_entrega !== undefined && dias_entrega !== null && dias_entrega !== '') {
+      const diasEntregaStr = String(dias_entrega).trim();
+      if (!/^\d+$/.test(diasEntregaStr) || parseInt(diasEntregaStr, 10) <= 0) {
+        return res.status(400).json({ error: 'dias_entrega debe ser un entero positivo' });
+      }
+      diasEntregaValor = parseInt(diasEntregaStr, 10);
+    }
+
     const result = await pool.query(
-      `INSERT INTO proveedores (negocio_id, nombre, contacto, telefono, email, direccion) 
-       VALUES ($1, $2, $3, $4, $5, $6) 
+      `INSERT INTO proveedores (negocio_id, nombre, contacto, telefono, email, direccion, dias_entrega)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
        RETURNING *`,
-      [negocioId, nombre, contacto, telefono, email, direccion]
+      [negocioId, nombre, contacto, telefono, email, direccion, diasEntregaValor]
     );
 
     res.status(201).json(result.rows[0]);
@@ -1384,20 +1445,36 @@ app.put('/api/proveedores/:id', authenticateToken, checkAccess, requireAdmin, as
   try {
     const { id } = req.params;
     const negocioId = req.negocioId;
-    const { nombre, contacto, telefono, email, direccion, activo } = req.body;
+    const { nombre, contacto, telefono, email, direccion, activo, dias_entrega } = req.body;
 
+    let diasEntregaValor = null;
+    if (dias_entrega !== undefined && dias_entrega !== null && dias_entrega !== '') {
+      const diasEntregaStr = String(dias_entrega).trim();
+      if (!/^\d+$/.test(diasEntregaStr) || parseInt(diasEntregaStr, 10) <= 0) {
+        return res.status(400).json({ error: 'dias_entrega debe ser un entero positivo' });
+      }
+      diasEntregaValor = parseInt(diasEntregaStr, 10);
+    }
+
+    // Proveedores.jsx nunca envía `activo` en este formulario (solo existe
+    // para desactivar vía DELETE, que usa otra ruta). Si no viene, pg lo
+    // manda como NULL, y `activo = $6` directo dejaba el proveedor con
+    // activo = NULL en cada edición — como GET /api/proveedores filtra
+    // `activo = true`, el proveedor desaparecía de la lista sin borrarse.
+    // COALESCE conserva el valor actual cuando no se envía nada.
     const result = await pool.query(
-      `UPDATE proveedores 
-       SET nombre = $1, 
-           contacto = $2, 
-           telefono = $3, 
-           email = $4, 
+      `UPDATE proveedores
+       SET nombre = $1,
+           contacto = $2,
+           telefono = $3,
+           email = $4,
            direccion = $5,
-           activo = $6,
+           activo = COALESCE($6, activo),
+           dias_entrega = $7,
            fecha_actualizacion = NOW()
-       WHERE id = $7 AND negocio_id = $8
+       WHERE id = $8 AND negocio_id = $9
        RETURNING *`,
-      [nombre, contacto, telefono, email, direccion, activo, id, negocioId]
+      [nombre, contacto, telefono, email, direccion, activo, diasEntregaValor, id, negocioId]
     );
 
     if (result.rows.length === 0) {

@@ -285,6 +285,20 @@
   font-weight: 500;
 }
 
+.metrica-comparacion {
+  font-size: 12px;
+  font-weight: 600;
+  margin-top: 2px;
+}
+
+.metrica-comparacion.positivo {
+  color: #38a169;
+}
+
+.metrica-comparacion.negativo {
+  color: #e53e3e;
+}
+
 /* ============================================================
    GRÁFICO DE VENTAS POR DÍA
    ============================================================ */
@@ -566,6 +580,16 @@
   border-radius: 12px;
   font-size: 12px;
   font-weight: 600;
+}
+
+.productos-sin-venta {
+  margin-top: 24px;
+}
+
+.productos-sin-venta h4 {
+  margin: 0 0 12px 0;
+  font-size: 15px;
+  color: #2d3748;
 }
 
 /* ============================================================

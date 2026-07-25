@@ -17,7 +17,8 @@ const Proveedores = ({ user }) => {
     contacto: '',
     telefono: '',
     email: '',
-    direccion: ''
+    direccion: '',
+    dias_entrega: ''
   });
   const [asociacionData, setAsociacionData] = useState({
     producto_id: '',
@@ -79,7 +80,8 @@ const Proveedores = ({ user }) => {
         contacto: '',
         telefono: '',
         email: '',
-        direccion: ''
+        direccion: '',
+        dias_entrega: ''
       });
       cargarProveedores();
     } catch (error) {
@@ -110,7 +112,8 @@ const Proveedores = ({ user }) => {
       contacto: proveedor.contacto || '',
       telefono: proveedor.telefono || '',
       email: proveedor.email || '',
-      direccion: proveedor.direccion || ''
+      direccion: proveedor.direccion || '',
+      dias_entrega: proveedor.dias_entrega || ''
     });
     setShowModal(true);
   };
@@ -191,7 +194,7 @@ const Proveedores = ({ user }) => {
           </div>
         </div>
         <button 
-          onClick={() => { setEditProveedor(null); setFormData({ nombre: '', contacto: '', telefono: '', email: '', direccion: '' }); setShowModal(true); }} 
+          onClick={() => { setEditProveedor(null); setFormData({ nombre: '', contacto: '', telefono: '', email: '', direccion: '', dias_entrega: '' }); setShowModal(true); }} 
           className="btn-agregar"
         >
           + Nuevo Proveedor
@@ -205,7 +208,7 @@ const Proveedores = ({ user }) => {
           {proveedores.length === 0 ? (
             <div className="sin-datos">
               <p>No hay proveedores registrados</p>
-              <button onClick={() => { setEditProveedor(null); setFormData({ nombre: '', contacto: '', telefono: '', email: '', direccion: '' }); setShowModal(true); }} className="btn-agregar-primero">
+              <button onClick={() => { setEditProveedor(null); setFormData({ nombre: '', contacto: '', telefono: '', email: '', direccion: '', dias_entrega: '' }); setShowModal(true); }} className="btn-agregar-primero">
                 + Agregar primer proveedor
               </button>
             </div>
@@ -253,6 +256,12 @@ const Proveedores = ({ user }) => {
                     <div className="proveedor-info-item">
                       <span className="info-icon">📍</span>
                       <span className="info-value">{proveedor.direccion}</span>
+                    </div>
+                  )}
+                  {proveedor.dias_entrega && (
+                    <div className="proveedor-info-item">
+                      <span className="info-icon">🚚</span>
+                      <span className="info-value">Trae pedido cada {proveedor.dias_entrega} días</span>
                     </div>
                   )}
                 </div>
@@ -354,6 +363,17 @@ const Proveedores = ({ user }) => {
                   value={formData.direccion}
                   onChange={(e) => setFormData({ ...formData, direccion: e.target.value })}
                   placeholder="Dirección del proveedor"
+                />
+              </div>
+
+              <div className="form-group">
+                <label>Tiempo de entrega</label>
+                <input
+                  type="number"
+                  min="1"
+                  placeholder="Cada cuántos días trae pedido (opcional)"
+                  value={formData.dias_entrega}
+                  onChange={(e) => setFormData({ ...formData, dias_entrega: e.target.value })}
                 />
               </div>
 

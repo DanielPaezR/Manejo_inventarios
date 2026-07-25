@@ -208,6 +208,11 @@ const Estadisticas = ({ user }) => {
                     <div className="metrica-info">
                       <span className="metrica-valor">{formatearMoneda(metricasAvanzadas?.montoTotal)}</span>
                       <span className="metrica-label">Ventas totales</span>
+                      {typeof estadisticas.comparacionPeriodoAnterior?.cambioMontoPct === 'number' && (
+                        <span className={`metrica-comparacion ${estadisticas.comparacionPeriodoAnterior.cambioMontoPct >= 0 ? 'positivo' : 'negativo'}`}>
+                          {estadisticas.comparacionPeriodoAnterior.cambioMontoPct >= 0 ? '▲' : '▼'} {Math.abs(estadisticas.comparacionPeriodoAnterior.cambioMontoPct).toFixed(1)}% vs período anterior
+                        </span>
+                      )}
                     </div>
                   </div>
                   <div className="metrica-item">
@@ -360,7 +365,7 @@ const Estadisticas = ({ user }) => {
                   <div className="stat-item">
                     <span>Sin stock</span>
                     <strong className="text-danger">
-                      {estadisticas.productosStockBajo?.filter(p => p.estado === 'Agotado').length || 0}
+                      {estadisticas.productosStockBajo?.agotados || 0}
                     </strong>
                   </div>
                 </div>
@@ -398,6 +403,32 @@ const Estadisticas = ({ user }) => {
                     </table>
                   ) : (
                     <p className="sin-datos">No hay datos de productos</p>
+                  )}
+                </div>
+
+                <div className="productos-sin-venta">
+                  <h4>😴 Sin movimiento en este período</h4>
+                  {estadisticas.productosSinVenta?.length > 0 ? (
+                    <table className="tabla-top-productos">
+                      <thead>
+                        <tr>
+                          <th>Producto</th>
+                          <th>Categoría</th>
+                          <th>Stock actual</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {estadisticas.productosSinVenta.map((producto) => (
+                          <tr key={producto.id}>
+                            <td>{producto.nombre}</td>
+                            <td>{producto.categoria_nombre || 'Sin categoría'}</td>
+                            <td>{producto.stock_actual}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  ) : (
+                    <p className="sin-datos">Todos los productos tuvieron ventas en este período 🎉</p>
                   )}
                 </div>
               </div>
