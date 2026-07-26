@@ -510,12 +510,15 @@ app.post('/api/productos', authenticateToken, checkAccess, requireAdmin, async (
       return res.status(400).json({ error: 'Se requiere un módulo' });
     }
 
+    // '' (sin categoría) no es un entero válido para esta columna
+    const categoriaIdValor = categoria_id === '' || categoria_id === undefined ? null : categoria_id;
+
     const result = await pool.query(
-      `INSERT INTO productos 
-       (modulo_id, codigo_ean, nombre, descripcion, precio_compra, precio_venta, stock_actual, stock_minimo, categoria_id) 
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) 
+      `INSERT INTO productos
+       (modulo_id, codigo_ean, nombre, descripcion, precio_compra, precio_venta, stock_actual, stock_minimo, categoria_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
        RETURNING *`,
-      [moduloId, codigo_ean, nombre, descripcion, precio_compra, precio_venta, stock_actual, stock_minimo, categoria_id]
+      [moduloId, codigo_ean, nombre, descripcion, precio_compra, precio_venta, stock_actual, stock_minimo, categoriaIdValor]
     );
 
     res.status(201).json(result.rows[0]);
@@ -545,20 +548,25 @@ app.put('/api/productos/:id', authenticateToken, checkAccess, requireAdmin, asyn
       return res.status(400).json({ error: 'Se requiere un módulo' });
     }
 
+    // '' (sin categoría) no es un entero válido para esta columna; sin esto,
+    // actualizar un producto sin categoría rompía con un 500
+    // (invalid input syntax for type integer).
+    const categoriaIdValor = categoria_id === '' || categoria_id === undefined ? null : categoria_id;
+
     const result = await pool.query(
-      `UPDATE productos 
-       SET codigo_ean = $1, 
-           nombre = $2, 
-           descripcion = $3, 
-           precio_compra = $4, 
-           precio_venta = $5, 
-           stock_actual = $6, 
-           stock_minimo = $7, 
+      `UPDATE productos
+       SET codigo_ean = $1,
+           nombre = $2,
+           descripcion = $3,
+           precio_compra = $4,
+           precio_venta = $5,
+           stock_actual = $6,
+           stock_minimo = $7,
            categoria_id = $8,
            fecha_actualizacion = NOW()
        WHERE id = $9 AND modulo_id = $10
        RETURNING *`,
-      [codigo_ean, nombre, descripcion, precio_compra, precio_venta, stock_actual, stock_minimo, categoria_id, id, moduloId]
+      [codigo_ean, nombre, descripcion, precio_compra, precio_venta, stock_actual, stock_minimo, categoriaIdValor, id, moduloId]
     );
 
     if (result.rows.length === 0) {

@@ -75,7 +75,11 @@ const Productos = ({ user }) => {
         precio_compra: parseFloat(formData.precio_compra) || 0,
         precio_venta: parseFloat(formData.precio_venta) || 0,
         stock_actual: parseInt(formData.stock_actual) || 0,
-        stock_minimo: parseInt(formData.stock_minimo) || 5
+        stock_minimo: parseInt(formData.stock_minimo) || 5,
+        // '' ("Sin categoría") no es un entero válido para la columna
+        // categoria_id; sin esto, guardar/actualizar sin categoría rompía
+        // con un 500 (invalid input syntax for type integer).
+        categoria_id: formData.categoria_id ? parseInt(formData.categoria_id) : null
       };
 
       if (editProducto) {
