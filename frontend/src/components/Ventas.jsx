@@ -54,6 +54,7 @@ const Ventas = ({ user }) => {
   const pendingScanRef = useRef(null);
   const scanToastTimeoutRef = useRef(null);
   const searchTimeoutRef = useRef(null);
+  const productosRequestIdRef = useRef(0);
 
   // Guardar carrito en localStorage cuando cambie
   useEffect(() => {
@@ -134,17 +135,27 @@ const Ventas = ({ user }) => {
     };
   }, [moduloActivo]);
 
+  // Tanto cargarProductos como buscarProductos escriben en el mismo estado
+  // `productos`. Como el input tiene autoFocus, el usuario puede empezar a
+  // escribir una búsqueda antes de que responda la carga inicial (disparada
+  // al montar). Sin esta guarda, si esa respuesta "vieja" (sin filtro)
+  // llega DESPUÉS que la de la búsqueda, pisa los resultados filtrados con
+  // la lista completa — se ve como si la búsqueda no hiciera nada. Solo se
+  // aplica la respuesta de la solicitud más reciente.
   const cargarProductos = useCallback(async () => {
+    const requestId = ++productosRequestIdRef.current;
     try {
       setLoading(true);
       setError(null);
       const response = await api.get('/productos');
+      if (requestId !== productosRequestIdRef.current) return;
       setProductos(response.data);
     } catch (error) {
+      if (requestId !== productosRequestIdRef.current) return;
       console.error('Error cargando productos:', error);
       setError('Error al cargar productos. Intenta de nuevo.');
     } finally {
-      setLoading(false);
+      if (requestId === productosRequestIdRef.current) setLoading(false);
     }
   }, []);
 
@@ -154,19 +165,22 @@ const Ventas = ({ user }) => {
       cargarProductos();
       return;
     }
-    
+
+    const requestId = ++productosRequestIdRef.current;
     try {
       setLoading(true);
       setError(null);
       const response = await api.get('/productos', {
         params: { search: termino }
       });
+      if (requestId !== productosRequestIdRef.current) return;
       setProductos(response.data);
     } catch (error) {
+      if (requestId !== productosRequestIdRef.current) return;
       console.error('Error buscando productos:', error);
       setError('Error al buscar productos');
     } finally {
-      setLoading(false);
+      if (requestId === productosRequestIdRef.current) setLoading(false);
     }
   }, [cargarProductos]);
 
