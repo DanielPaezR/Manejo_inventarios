@@ -53,6 +53,7 @@ const Ventas = ({ user }) => {
   const carritoSectionRef = useRef(null);
   const pendingScanRef = useRef(null);
   const scanToastTimeoutRef = useRef(null);
+  const searchTimeoutRef = useRef(null);
 
   // Guardar carrito en localStorage cuando cambie
   useEffect(() => {
@@ -114,6 +115,7 @@ const Ventas = ({ user }) => {
   useEffect(() => {
     return () => {
       if (scanToastTimeoutRef.current) clearTimeout(scanToastTimeoutRef.current);
+      if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
     };
   }, []);
 
@@ -203,27 +205,35 @@ const Ventas = ({ user }) => {
     }
   }, []);
 
-  // Manejar búsqueda con debounce
+  // Búsqueda con debounce (nombre/código, modo normal). Antes este mismo
+  // handler estaba conectado a la vez a onChange y onKeyPress: cada tecla
+  // disparaba dos veces la función (una con el valor del input ANTES de
+  // aplicarse la tecla, vía keypress, y otra con el valor ya actualizado,
+  // vía onChange/input), y cada llamada creaba su propio setTimeout. Como
+  // esto no es un efecto sino un handler de evento normal, el
+  // `return () => clearTimeout(...)` nunca se ejecutaba como limpieza -
+  // React solo hace eso dentro de useEffect. El resultado: cada tecla
+  // dejaba temporizadores viejos sin cancelar, y la última respuesta en
+  // llegar (no necesariamente la del texto actual) era la que se mostraba.
   const handleSearch = useCallback((e) => {
     const valor = e.target.value;
     setBusqueda(valor);
-    
-    if (modoScanner) {
-      // En modo scanner, buscar al presionar Enter
-      if (e.key === 'Enter' && valor) {
-        buscarPorEAN(valor);
-        e.preventDefault();
-      }
-    } else {
-      // Búsqueda normal con debounce
-      const timeoutId = setTimeout(() => {
-        if (valor.length > 2 || valor.length === 0) {
-          buscarProductos(valor);
-        }
-      }, 300);
-      return () => clearTimeout(timeoutId);
+
+    if (modoScanner) return; // en modo scanner se busca con Enter, no por tecla
+
+    if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+    searchTimeoutRef.current = setTimeout(() => {
+      buscarProductos(valor);
+    }, 300);
+  }, [modoScanner, buscarProductos]);
+
+  // Buscar por EAN al presionar Enter (modo scanner)
+  const handleScannerKeyDown = useCallback((e) => {
+    if (modoScanner && e.key === 'Enter' && e.target.value) {
+      buscarPorEAN(e.target.value);
+      e.preventDefault();
     }
-  }, [modoScanner, buscarPorEAN, buscarProductos]);
+  }, [modoScanner, buscarPorEAN]);
 
   // Cerrar scanner: detiene la cámara y deja el carrito visible de inmediato
   // (sin que el usuario tenga que buscar/scrollear para verlo).
@@ -559,7 +569,7 @@ const Ventas = ({ user }) => {
             type="text"
             value={busqueda}
             onChange={handleSearch}
-            onKeyPress={handleSearch}
+            onKeyDown={handleScannerKeyDown}
             placeholder={modoScanner ? "📷 Escanea un código..." : "🔍 Buscar por nombre o código..."}
             className={modoScanner ? 'scanner-active' : ''}
             autoFocus

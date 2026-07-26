@@ -477,8 +477,12 @@ app.get('/api/productos', authenticateToken, checkAccess, async (req, res) => {
     let params = [moduloId];
 
     if (search) {
-      query += ` AND (p.nombre ILIKE $2 OR p.codigo_ean = $3)`;
-      params.push(`%${search}%`, search);
+      // codigo_ean antes exigía coincidencia exacta y completa (=), a
+      // diferencia de nombre (ILIKE parcial). Escribir un código de barras
+      // a mano y buscar mientras se completa nunca encontraba nada hasta
+      // el último dígito. Ahora ambos aceptan coincidencia parcial.
+      query += ` AND (p.nombre ILIKE $2 OR p.codigo_ean ILIKE $2)`;
+      params.push(`%${search}%`);
     }
 
     query += ' ORDER BY p.nombre';
