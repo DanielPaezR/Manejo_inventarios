@@ -682,6 +682,17 @@ app.post('/api/ventas', authenticateToken, checkAccess, async (req, res) => {
     }
 
     for (const detalle of detalles) {
+      // Number.isFinite() NO coerce strings (a diferencia de isFinite()).
+      // Postgres devuelve las columnas NUMERIC/DECIMAL como string a
+      // través del driver pg (para no perder precisión), y el frontend
+      // reenvía ese precio tal cual desde el carrito — así que
+      // detalle.precio_unitario normalmente llega como "150000.00", no
+      // como number. Validar el string crudo con Number.isFinite rechazaba
+      // TODA venta con este error, no algo específico del producto
+      // señalado (ese es solo el primero del arreglo en fallar el check).
+      detalle.cantidad = Number(detalle.cantidad);
+      detalle.precio_unitario = Number(detalle.precio_unitario);
+
       if (!Number.isFinite(detalle.cantidad) || detalle.cantidad <= 0) {
         throw new Error(`Cantidad inválida para el producto ${detalle.producto_id}`);
       }
