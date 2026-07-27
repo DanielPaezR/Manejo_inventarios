@@ -668,6 +668,7 @@ app.post('/api/ventas', authenticateToken, checkAccess, async (req, res) => {
     const { detalles, cliente_nombre, cliente_documento, cliente_direccion, cliente_telefono, metodo_pago, cliente_id } = req.body;
     const usuario_id = req.user.id;
     const moduloId = req.moduloId;
+    const negocioId = req.negocioId;
 
     if (!moduloId) {
       await client.query('ROLLBACK');
@@ -741,7 +742,17 @@ app.post('/api/ventas', authenticateToken, checkAccess, async (req, res) => {
         [detalle.cantidad, detalle.producto_id, moduloId]
       );
     }
-    
+
+    // Registro automático en caja: si esto falla, hace throw y cae al
+    // catch de abajo, que hace ROLLBACK de toda la venta — no debe poder
+    // completarse una venta sin su movimiento de caja correspondiente.
+    await client.query(
+      `INSERT INTO movimientos_caja
+       (negocio_id, tipo, origen, monto, concepto, venta_id, usuario_id)
+       VALUES ($1, 'ingreso', 'venta', $2, $3, $4, $5)`,
+      [negocioId, total, `Venta #${numero_factura}`, venta.id, usuario_id]
+    );
+
     await client.query('COMMIT');
     console.log('✅ Transacción completada exitosamente');
     
@@ -1716,7 +1727,7 @@ app.post('/api/pedidos', authenticateToken, checkAccess, requireAdmin, async (re
 
     // Verificar que el proveedor existe y pertenece al mismo negocio
     const proveedorResult = await client.query(
-      'SELECT id FROM proveedores WHERE id = $1 AND negocio_id = $2 AND activo = true',
+      'SELECT id, nombre FROM proveedores WHERE id = $1 AND negocio_id = $2 AND activo = true',
       [proveedor_id, negocioId]
     );
 
@@ -1724,6 +1735,8 @@ app.post('/api/pedidos', authenticateToken, checkAccess, requireAdmin, async (re
       await client.query('ROLLBACK');
       return res.status(404).json({ error: 'Proveedor no encontrado' });
     }
+
+    const proveedorNombre = proveedorResult.rows[0].nombre;
 
     // Calcular total
     let total = 0;
@@ -1763,14 +1776,24 @@ app.post('/api/pedidos', authenticateToken, checkAccess, requireAdmin, async (re
       const subtotal = precio * detalle.cantidad;
       
       await client.query(
-        `INSERT INTO pedido_detalle (pedido_id, producto_id, cantidad, precio_unitario, subtotal) 
+        `INSERT INTO pedido_detalle (pedido_id, producto_id, cantidad, precio_unitario, subtotal)
          VALUES ($1, $2, $3, $4, $5)`,
         [pedido.id, detalle.producto_id, detalle.cantidad, precio, subtotal]
       );
     }
 
+    // Registro automático en caja: si esto falla, hace throw y cae al
+    // catch de abajo, que hace ROLLBACK de todo el pedido — no debe poder
+    // completarse un pedido sin su movimiento de caja correspondiente.
+    await client.query(
+      `INSERT INTO movimientos_caja
+       (negocio_id, tipo, origen, monto, concepto, pedido_id, usuario_id)
+       VALUES ($1, 'egreso', 'pedido', $2, $3, $4, $5)`,
+      [negocioId, total, `Pedido a ${proveedorNombre} #${pedido.id}`, pedido.id, usuarioId]
+    );
+
     await client.query('COMMIT');
-    
+
     // Obtener el pedido completo con detalles
     const pedidoCompleto = await client.query(
       `SELECT p.*, 
@@ -1925,6 +1948,128 @@ app.put('/api/pedidos/:id/estado', authenticateToken, checkAccess, requireAdmin,
     res.json(result.rows[0]);
   } catch (error) {
     console.error('Error actualizando estado del pedido:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// ==================== RUTAS DE FINANZAS ====================
+// Caja del negocio completo (no por módulo). Los movimientos de origen
+// 'venta'/'pedido' se insertan automáticamente dentro de las transacciones
+// de POST /api/ventas y POST /api/pedidos; estas rutas son solo para
+// consultar el balance/historial y para registrar movimientos manuales
+// (saldo inicial, ingresos y egresos esporádicos).
+
+// Registrar un movimiento manual (saldo inicial, ingreso o egreso)
+app.post('/api/finanzas/movimientos', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+  try {
+    const negocioId = req.negocioId;
+    const usuarioId = req.user.id;
+    const { tipo, monto, concepto, categoria } = req.body;
+
+    if (!negocioId) {
+      return res.status(400).json({ error: 'Negocio no identificado' });
+    }
+
+    if (!['saldo_inicial', 'ingreso', 'egreso'].includes(tipo)) {
+      return res.status(400).json({ error: "tipo debe ser 'saldo_inicial', 'ingreso' o 'egreso'" });
+    }
+
+    const montoNum = Number(monto);
+    if (!Number.isFinite(montoNum) || montoNum <= 0) {
+      return res.status(400).json({ error: 'monto debe ser un número mayor a cero' });
+    }
+
+    if (!concepto || !concepto.trim()) {
+      return res.status(400).json({ error: 'El concepto es requerido' });
+    }
+
+    if (tipo === 'saldo_inicial') {
+      const existente = await pool.query(
+        "SELECT id FROM movimientos_caja WHERE negocio_id = $1 AND tipo = 'saldo_inicial'",
+        [negocioId]
+      );
+      if (existente.rows.length > 0) {
+        return res.status(400).json({ error: "Ya existe un saldo inicial registrado, usa 'ingreso' o 'egreso' para ajustes" });
+      }
+    }
+
+    const result = await pool.query(
+      `INSERT INTO movimientos_caja
+       (negocio_id, tipo, origen, monto, concepto, categoria, usuario_id)
+       VALUES ($1, $2, 'manual', $3, $4, $5, $6)
+       RETURNING *`,
+      [negocioId, tipo, montoNum, concepto.trim(), categoria || null, usuarioId]
+    );
+
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error('Error registrando movimiento de caja:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// Listar movimientos (manuales + automáticos de ventas/pedidos)
+app.get('/api/finanzas/movimientos', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+  try {
+    const negocioId = req.negocioId;
+    const { limit } = req.query;
+
+    if (!negocioId) {
+      return res.status(400).json({ error: 'Negocio no identificado' });
+    }
+
+    let limitNum = 50;
+    if (limit !== undefined) {
+      const limitStr = String(limit).trim();
+      if (!/^\d+$/.test(limitStr) || parseInt(limitStr, 10) <= 0) {
+        return res.status(400).json({ error: 'limit debe ser un entero positivo' });
+      }
+      limitNum = parseInt(limitStr, 10);
+    }
+
+    const result = await pool.query(
+      `SELECT mc.*, u.nombre as usuario_nombre
+       FROM movimientos_caja mc
+       LEFT JOIN usuarios u ON mc.usuario_id = u.id
+       WHERE mc.negocio_id = $1
+       ORDER BY mc.fecha DESC
+       LIMIT $2`,
+      [negocioId, limitNum]
+    );
+
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error obteniendo movimientos de caja:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// Balance actual y desglose
+app.get('/api/finanzas/balance', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+  try {
+    const negocioId = req.negocioId;
+
+    if (!negocioId) {
+      return res.status(400).json({ error: 'Negocio no identificado' });
+    }
+
+    const result = await pool.query(
+      `SELECT
+          COALESCE(SUM(monto) FILTER (WHERE tipo IN ('saldo_inicial','ingreso')), 0)
+          - COALESCE(SUM(monto) FILTER (WHERE tipo = 'egreso'), 0) as balance_actual,
+          COALESCE(SUM(monto) FILTER (WHERE tipo = 'saldo_inicial'), 0) as saldo_inicial,
+          COALESCE(SUM(monto) FILTER (WHERE tipo = 'ingreso' AND origen = 'manual'), 0) as ingresos_manuales,
+          COALESCE(SUM(monto) FILTER (WHERE tipo = 'ingreso' AND origen = 'venta'), 0) as total_ventas,
+          COALESCE(SUM(monto) FILTER (WHERE tipo = 'egreso' AND origen = 'pedido'), 0) as total_pedidos,
+          COALESCE(SUM(monto) FILTER (WHERE tipo = 'egreso' AND origen = 'manual'), 0) as egresos_manuales
+       FROM movimientos_caja
+       WHERE negocio_id = $1`,
+      [negocioId]
+    );
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error obteniendo balance de caja:', error);
     res.status(500).json({ error: 'Error interno del servidor' });
   }
 });

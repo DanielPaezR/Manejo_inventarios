@@ -12,6 +12,7 @@ import GestionInventario from './components/GestionInventario';
 import Proveedores from './components/Proveedores';
 import Pedidos from './components/Pedidos';
 import Clientes from './components/Clientes';
+import Finanzas from './components/Finanzas';
 import './App.css';
 
 function App() {
@@ -89,6 +90,7 @@ function App() {
               <Route path="proveedores" element={<Proveedores user={user} />} />
               <Route path="pedidos" element={<Pedidos user={user} />} />
               <Route path="clientes" element={<Clientes user={user} />} />
+              <Route path="finanzas" element={<Finanzas user={user} />} />
             </Route>
           </Routes>
         </div>

@@ -87,6 +87,7 @@ const Dashboard = ({ user, onLogout }) => {
       { path: '/proveedores', icon: '🤝', label: 'Proveedores' },      // ✅ NUEVO
       { path: '/pedidos', icon: '📦', label: 'Pedidos' },              // ✅ NUEVO
       { path: '/clientes', icon: '👤', label: 'Clientes' },            // ✅ NUEVO
+      { path: '/finanzas', icon: '💰', label: 'Finanzas' },            // ✅ NUEVO
     ],
     trabajador: [
       { path: '/ventas', icon: '🛒', label: 'Ventas' },
