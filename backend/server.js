@@ -1727,7 +1727,7 @@ app.post('/api/pedidos', authenticateToken, checkAccess, requireAdmin, async (re
 
     // Verificar que el proveedor existe y pertenece al mismo negocio
     const proveedorResult = await client.query(
-      'SELECT id, nombre FROM proveedores WHERE id = $1 AND negocio_id = $2 AND activo = true',
+      'SELECT id FROM proveedores WHERE id = $1 AND negocio_id = $2 AND activo = true',
       [proveedor_id, negocioId]
     );
 
@@ -1735,8 +1735,6 @@ app.post('/api/pedidos', authenticateToken, checkAccess, requireAdmin, async (re
       await client.query('ROLLBACK');
       return res.status(404).json({ error: 'Proveedor no encontrado' });
     }
-
-    const proveedorNombre = proveedorResult.rows[0].nombre;
 
     // Calcular total
     let total = 0;
@@ -1781,16 +1779,6 @@ app.post('/api/pedidos', authenticateToken, checkAccess, requireAdmin, async (re
         [pedido.id, detalle.producto_id, detalle.cantidad, precio, subtotal]
       );
     }
-
-    // Registro automático en caja: si esto falla, hace throw y cae al
-    // catch de abajo, que hace ROLLBACK de todo el pedido — no debe poder
-    // completarse un pedido sin su movimiento de caja correspondiente.
-    await client.query(
-      `INSERT INTO movimientos_caja
-       (negocio_id, tipo, origen, monto, concepto, pedido_id, usuario_id)
-       VALUES ($1, 'egreso', 'pedido', $2, $3, $4, $5)`,
-      [negocioId, total, `Pedido a ${proveedorNombre} #${pedido.id}`, pedido.id, usuarioId]
-    );
 
     await client.query('COMMIT');
 
@@ -1953,18 +1941,21 @@ app.put('/api/pedidos/:id/estado', authenticateToken, checkAccess, requireAdmin,
 });
 
 // ==================== RUTAS DE FINANZAS ====================
-// Caja del negocio completo (no por módulo). Los movimientos de origen
-// 'venta'/'pedido' se insertan automáticamente dentro de las transacciones
-// de POST /api/ventas y POST /api/pedidos; estas rutas son solo para
-// consultar el balance/historial y para registrar movimientos manuales
-// (saldo inicial, ingresos y egresos esporádicos).
+// Caja del negocio completo (no por módulo). Los ingresos por venta se
+// insertan automáticamente dentro de la transacción de POST /api/ventas
+// (ahí no hay ambigüedad de precio). Los egresos por pedido a proveedor
+// YA NO se insertan solos al crear el pedido: el precio calculado puede
+// no coincidir con lo que realmente se paga, y algunos proveedores
+// entregan sin pedido formal previo. El egreso se registra a mano desde
+// POST /api/finanzas/movimientos cuando efectivamente se paga, opcionalmente
+// vinculado a un pedido existente (pedido_id) para trazabilidad.
 
 // Registrar un movimiento manual (saldo inicial, ingreso o egreso)
 app.post('/api/finanzas/movimientos', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
   try {
     const negocioId = req.negocioId;
     const usuarioId = req.user.id;
-    const { tipo, monto, concepto, categoria } = req.body;
+    const { tipo, monto, concepto, categoria, pedido_id } = req.body;
 
     if (!negocioId) {
       return res.status(400).json({ error: 'Negocio no identificado' });
@@ -1993,12 +1984,43 @@ app.post('/api/finanzas/movimientos', authenticateToken, checkAccess, requireAdm
       }
     }
 
+    // Vincular el egreso a un pedido existente es opcional, solo para
+    // trazabilidad — el monto real lo decide el usuario, no tiene que
+    // coincidir con el total calculado del pedido.
+    let origen = 'manual';
+    if (pedido_id !== undefined && pedido_id !== null && pedido_id !== '') {
+      if (tipo !== 'egreso') {
+        return res.status(400).json({ error: 'pedido_id solo puede vincularse a un movimiento de tipo egreso' });
+      }
+
+      const pedidoResult = await pool.query(
+        `SELECT p.id
+         FROM pedidos_proveedor p
+         JOIN modulos m ON p.modulo_id = m.id
+         WHERE p.id = $1 AND m.negocio_id = $2`,
+        [pedido_id, negocioId]
+      );
+      if (pedidoResult.rows.length === 0) {
+        return res.status(404).json({ error: 'Pedido no encontrado' });
+      }
+
+      const yaRegistrado = await pool.query(
+        "SELECT id FROM movimientos_caja WHERE pedido_id = $1 AND origen = 'pedido'",
+        [pedido_id]
+      );
+      if (yaRegistrado.rows.length > 0) {
+        return res.status(400).json({ error: 'Este pedido ya tiene un egreso registrado' });
+      }
+
+      origen = 'pedido';
+    }
+
     const result = await pool.query(
       `INSERT INTO movimientos_caja
-       (negocio_id, tipo, origen, monto, concepto, categoria, usuario_id)
-       VALUES ($1, $2, 'manual', $3, $4, $5, $6)
+       (negocio_id, tipo, origen, monto, concepto, categoria, pedido_id, usuario_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
        RETURNING *`,
-      [negocioId, tipo, montoNum, concepto.trim(), categoria || null, usuarioId]
+      [negocioId, tipo, origen, montoNum, concepto.trim(), categoria || null, origen === 'pedido' ? pedido_id : null, usuarioId]
     );
 
     res.status(201).json(result.rows[0]);
@@ -2008,7 +2030,36 @@ app.post('/api/finanzas/movimientos', authenticateToken, checkAccess, requireAdm
   }
 });
 
-// Listar movimientos (manuales + automáticos de ventas/pedidos)
+// Pedidos de cualquier módulo del negocio que aún no tienen un egreso
+// registrado en movimientos_caja (para vincular al pagarlos)
+app.get('/api/finanzas/pedidos-sin-registrar', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+  try {
+    const negocioId = req.negocioId;
+
+    if (!negocioId) {
+      return res.status(400).json({ error: 'Negocio no identificado' });
+    }
+
+    const result = await pool.query(
+      `SELECT p.id, p.total, p.fecha_pedido, p.estado,
+              pr.nombre as proveedor_nombre
+       FROM pedidos_proveedor p
+       JOIN proveedores pr ON p.proveedor_id = pr.id
+       JOIN modulos m ON p.modulo_id = m.id
+       LEFT JOIN movimientos_caja mc ON mc.pedido_id = p.id AND mc.origen = 'pedido'
+       WHERE m.negocio_id = $1 AND mc.id IS NULL
+       ORDER BY p.fecha_pedido DESC`,
+      [negocioId]
+    );
+
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error obteniendo pedidos sin registrar:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// Listar movimientos (automáticos de ventas + manuales, incluyendo egresos de pedido vinculados)
 app.get('/api/finanzas/movimientos', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
   try {
     const negocioId = req.negocioId;

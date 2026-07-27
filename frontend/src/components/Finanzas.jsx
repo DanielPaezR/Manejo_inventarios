@@ -9,6 +9,8 @@ const Finanzas = ({ user }) => {
   const [guardando, setGuardando] = useState(false);
   const [mensaje, setMensaje] = useState('');
   const [formData, setFormData] = useState({ tipo: 'ingreso', monto: '', concepto: '', categoria: '' });
+  const [pedidosSinRegistrar, setPedidosSinRegistrar] = useState([]);
+  const [pedidoSeleccionadoId, setPedidoSeleccionadoId] = useState('');
 
   // Verificar permisos
   const puedeGestionar = user?.rol === 'admin' || user?.rol === 'super_admin';
@@ -16,12 +18,14 @@ const Finanzas = ({ user }) => {
   const cargarDatos = useCallback(async () => {
     try {
       setLoading(true);
-      const [balanceRes, movimientosRes] = await Promise.all([
+      const [balanceRes, movimientosRes, pedidosRes] = await Promise.all([
         api.get('/finanzas/balance'),
-        api.get('/finanzas/movimientos')
+        api.get('/finanzas/movimientos'),
+        api.get('/finanzas/pedidos-sin-registrar')
       ]);
       setBalance(balanceRes.data);
       setMovimientos(movimientosRes.data);
+      setPedidosSinRegistrar(pedidosRes.data);
     } catch (error) {
       console.error('Error cargando finanzas:', error);
       setMensaje('❌ Error al cargar la información financiera');
@@ -39,6 +43,32 @@ const Finanzas = ({ user }) => {
   // El saldo inicial ya está registrado si la suma es mayor a 0 (el
   // constraint monto > 0 en la tabla garantiza que, si existe, es positivo).
   const tieneSaldoInicial = Number(balance?.saldo_inicial || 0) > 0;
+
+  // Cambiar de tipo: si deja de ser 'egreso', descarta el pedido
+  // seleccionado para no arrastrar un pedido_id obsoleto a un ingreso o
+  // saldo inicial.
+  const handleTipoChange = (nuevoTipo) => {
+    setFormData(prev => ({ ...prev, tipo: nuevoTipo }));
+    if (nuevoTipo !== 'egreso') {
+      setPedidoSeleccionadoId('');
+    }
+  };
+
+  // Autocompletar concepto/monto con los datos del pedido; siguen siendo
+  // editables por si el precio realmente pagado fue distinto.
+  const handleSeleccionarPedido = (pedidoId) => {
+    setPedidoSeleccionadoId(pedidoId);
+    if (!pedidoId) return;
+
+    const pedido = pedidosSinRegistrar.find(p => p.id === parseInt(pedidoId));
+    if (!pedido) return;
+
+    setFormData(prev => ({
+      ...prev,
+      concepto: `Pago pedido a ${pedido.proveedor_nombre} #${pedido.id}`,
+      monto: pedido.total
+    }));
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -58,9 +88,11 @@ const Finanzas = ({ user }) => {
         tipo: formData.tipo,
         monto: Number(formData.monto),
         concepto: formData.concepto.trim(),
-        categoria: formData.categoria.trim() || undefined
+        categoria: formData.categoria.trim() || undefined,
+        pedido_id: formData.tipo === 'egreso' && pedidoSeleccionadoId ? pedidoSeleccionadoId : undefined
       });
       setFormData({ tipo: 'ingreso', monto: '', concepto: '', categoria: '' });
+      setPedidoSeleccionadoId('');
       setMensaje('✅ Movimiento registrado correctamente');
       cargarDatos();
       setTimeout(() => setMensaje(''), 3000);
@@ -130,7 +162,7 @@ const Finanzas = ({ user }) => {
                 <strong>{formatearMoneda(balance?.ingresos_manuales)}</strong>
               </div>
               <div className="desglose-item negativo">
-                <span>- Pedidos a proveedor (automático)</span>
+                <span>- Pedidos a proveedor (pagados)</span>
                 <strong>{formatearMoneda(balance?.total_pedidos)}</strong>
               </div>
               <div className="desglose-item negativo">
@@ -148,7 +180,7 @@ const Finanzas = ({ user }) => {
                   <label>Tipo</label>
                   <select
                     value={formData.tipo}
-                    onChange={(e) => setFormData({ ...formData, tipo: e.target.value })}
+                    onChange={(e) => handleTipoChange(e.target.value)}
                   >
                     {!tieneSaldoInicial && <option value="saldo_inicial">Saldo inicial</option>}
                     <option value="ingreso">Ingreso</option>
@@ -168,6 +200,24 @@ const Finanzas = ({ user }) => {
                   />
                 </div>
               </div>
+
+              {formData.tipo === 'egreso' && (
+                <div className="form-group">
+                  <label>Vincular a un pedido (opcional)</label>
+                  <select
+                    value={pedidoSeleccionadoId}
+                    onChange={(e) => handleSeleccionarPedido(e.target.value)}
+                  >
+                    <option value="">Ninguno</option>
+                    {pedidosSinRegistrar.map(pedido => (
+                      <option key={pedido.id} value={pedido.id}>
+                        {pedido.proveedor_nombre} — {formatearMoneda(pedido.total)} — {new Date(pedido.fecha_pedido).toLocaleDateString()}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
               <div className="form-group">
                 <label>Concepto *</label>
                 <input
