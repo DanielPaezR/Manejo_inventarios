@@ -469,6 +469,67 @@ const Ventas = ({ user }) => {
     }
   }, [carrito, cliente, metodoPago, clienteSeleccionado, cargarProductos]);
 
+  // Imprimir la factura en una ventana emergente. El botón "Imprimir" del
+  // modal de factura llamaba a esta función desde hace meses sin que
+  // existiera — un ReferenceError que nunca se vio en producción porque
+  // ninguna venta llegaba a completarse (bloqueada antes por otros bugs ya
+  // corregidos), así que el modal jamás se había mostrado hasta ahora.
+  const imprimirFactura = useCallback(() => {
+    const contenido = document.getElementById('factura-content');
+    if (!contenido) return;
+
+    const ventana = window.open('', '_blank', 'width=420,height=600');
+    if (!ventana) {
+      setError('⚠️ Permite las ventanas emergentes para poder imprimir la factura');
+      return;
+    }
+
+    ventana.document.write(`
+      <html>
+        <head>
+          <title>Factura ${facturaData?.numero_factura || ''}</title>
+          <style>
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            body {
+              font-family: 'Courier New', monospace;
+              padding: 20px;
+              max-width: 380px;
+              margin: 0 auto;
+              background: white;
+            }
+            .factura-header { text-align: center; border-bottom: 2px double #000; padding-bottom: 10px; margin-bottom: 10px; }
+            .factura-header h2 { font-size: 18px; margin-bottom: 4px; }
+            .factura-header p { font-size: 11px; color: #444; line-height: 1.4; margin: 1px 0; }
+            .factura-detalles table { width: 100%; border-collapse: collapse; font-size: 12px; margin: 10px 0; }
+            .factura-detalles th { background: #f0f0f0; padding: 5px 4px; text-align: left; border-bottom: 1px solid #000; font-size: 11px; }
+            .factura-detalles td { padding: 4px; border-bottom: 1px solid #ddd; }
+            .factura-totales { margin-top: 10px; border-top: 2px solid #000; padding-top: 10px; }
+            .total-linea { display: flex; justify-content: space-between; padding: 2px 0; font-size: 13px; }
+            .total-linea.total { font-size: 16px; font-weight: bold; border-top: 1px solid #000; padding-top: 5px; margin-top: 5px; }
+            .factura-footer { text-align: center; margin-top: 15px; padding-top: 10px; border-top: 1px dashed #000; font-size: 12px; }
+            @media print {
+              .no-print { display: none !important; }
+              body { padding: 10px; }
+            }
+          </style>
+        </head>
+        <body>
+          ${contenido.innerHTML}
+          <div class="no-print" style="text-align:center;margin-top:20px;display:flex;gap:10px;justify-content:center;">
+            <button onclick="window.print()" style="padding:8px 20px;cursor:pointer;background:#4299e1;color:white;border:none;border-radius:5px;font-size:14px;">🖨️ Imprimir</button>
+            <button onclick="window.close()" style="padding:8px 20px;cursor:pointer;background:#e2e8f0;color:#2d3748;border:none;border-radius:5px;font-size:14px;">Cerrar</button>
+          </div>
+          <script>
+            window.onload = function() {
+              setTimeout(function() { window.print(); }, 500);
+            };
+          <\/script>
+        </body>
+      </html>
+    `);
+    ventana.document.close();
+  }, [facturaData]);
+
   // Limpiar todo
   const limpiarTodo = useCallback(() => {
     if (carrito.length > 0 && !confirm('¿Limpiar todo el carrito?')) return;
