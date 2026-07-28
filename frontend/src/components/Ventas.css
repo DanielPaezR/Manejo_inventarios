@@ -532,6 +532,17 @@
   color: #c53030;
 }
 
+.credito-sin-cliente-warning {
+  margin: 8px 0 0 0;
+  padding: 8px 12px;
+  background: #fffaf0;
+  border: 1px solid #f6ad55;
+  border-radius: 8px;
+  color: #9c4221;
+  font-size: 13px;
+  font-weight: 500;
+}
+
 .cliente-seleccionado-badge {
   display: flex;
   align-items: center;

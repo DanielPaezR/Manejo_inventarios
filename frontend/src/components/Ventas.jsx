@@ -398,14 +398,18 @@ const Ventas = ({ user }) => {
       if (e.key === 'Escape') {
         setError(null);
       }
-      if (e.key === 'F2' && carrito.length > 0) {
+      if (e.key === 'F2' && carrito.length > 0 && !(metodoPago === 'credito' && !clienteSeleccionado)) {
         e.preventDefault();
         procesarVenta();
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [carrito]);
+    // metodoPago/clienteSeleccionado deben estar en las dependencias: si no,
+    // este closure queda con sus valores viejos hasta que carrito cambie, y
+    // el guard de "crédito sin cliente" del atajo F2 podría no reflejar la
+    // selección actual del usuario.
+  }, [carrito, metodoPago, clienteSeleccionado]);
 
   // Calcular totales
   const subtotal = carrito.reduce((sum, item) => sum + (item.precio_unitario * item.cantidad), 0);
@@ -414,6 +418,11 @@ const Ventas = ({ user }) => {
   const procesarVenta = useCallback(async () => {
     if (carrito.length === 0) {
       setError('⚠️ El carrito está vacío');
+      return;
+    }
+
+    if (metodoPago === 'credito' && !clienteSeleccionado) {
+      setError('⚠️ Selecciona o registra un cliente para vender a crédito');
       return;
     }
 
@@ -770,6 +779,12 @@ const Ventas = ({ user }) => {
             />
           </div>
 
+          {metodoPago === 'credito' && !clienteSeleccionado && (
+            <p className="credito-sin-cliente-warning">
+              ⚠️ Selecciona o registra un cliente para vender a crédito
+            </p>
+          )}
+
           {/* Lista del carrito */}
           <div className="carrito-lista">
             {carrito.length === 0 ? (
@@ -830,6 +845,7 @@ const Ventas = ({ user }) => {
                   <option value="efectivo">💵 Efectivo</option>
                   <option value="tarjeta">💳 Tarjeta</option>
                   <option value="transferencia">🏦 Transferencia</option>
+                  <option value="credito">📒 Crédito</option>
                   <option value="otros">📱 Otros</option>
                 </select>
               </div>
@@ -837,7 +853,7 @@ const Ventas = ({ user }) => {
               <button
                 onClick={procesarVenta}
                 className="btn-procesar-venta"
-                disabled={loading}
+                disabled={loading || (metodoPago === 'credito' && !clienteSeleccionado)}
               >
                 {loading ? '⏳ Procesando...' : '✅ Procesar Venta (F2)'}
               </button>

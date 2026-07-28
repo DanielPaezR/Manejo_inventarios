@@ -675,6 +675,28 @@ app.post('/api/ventas', authenticateToken, checkAccess, async (req, res) => {
       return res.status(400).json({ error: 'Se requiere un módulo' });
     }
 
+    // Una venta a crédito es una deuda del cliente, no efectivo real, así
+    // que necesita un cliente identificable para poder cobrarla después.
+    if (metodo_pago === 'credito' && !cliente_id) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'Las ventas a crédito requieren un cliente registrado' });
+    }
+
+    // cliente_id nunca se validaba contra el negocio del usuario: cualquier
+    // llamada directa a la API (sin pasar por el buscador ya filtrado del
+    // POS) podía mandar el id de un cliente de otro negocio. Con crédito de
+    // por medio eso generaría deuda falsa en un cliente ajeno.
+    if (cliente_id) {
+      const clienteCheck = await client.query(
+        'SELECT id FROM clientes WHERE id = $1 AND negocio_id = $2',
+        [cliente_id, negocioId]
+      );
+      if (clienteCheck.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return res.status(404).json({ error: 'Cliente no encontrado' });
+      }
+    }
+
     console.log('🛒 Procesando venta - Usuario:', req.user.email, 'Módulo:', moduloId);
 
     if (!Array.isArray(detalles) || detalles.length === 0) {
@@ -757,12 +779,16 @@ app.post('/api/ventas', authenticateToken, checkAccess, async (req, res) => {
     // Registro automático en caja: si esto falla, hace throw y cae al
     // catch de abajo, que hace ROLLBACK de toda la venta — no debe poder
     // completarse una venta sin su movimiento de caja correspondiente.
-    await client.query(
-      `INSERT INTO movimientos_caja
-       (negocio_id, tipo, origen, monto, concepto, venta_id, usuario_id)
-       VALUES ($1, 'ingreso', 'venta', $2, $3, $4, $5)`,
-      [negocioId, total, `Venta #${numero_factura}`, venta.id, usuario_id]
-    );
+    // Excepción: a crédito no es efectivo real todavía, así que no genera
+    // ingreso ahora — eso se registra cuando el cliente abona.
+    if (metodo_pago !== 'credito') {
+      await client.query(
+        `INSERT INTO movimientos_caja
+         (negocio_id, tipo, origen, monto, concepto, venta_id, usuario_id)
+         VALUES ($1, 'ingreso', 'venta', $2, $3, $4, $5)`,
+        [negocioId, total, `Venta #${numero_factura}`, venta.id, usuario_id]
+      );
+    }
 
     await client.query('COMMIT');
     console.log('✅ Transacción completada exitosamente');
@@ -899,6 +925,22 @@ app.get('/api/clientes', authenticateToken, checkAccess, async (req, res) => {
       return res.status(400).json({ error: 'Negocio no identificado' });
     }
 
+    // deuda_actual = ventas a crédito de ese cliente (metodo_pago='credito',
+    // que ya no generan ingreso automático en caja) menos sus abonos.
+    // Los abonos usan origen='manual' (categoria='abono_credito' los
+    // distingue) porque el CHECK de movimientos_caja.origen solo admite
+    // 'manual'/'venta'/'pedido' — 'abono_credito' no es un valor válido ahí.
+    const deudaSelect = `(
+        (SELECT COALESCE(SUM(v.total), 0)
+         FROM ventas v JOIN modulos m ON v.modulo_id = m.id
+         WHERE m.negocio_id = clientes.negocio_id
+         AND v.cliente_id = clientes.id AND v.metodo_pago = 'credito')
+        -
+        (SELECT COALESCE(SUM(mc.monto), 0)
+         FROM movimientos_caja mc
+         WHERE mc.cliente_id = clientes.id AND mc.origen = 'manual' AND mc.categoria = 'abono_credito')
+      ) AS deuda_actual`;
+
     // Búsqueda exacta por numero_cliente: modo distinto al de nombre/cédula,
     // no se combinan. Si viene, ignora `search` por completo.
     if (numero_cliente !== undefined) {
@@ -908,14 +950,14 @@ app.get('/api/clientes', authenticateToken, checkAccess, async (req, res) => {
       }
 
       const result = await pool.query(
-        'SELECT * FROM clientes WHERE negocio_id = $1 AND activo = true AND numero_cliente = $2',
+        `SELECT clientes.*, ${deudaSelect} FROM clientes WHERE negocio_id = $1 AND activo = true AND numero_cliente = $2`,
         [negocioId, parseInt(numeroClienteStr, 10)]
       );
 
       return res.json(result.rows);
     }
 
-    let query = 'SELECT * FROM clientes WHERE negocio_id = $1 AND activo = true';
+    let query = `SELECT clientes.*, ${deudaSelect} FROM clientes WHERE negocio_id = $1 AND activo = true`;
     const params = [negocioId];
 
     if (search && search.trim() !== '') {
@@ -940,7 +982,18 @@ app.get('/api/clientes/:id', authenticateToken, checkAccess, requireAdmin, async
     const negocioId = req.negocioId;
 
     const result = await pool.query(
-      'SELECT * FROM clientes WHERE id = $1 AND negocio_id = $2',
+      `SELECT clientes.*,
+          (
+            (SELECT COALESCE(SUM(v.total), 0)
+             FROM ventas v JOIN modulos m ON v.modulo_id = m.id
+             WHERE m.negocio_id = clientes.negocio_id
+             AND v.cliente_id = clientes.id AND v.metodo_pago = 'credito')
+            -
+            (SELECT COALESCE(SUM(mc.monto), 0)
+             FROM movimientos_caja mc
+             WHERE mc.cliente_id = clientes.id AND mc.origen = 'manual' AND mc.categoria = 'abono_credito')
+          ) AS deuda_actual
+       FROM clientes WHERE id = $1 AND negocio_id = $2`,
       [id, negocioId]
     );
 
@@ -994,9 +1047,149 @@ app.get('/api/clientes/:id/historial', authenticateToken, checkAccess, requireAd
       [id, negocioId]
     );
 
-    res.json(result.rows);
+    // Abonos a crédito del cliente, para verlos junto a las ventas
+    const abonosResult = await pool.query(
+      `SELECT mc.*, u.nombre as usuario_nombre
+       FROM movimientos_caja mc
+       LEFT JOIN usuarios u ON mc.usuario_id = u.id
+       WHERE mc.cliente_id = $1 AND mc.origen = 'manual' AND mc.categoria = 'abono_credito'
+       ORDER BY mc.fecha DESC`,
+      [id]
+    );
+
+    res.json({ ventas: result.rows, abonos: abonosResult.rows });
   } catch (error) {
     console.error('Error obteniendo historial del cliente:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// Registrar un abono a la deuda de crédito de un cliente
+app.post('/api/clientes/:id/abonos', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const negocioId = req.negocioId;
+    const usuarioId = req.user.id;
+    const { monto, concepto } = req.body;
+
+    const clienteResult = await pool.query(
+      'SELECT id FROM clientes WHERE id = $1 AND negocio_id = $2',
+      [id, negocioId]
+    );
+    if (clienteResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Cliente no encontrado' });
+    }
+
+    const montoNum = Number(monto);
+    if (!Number.isFinite(montoNum) || montoNum <= 0) {
+      return res.status(400).json({ error: 'monto debe ser un número mayor a cero' });
+    }
+
+    const conceptoFinal = concepto && concepto.trim() ? concepto.trim() : 'Abono a cuenta';
+
+    // origen='manual' porque el CHECK de movimientos_caja.origen solo
+    // admite 'manual'/'venta'/'pedido'; categoria='abono_credito' es la
+    // marca (sin restricción) que distingue esto de un ingreso manual
+    // cualquiera en el resto de las consultas de finanzas/deuda.
+    const result = await pool.query(
+      `INSERT INTO movimientos_caja
+       (negocio_id, tipo, origen, monto, concepto, categoria, cliente_id, usuario_id)
+       VALUES ($1, 'ingreso', 'manual', $2, $3, 'abono_credito', $4, $5)
+       RETURNING *`,
+      [negocioId, montoNum, conceptoFinal, id, usuarioId]
+    );
+
+    // Deuda actualizada tras el abono. No se bloquea si el abono supera la
+    // deuda (puede ser un adelanto) — el frontend puede avisar con esto.
+    const deudaResult = await pool.query(
+      `SELECT
+          (SELECT COALESCE(SUM(v.total), 0)
+           FROM ventas v JOIN modulos m ON v.modulo_id = m.id
+           WHERE m.negocio_id = $1 AND v.cliente_id = $2 AND v.metodo_pago = 'credito')
+          -
+          (SELECT COALESCE(SUM(mc.monto), 0)
+           FROM movimientos_caja mc
+           WHERE mc.cliente_id = $2 AND mc.origen = 'manual' AND mc.categoria = 'abono_credito')
+        AS deuda_actual`,
+      [negocioId, id]
+    );
+
+    res.status(201).json({
+      abono: result.rows[0],
+      deuda_actual: deudaResult.rows[0].deuda_actual
+    });
+  } catch (error) {
+    console.error('Error registrando abono:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// Registrar deuda existente/histórica de un cliente (para dar de alta
+// deuda previa al sistema). Se registra como una venta a crédito sin
+// productos: reutiliza exactamente el mismo mecanismo que una venta a
+// crédito real desde el POS — cuenta en deuda_actual porque esta se
+// calcula directo sobre ventas.metodo_pago = 'credito', y no genera
+// movimiento de caja hasta que el cliente abone, igual que cualquier
+// venta a crédito. De aquí en adelante, la deuda nueva debe salir del
+// módulo de Ventas; esta ruta es solo para la carga inicial.
+app.post('/api/clientes/:id/deuda-manual', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const negocioId = req.negocioId;
+    const moduloId = req.moduloId;
+    const usuarioId = req.user.id;
+    const { monto, concepto } = req.body;
+
+    if (!moduloId) {
+      return res.status(400).json({ error: 'Se requiere un módulo' });
+    }
+
+    const clienteResult = await pool.query(
+      'SELECT id, nombre, cedula, telefono, direccion FROM clientes WHERE id = $1 AND negocio_id = $2',
+      [id, negocioId]
+    );
+    if (clienteResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Cliente no encontrado' });
+    }
+    const cliente = clienteResult.rows[0];
+
+    const montoNum = Number(monto);
+    if (!Number.isFinite(montoNum) || montoNum <= 0) {
+      return res.status(400).json({ error: 'monto debe ser un número mayor a cero' });
+    }
+
+    const conceptoFinal = concepto && concepto.trim() ? concepto.trim() : 'Deuda registrada manualmente';
+
+    const numero_factura = await generarNumeroFactura(moduloId, pool);
+
+    const result = await pool.query(
+      `INSERT INTO ventas
+       (modulo_id, numero_factura, cliente_nombre, cliente_documento, cliente_direccion, cliente_telefono, subtotal, total, usuario_id, metodo_pago, cliente_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $7, $8, 'credito', $9)
+       RETURNING *`,
+      [moduloId, numero_factura, cliente.nombre, cliente.cedula, cliente.direccion, cliente.telefono, montoNum, usuarioId, id]
+    );
+
+    const deudaResult = await pool.query(
+      `SELECT
+          (SELECT COALESCE(SUM(v.total), 0)
+           FROM ventas v JOIN modulos m ON v.modulo_id = m.id
+           WHERE m.negocio_id = $1 AND v.cliente_id = $2 AND v.metodo_pago = 'credito')
+          -
+          (SELECT COALESCE(SUM(mc.monto), 0)
+           FROM movimientos_caja mc
+           WHERE mc.cliente_id = $2 AND mc.origen = 'manual' AND mc.categoria = 'abono_credito')
+        AS deuda_actual`,
+      [negocioId, id]
+    );
+
+    res.status(201).json({
+      venta: result.rows[0],
+      concepto: conceptoFinal,
+      deuda_actual: deudaResult.rows[0].deuda_actual
+    });
+  } catch (error) {
+    console.error('Error registrando deuda manual:', error);
     res.status(500).json({ error: 'Error interno del servidor' });
   }
 });
@@ -2120,10 +2313,11 @@ app.get('/api/finanzas/balance', authenticateToken, checkAccess, requireAdmin, a
           COALESCE(SUM(monto) FILTER (WHERE tipo IN ('saldo_inicial','ingreso')), 0)
           - COALESCE(SUM(monto) FILTER (WHERE tipo = 'egreso'), 0) as balance_actual,
           COALESCE(SUM(monto) FILTER (WHERE tipo = 'saldo_inicial'), 0) as saldo_inicial,
-          COALESCE(SUM(monto) FILTER (WHERE tipo = 'ingreso' AND origen = 'manual'), 0) as ingresos_manuales,
+          COALESCE(SUM(monto) FILTER (WHERE tipo = 'ingreso' AND origen = 'manual' AND (categoria IS DISTINCT FROM 'abono_credito')), 0) as ingresos_manuales,
           COALESCE(SUM(monto) FILTER (WHERE tipo = 'ingreso' AND origen = 'venta'), 0) as total_ventas,
           COALESCE(SUM(monto) FILTER (WHERE tipo = 'egreso' AND origen = 'pedido'), 0) as total_pedidos,
-          COALESCE(SUM(monto) FILTER (WHERE tipo = 'egreso' AND origen = 'manual'), 0) as egresos_manuales
+          COALESCE(SUM(monto) FILTER (WHERE tipo = 'egreso' AND origen = 'manual'), 0) as egresos_manuales,
+          COALESCE(SUM(monto) FILTER (WHERE origen = 'manual' AND categoria = 'abono_credito'), 0) as total_abonos_credito
        FROM movimientos_caja
        WHERE negocio_id = $1`,
       [negocioId]

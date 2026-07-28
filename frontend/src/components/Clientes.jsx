@@ -13,7 +13,12 @@ const Clientes = ({ user }) => {
   const [showHistorialModal, setShowHistorialModal] = useState(false);
   const [clienteHistorial, setClienteHistorial] = useState(null);
   const [historial, setHistorial] = useState([]);
+  const [abonos, setAbonos] = useState([]);
   const [cargandoHistorial, setCargandoHistorial] = useState(false);
+  const [abonoForm, setAbonoForm] = useState({ monto: '', concepto: '' });
+  const [guardandoAbono, setGuardandoAbono] = useState(false);
+  const [deudaManualForm, setDeudaManualForm] = useState({ monto: '', concepto: '' });
+  const [guardandoDeudaManual, setGuardandoDeudaManual] = useState(false);
   const [formData, setFormData] = useState({
     nombre: '',
     cedula: '',
@@ -95,20 +100,92 @@ const Clientes = ({ user }) => {
     setShowModal(true);
   };
 
-  const handleVerHistorial = async (cliente) => {
-    setClienteHistorial(cliente);
-    setShowHistorialModal(true);
-    setHistorial([]);
-
+  // Separado de handleVerHistorial para poder recargar el historial (y los
+  // abonos) después de registrar un abono, sin resetear el modal ni el
+  // formulario que el usuario tiene abierto.
+  const cargarHistorial = useCallback(async (clienteId) => {
     try {
       setCargandoHistorial(true);
-      const response = await api.get(`/clientes/${cliente.id}/historial`);
-      setHistorial(response.data);
+      const response = await api.get(`/clientes/${clienteId}/historial`);
+      setHistorial(response.data.ventas || []);
+      setAbonos(response.data.abonos || []);
     } catch (error) {
       console.error('Error cargando historial:', error);
       alert('Error al cargar el historial del cliente');
     } finally {
       setCargandoHistorial(false);
+    }
+  }, []);
+
+  const handleVerHistorial = (cliente) => {
+    setClienteHistorial(cliente);
+    setShowHistorialModal(true);
+    setHistorial([]);
+    setAbonos([]);
+    setAbonoForm({ monto: '', concepto: '' });
+    setDeudaManualForm({ monto: '', concepto: '' });
+    cargarHistorial(cliente.id);
+  };
+
+  const handleRegistrarAbono = async (e) => {
+    e.preventDefault();
+
+    const montoNum = Number(abonoForm.monto);
+    if (!Number.isFinite(montoNum) || montoNum <= 0) {
+      alert('Ingresa un monto válido');
+      return;
+    }
+
+    try {
+      setGuardandoAbono(true);
+      const response = await api.post(`/clientes/${clienteHistorial.id}/abonos`, {
+        monto: montoNum,
+        concepto: abonoForm.concepto.trim() || undefined
+      });
+      // Actualiza la deuda mostrada en el modal y en la tarjeta del listado
+      setClienteHistorial(prev => prev ? { ...prev, deuda_actual: response.data.deuda_actual } : prev);
+      setAbonoForm({ monto: '', concepto: '' });
+      cargarHistorial(clienteHistorial.id);
+      cargarClientes(busqueda);
+    } catch (error) {
+      console.error('Error registrando abono:', error);
+      alert(error.response?.data?.error || 'Error al registrar el abono');
+    } finally {
+      setGuardandoAbono(false);
+    }
+  };
+
+  // Para dar de alta deuda existente antes del sistema. De aquí en
+  // adelante, la deuda nueva debe registrarse vendiendo a crédito desde
+  // Ventas — esto es solo para la carga inicial.
+  const handleRegistrarDeudaManual = async (e) => {
+    e.preventDefault();
+
+    const montoNum = Number(deudaManualForm.monto);
+    if (!Number.isFinite(montoNum) || montoNum <= 0) {
+      alert('Ingresa un monto válido');
+      return;
+    }
+
+    if (!confirm(`¿Confirmas agregar $${montoNum.toLocaleString()} de deuda existente para ${clienteHistorial.nombre}?`)) {
+      return;
+    }
+
+    try {
+      setGuardandoDeudaManual(true);
+      const response = await api.post(`/clientes/${clienteHistorial.id}/deuda-manual`, {
+        monto: montoNum,
+        concepto: deudaManualForm.concepto.trim() || undefined
+      });
+      setClienteHistorial(prev => prev ? { ...prev, deuda_actual: response.data.deuda_actual } : prev);
+      setDeudaManualForm({ monto: '', concepto: '' });
+      cargarHistorial(clienteHistorial.id);
+      cargarClientes(busqueda);
+    } catch (error) {
+      console.error('Error registrando deuda manual:', error);
+      alert(error.response?.data?.error || 'Error al registrar la deuda');
+    } finally {
+      setGuardandoDeudaManual(false);
     }
   };
 
@@ -184,6 +261,18 @@ const Clientes = ({ user }) => {
                     </button>
                   </div>
                 </div>
+
+                {Number(cliente.deuda_actual) > 0 ? (
+                  <span className="cliente-deuda-badge con-deuda">
+                    Debe: ${Number(cliente.deuda_actual).toLocaleString()}
+                  </span>
+                ) : Number(cliente.deuda_actual) < 0 ? (
+                  <span className="cliente-deuda-badge a-favor">
+                    A favor: ${Math.abs(Number(cliente.deuda_actual)).toLocaleString()}
+                  </span>
+                ) : (
+                  <span className="cliente-deuda-badge">Debe: $0</span>
+                )}
 
                 <div className="cliente-card-body">
                   {cliente.cedula && (
@@ -314,24 +403,97 @@ const Clientes = ({ user }) => {
               <button onClick={() => setShowHistorialModal(false)}>✕</button>
             </div>
 
+            {Number(clienteHistorial.deuda_actual) > 0 ? (
+              <div className="historial-deuda con-deuda">
+                Debe: ${Number(clienteHistorial.deuda_actual).toLocaleString()}
+              </div>
+            ) : Number(clienteHistorial.deuda_actual) < 0 ? (
+              <div className="historial-deuda a-favor">
+                A favor: ${Math.abs(Number(clienteHistorial.deuda_actual)).toLocaleString()}
+              </div>
+            ) : (
+              <div className="historial-deuda">Debe: $0</div>
+            )}
+
+            <form onSubmit={handleRegistrarAbono} className="abono-form">
+              <input
+                type="number"
+                step="0.01"
+                min="0.01"
+                value={abonoForm.monto}
+                onChange={(e) => setAbonoForm({ ...abonoForm, monto: e.target.value })}
+                placeholder="Monto del abono"
+                required
+              />
+              <input
+                type="text"
+                value={abonoForm.concepto}
+                onChange={(e) => setAbonoForm({ ...abonoForm, concepto: e.target.value })}
+                placeholder="Concepto (opcional)"
+              />
+              <button type="submit" className="btn-registrar-abono" disabled={guardandoAbono}>
+                {guardandoAbono ? 'Guardando...' : '💰 Registrar abono'}
+              </button>
+            </form>
+
+            <form onSubmit={handleRegistrarDeudaManual} className="deuda-manual-form">
+              <input
+                type="number"
+                step="0.01"
+                min="0.01"
+                value={deudaManualForm.monto}
+                onChange={(e) => setDeudaManualForm({ ...deudaManualForm, monto: e.target.value })}
+                placeholder="Monto de deuda a agregar"
+                required
+              />
+              <input
+                type="text"
+                value={deudaManualForm.concepto}
+                onChange={(e) => setDeudaManualForm({ ...deudaManualForm, concepto: e.target.value })}
+                placeholder="Concepto (opcional)"
+              />
+              <button type="submit" className="btn-registrar-deuda" disabled={guardandoDeudaManual}>
+                {guardandoDeudaManual ? 'Guardando...' : '📒 Agregar deuda existente'}
+              </button>
+            </form>
+
             {cargandoHistorial ? (
               <div className="loading">Cargando historial...</div>
-            ) : historial.length === 0 ? (
-              <p className="sin-historial">Este cliente aún no tiene compras registradas.</p>
+            ) : historial.length === 0 && abonos.length === 0 ? (
+              <p className="sin-historial">Este cliente aún no tiene compras ni abonos registrados.</p>
             ) : (
               <div className="historial-lista">
-                {historial.map(venta => (
-                  <div key={venta.id} className="historial-item">
-                    <div className="historial-item-header">
-                      <span className="historial-factura">{venta.numero_factura}</span>
-                      <span className="historial-total">${Number(venta.total).toLocaleString()}</span>
-                    </div>
-                    <div className="historial-item-meta">
-                      <span>{new Date(venta.fecha_venta).toLocaleString()}</span>
-                      <span>Vendedor: {venta.vendedor_nombre}</span>
-                    </div>
-                  </div>
-                ))}
+                {[
+                  ...historial.map(venta => ({ tipo: 'venta', fecha: venta.fecha_venta, data: venta })),
+                  ...abonos.map(abono => ({ tipo: 'abono', fecha: abono.fecha, data: abono }))
+                ]
+                  .sort((a, b) => new Date(b.fecha) - new Date(a.fecha))
+                  .map((item, index) => (
+                    item.tipo === 'venta' ? (
+                      <div key={`venta-${item.data.id}`} className="historial-item">
+                        <div className="historial-item-header">
+                          <span className="historial-factura">🛒 {item.data.numero_factura}</span>
+                          <span className="historial-total">${Number(item.data.total).toLocaleString()}</span>
+                        </div>
+                        <div className="historial-item-meta">
+                          <span>{new Date(item.data.fecha_venta).toLocaleString()}</span>
+                          <span>Vendedor: {item.data.vendedor_nombre}</span>
+                          {item.data.metodo_pago === 'credito' && <span className="historial-credito-badge">📒 Crédito</span>}
+                        </div>
+                      </div>
+                    ) : (
+                      <div key={`abono-${item.data.id}`} className="historial-item abono">
+                        <div className="historial-item-header">
+                          <span className="historial-factura">💰 {item.data.concepto}</span>
+                          <span className="historial-total abono">+${Number(item.data.monto).toLocaleString()}</span>
+                        </div>
+                        <div className="historial-item-meta">
+                          <span>{new Date(item.data.fecha).toLocaleString()}</span>
+                          {item.data.usuario_nombre && <span>Registrado por: {item.data.usuario_nombre}</span>}
+                        </div>
+                      </div>
+                    )
+                  ))}
               </div>
             )}
           </div>

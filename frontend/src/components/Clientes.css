@@ -528,6 +528,150 @@
   flex-wrap: wrap;
 }
 
+.historial-credito-badge {
+  background: #fffaf0;
+  color: #9c4221;
+  border-radius: 10px;
+  padding: 1px 8px;
+  font-weight: 600;
+}
+
+.historial-item.abono {
+  background: #f0fff4;
+  border-color: #c6f6d5;
+}
+
+.historial-total.abono {
+  color: #2f855a;
+}
+
+/* ============================================================
+   DEUDA / CRÉDITO
+   ============================================================ */
+.cliente-deuda-badge {
+  display: inline-block;
+  margin: 0 0 10px 0;
+  padding: 3px 12px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+  background: #f7fafc;
+  color: #718096;
+}
+
+.cliente-deuda-badge.con-deuda {
+  background: #fff5f5;
+  color: #c53030;
+}
+
+.cliente-deuda-badge.a-favor {
+  background: #f0fff4;
+  color: #2f855a;
+}
+
+.historial-deuda {
+  margin-bottom: 16px;
+  padding: 10px 16px;
+  border-radius: 10px;
+  font-weight: 700;
+  font-size: 15px;
+  text-align: center;
+  background: #f7fafc;
+  color: #718096;
+}
+
+.historial-deuda.con-deuda {
+  background: #fff5f5;
+  color: #c53030;
+}
+
+.historial-deuda.a-favor {
+  background: #f0fff4;
+  color: #2f855a;
+}
+
+.abono-form {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+  padding: 12px;
+  background: #f7fafc;
+  border-radius: 10px;
+}
+
+.abono-form input {
+  flex: 1;
+  min-width: 120px;
+  padding: 8px 12px;
+  border: 2px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 14px;
+}
+
+.abono-form input:focus {
+  outline: none;
+  border-color: #4299e1;
+}
+
+.btn-registrar-abono {
+  padding: 8px 18px;
+  background: linear-gradient(135deg, #48bb78 0%, #38a169 100%);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.btn-registrar-abono:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.deuda-manual-form {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+  padding: 12px;
+  background: #fff5f5;
+  border-radius: 10px;
+}
+
+.deuda-manual-form input {
+  flex: 1;
+  min-width: 120px;
+  padding: 8px 12px;
+  border: 2px solid #fed7d7;
+  border-radius: 8px;
+  font-size: 14px;
+}
+
+.deuda-manual-form input:focus {
+  outline: none;
+  border-color: #fc8181;
+}
+
+.btn-registrar-deuda {
+  padding: 8px 18px;
+  background: linear-gradient(135deg, #f56565 0%, #c53030 100%);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.btn-registrar-deuda:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 /* ============================================================
    UTILIDADES
    ============================================================ */
