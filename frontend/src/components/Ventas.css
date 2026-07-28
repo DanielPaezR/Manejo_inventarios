@@ -988,6 +988,16 @@
   color: #e53e3e;
 }
 
+.factura-confirmacion {
+  padding: 10px 20px;
+  background: #f0fff4;
+  color: #22543d;
+  border-bottom: 1px solid #c6f6d5;
+  font-weight: 600;
+  font-size: 14px;
+  text-align: center;
+}
+
 .factura-content {
   padding: 20px 24px;
   overflow-y: auto;
@@ -1087,16 +1097,6 @@
   font-size: 14px;
   font-weight: 600;
   transition: all 0.2s;
-}
-
-.btn-imprimir {
-  background: #4299e1;
-  color: white;
-}
-
-.btn-imprimir:hover {
-  background: #3182ce;
-  transform: translateY(-1px);
 }
 
 .btn-cerrar-factura {
