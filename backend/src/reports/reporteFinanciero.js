@@ -30,27 +30,30 @@ module.exports = async function generarReporteFinancieroMensual(pool, negocioId,
       let startDate = fechaInicio || moment().startOf('month').format('YYYY-MM-DD');
       let endDate = fechaFin || moment().endOf('month').format('YYYY-MM-DD');
 
-      // Obtener ventas
+      // Obtener ventas (excluye ajustes manuales de deuda: no son ventas
+      // reales del período, son deuda histórica registrada hoy)
       const ventasResult = await pool.query(
-        `SELECT 
+        `SELECT
             COUNT(*) as total_ventas,
             COALESCE(SUM(total), 0) as monto_total,
             COALESCE(SUM(subtotal), 0) as subtotal_total
-         FROM ventas 
-         WHERE modulo_id = $1 
-         AND fecha_venta BETWEEN $2 AND $3`,
+         FROM ventas
+         WHERE modulo_id = $1
+         AND fecha_venta BETWEEN $2 AND $3
+         AND es_ajuste_manual = false`,
         [moduloId, startDate, endDate]
       );
 
       // Ventas por día
       const ventasPorDia = await pool.query(
-        `SELECT 
+        `SELECT
             DATE(fecha_venta) as fecha,
             COUNT(*) as ventas_dia,
             SUM(total) as monto_dia
          FROM ventas
-         WHERE modulo_id = $1 
+         WHERE modulo_id = $1
          AND fecha_venta BETWEEN $2 AND $3
+         AND es_ajuste_manual = false
          GROUP BY DATE(fecha_venta)
          ORDER BY fecha_venta`,
         [moduloId, startDate, endDate]
@@ -58,14 +61,15 @@ module.exports = async function generarReporteFinancieroMensual(pool, negocioId,
 
       // Métodos de pago
       const metodosPago = await pool.query(
-        `SELECT 
+        `SELECT
             metodo_pago,
             COUNT(*) as cantidad_ventas,
             SUM(total) as monto_total,
-            ROUND((COUNT(*) * 100.0 / (SELECT COUNT(*) FROM ventas WHERE modulo_id = $1 AND fecha_venta BETWEEN $2 AND $3)), 2) as porcentaje
+            ROUND((COUNT(*) * 100.0 / (SELECT COUNT(*) FROM ventas WHERE modulo_id = $1 AND fecha_venta BETWEEN $2 AND $3 AND es_ajuste_manual = false)), 2) as porcentaje
          FROM ventas
-         WHERE modulo_id = $1 
+         WHERE modulo_id = $1
          AND fecha_venta BETWEEN $2 AND $3
+         AND es_ajuste_manual = false
          GROUP BY metodo_pago
          ORDER BY monto_total DESC`,
         [moduloId, startDate, endDate]

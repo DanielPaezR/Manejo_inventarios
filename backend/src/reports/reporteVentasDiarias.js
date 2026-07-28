@@ -26,13 +26,15 @@ module.exports = async function generarReporteVentasDiarias(pool, negocioId, mod
       );
       const modulo = moduloResult.rows[0];
 
-      // Obtener ventas del período
+      // Obtener ventas del período (excluye ajustes manuales de deuda: no
+      // son ventas reales de este día, son deuda histórica registrada hoy)
       const ventasResult = await pool.query(
         `SELECT v.*, u.nombre as vendedor_nombre
          FROM ventas v
          JOIN usuarios u ON v.usuario_id = u.id
-         WHERE v.modulo_id = $1 
+         WHERE v.modulo_id = $1
          AND DATE(v.fecha_venta) BETWEEN COALESCE($2, CURRENT_DATE) AND COALESCE($3, CURRENT_DATE)
+         AND v.es_ajuste_manual = false
          ORDER BY v.fecha_venta DESC`,
         [moduloId, fechaInicio, fechaFin]
       );
@@ -41,12 +43,13 @@ module.exports = async function generarReporteVentasDiarias(pool, negocioId, mod
 
       // Obtener totales
       const totalesResult = await pool.query(
-        `SELECT 
+        `SELECT
            COUNT(*) as total_ventas,
            COALESCE(SUM(total), 0) as monto_total
-         FROM ventas 
-         WHERE modulo_id = $1 
-         AND DATE(fecha_venta) BETWEEN COALESCE($2, CURRENT_DATE) AND COALESCE($3, CURRENT_DATE)`,
+         FROM ventas
+         WHERE modulo_id = $1
+         AND DATE(fecha_venta) BETWEEN COALESCE($2, CURRENT_DATE) AND COALESCE($3, CURRENT_DATE)
+         AND es_ajuste_manual = false`,
         [moduloId, fechaInicio, fechaFin]
       );
 

@@ -7,13 +7,15 @@ module.exports = async function generarExcelVentas(pool, moduloId, fechaInicio, 
       const workbook = new excel.Workbook();
       const worksheet = workbook.createWorksheet('Ventas');
 
-      // Obtener ventas
+      // Obtener ventas (excluye ajustes manuales de deuda: no son ventas
+      // reales del período, son deuda histórica registrada hoy)
       const ventasResult = await pool.query(
         `SELECT v.*, u.nombre as vendedor_nombre
          FROM ventas v
          JOIN usuarios u ON v.usuario_id = u.id
-         WHERE v.modulo_id = $1 
+         WHERE v.modulo_id = $1
          AND DATE(v.fecha_venta) BETWEEN COALESCE($2, CURRENT_DATE - INTERVAL '7 days') AND COALESCE($3, CURRENT_DATE)
+         AND v.es_ajuste_manual = false
          ORDER BY v.fecha_venta DESC`,
         [moduloId, fechaInicio, fechaFin]
       );

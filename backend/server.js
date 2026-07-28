@@ -1164,8 +1164,8 @@ app.post('/api/clientes/:id/deuda-manual', authenticateToken, checkAccess, requi
 
     const result = await pool.query(
       `INSERT INTO ventas
-       (modulo_id, numero_factura, cliente_nombre, cliente_documento, cliente_direccion, cliente_telefono, subtotal, total, usuario_id, metodo_pago, cliente_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $7, $8, 'credito', $9)
+       (modulo_id, numero_factura, cliente_nombre, cliente_documento, cliente_direccion, cliente_telefono, subtotal, total, usuario_id, metodo_pago, cliente_id, es_ajuste_manual)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $7, $8, 'credito', $9, true)
        RETURNING *`,
       [moduloId, numero_factura, cliente.nombre, cliente.cedula, cliente.direccion, cliente.telefono, montoNum, usuarioId, id]
     );
@@ -1344,10 +1344,11 @@ app.get('/api/estadisticas', authenticateToken, checkAccess, requireAdmin, async
     const endDateAnterior = new Date(startDate.getTime() - 1);
 
     const ventasPeriodo = await pool.query(
-      `SELECT COUNT(*) as total, COALESCE(SUM(total), 0) as monto 
-       FROM ventas 
-       WHERE modulo_id = $1 
-       AND fecha_venta BETWEEN $2 AND $3`,
+      `SELECT COUNT(*) as total, COALESCE(SUM(total), 0) as monto
+       FROM ventas
+       WHERE modulo_id = $1
+       AND fecha_venta BETWEEN $2 AND $3
+       AND es_ajuste_manual = false`,
       [moduloId, startDate, endDate]
     );
 
@@ -1380,13 +1381,14 @@ app.get('/api/estadisticas', authenticateToken, checkAccess, requireAdmin, async
     );
 
     const ventasPorDia = await pool.query(
-      `SELECT 
-          DATE(fecha_venta) as fecha, 
-          COUNT(*) as cantidad, 
+      `SELECT
+          DATE(fecha_venta) as fecha,
+          COUNT(*) as cantidad,
           SUM(total) as total
        FROM ventas
-       WHERE modulo_id = $1 
+       WHERE modulo_id = $1
        AND fecha_venta BETWEEN $2 AND $3
+       AND es_ajuste_manual = false
        GROUP BY DATE(fecha_venta)
        ORDER BY fecha ASC`,
       [moduloId, startDate, endDate]
@@ -1408,6 +1410,7 @@ app.get('/api/estadisticas', authenticateToken, checkAccess, requireAdmin, async
        FROM ventas
        WHERE modulo_id = $1
        AND fecha_venta BETWEEN $2 AND $3
+       AND es_ajuste_manual = false
        GROUP BY metodo_pago
        ORDER BY cantidad DESC
        LIMIT 1`,
@@ -1437,7 +1440,8 @@ app.get('/api/estadisticas', authenticateToken, checkAccess, requireAdmin, async
       `SELECT COUNT(*) as total, COALESCE(SUM(total), 0) as monto
        FROM ventas
        WHERE modulo_id = $1
-       AND fecha_venta BETWEEN $2 AND $3`,
+       AND fecha_venta BETWEEN $2 AND $3
+       AND es_ajuste_manual = false`,
       [moduloId, startDateAnterior, endDateAnterior]
     );
 
@@ -1530,9 +1534,10 @@ app.get('/api/estadisticas/global', authenticateToken, requireAdmin, async (req,
     
     for (const modulo of modulosResult.rows) {
       const ventas = await pool.query(
-        `SELECT COUNT(*) as total, COALESCE(SUM(total), 0) as monto 
-         FROM ventas 
-         WHERE modulo_id = $1 AND fecha_venta BETWEEN $2 AND $3`,
+        `SELECT COUNT(*) as total, COALESCE(SUM(total), 0) as monto
+         FROM ventas
+         WHERE modulo_id = $1 AND fecha_venta BETWEEN $2 AND $3
+         AND es_ajuste_manual = false`,
         [modulo.id, startDate, endDate]
       );
       
@@ -1563,7 +1568,8 @@ app.get('/api/estadisticas/global', authenticateToken, requireAdmin, async (req,
       `SELECT COUNT(*) as total, COALESCE(SUM(v.total), 0) as monto
        FROM ventas v
        JOIN modulos m ON v.modulo_id = m.id
-       WHERE m.negocio_id = $1 AND v.fecha_venta BETWEEN $2 AND $3`,
+       WHERE m.negocio_id = $1 AND v.fecha_venta BETWEEN $2 AND $3
+       AND v.es_ajuste_manual = false`,
       [negocioId, startDate, endDate]
     );
 
