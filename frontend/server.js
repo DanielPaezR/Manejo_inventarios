@@ -33,7 +33,33 @@ app.get('/health', (req, res) => {
 });
 
 // Servir archivos estáticos
-app.use(express.static(path.join(__dirname, 'dist')));
+app.use(express.static(path.join(__dirname, 'dist'), {
+  setHeaders: (res, filePath) => {
+    // Algunos servidores sirven .webmanifest como application/octet-stream
+    // si el mime-db no lo reconoce; el estándar es application/manifest+json.
+    if (filePath.endsWith('.webmanifest')) {
+      res.setHeader('Content-Type', 'application/manifest+json');
+    }
+
+    // El service worker (generateSW de vite-plugin-pwa genera sw.js) debe
+    // revisarse siempre: este proyecto se despliega varias veces al día, y
+    // si el navegador lo cachea puede quedarse pegado a una versión vieja.
+    if (path.basename(filePath) === 'sw.js') {
+      res.setHeader('Cache-Control', 'no-cache');
+      return;
+    }
+
+    // Los JS/CSS que genera Vite dentro de dist/assets/ llevan un hash de
+    // contenido en el nombre (ej. index-8f87bdd6.js) — un build nuevo
+    // siempre produce un nombre distinto, así que cachearlos por mucho
+    // tiempo es seguro y acelera la carga. index.html, el manifest y los
+    // íconos (sin hash) se quedan con el comportamiento por defecto.
+    const relativePath = path.relative(path.join(__dirname, 'dist'), filePath);
+    if (relativePath.startsWith('assets' + path.sep)) {
+      res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+    }
+  }
+}));
 
 // Ruta catch-all
 app.get('*', (req, res) => {
