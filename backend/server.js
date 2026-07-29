@@ -1394,10 +1394,45 @@ app.get('/api/estadisticas', authenticateToken, checkAccess, requireAdmin, async
       [moduloId, startDate, endDate]
     );
 
+    // fecha_venta se guarda como "timestamp without time zone" y la sesión
+    // de Postgres está en UTC (confirmado con current_setting('TIMEZONE')),
+    // así que para reportar hora/día del negocio en Colombia hay que
+    // convertir explícitamente UTC -> America/Bogota antes de extraer.
+    const ventasPorHora = await pool.query(
+      `SELECT h.hora,
+              COALESCE(COUNT(v.id), 0) as total_ventas,
+              COALESCE(SUM(v.total), 0) as monto
+       FROM generate_series(0, 23) as h(hora)
+       LEFT JOIN ventas v
+         ON EXTRACT(HOUR FROM v.fecha_venta AT TIME ZONE 'UTC' AT TIME ZONE 'America/Bogota') = h.hora
+         AND v.modulo_id = $1
+         AND v.fecha_venta BETWEEN $2 AND $3
+         AND v.es_ajuste_manual = false
+       GROUP BY h.hora
+       ORDER BY h.hora`,
+      [moduloId, startDate, endDate]
+    );
+
+    // EXTRACT(DOW ...) devuelve 0=domingo, 1=lunes, ..., 6=sábado.
+    const ventasPorDiaSemana = await pool.query(
+      `SELECT dia.numero,
+              COALESCE(COUNT(v.id), 0) as total_ventas,
+              COALESCE(SUM(v.total), 0) as monto
+       FROM generate_series(0, 6) as dia(numero)
+       LEFT JOIN ventas v
+         ON EXTRACT(DOW FROM v.fecha_venta AT TIME ZONE 'UTC' AT TIME ZONE 'America/Bogota') = dia.numero
+         AND v.modulo_id = $1
+         AND v.fecha_venta BETWEEN $2 AND $3
+         AND v.es_ajuste_manual = false
+       GROUP BY dia.numero
+       ORDER BY dia.numero`,
+      [moduloId, startDate, endDate]
+    );
+
     const totalProductos = await pool.query(
-      `SELECT COUNT(*) as total 
-       FROM productos 
-       WHERE activo = true 
+      `SELECT COUNT(*) as total
+       FROM productos
+       WHERE activo = true
        AND modulo_id = $1`,
       [moduloId]
     );
@@ -1460,6 +1495,8 @@ app.get('/api/estadisticas', authenticateToken, checkAccess, requireAdmin, async
       topProductos: topProductos.rows,
       productosSinVenta: productosSinVenta.rows,
       ventasPorDia: ventasPorDia.rows,
+      ventasPorHora: ventasPorHora.rows,
+      ventasPorDiaSemana: ventasPorDiaSemana.rows,
       totalProductos: totalProductos.rows[0]?.total || 0,
       metodoPagoPopular: metodoPagoPopular.rows[0] || null,
       comparacionPeriodoAnterior: {

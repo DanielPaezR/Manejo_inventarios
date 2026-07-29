@@ -491,6 +491,66 @@ const Estadisticas = ({ user }) => {
                   </div>
                 </div>
               </div>
+
+              {/* Ventas por hora del día */}
+              <div className="card grafico-ventas-hora">
+                <h3>🕐 Ventas por hora del día</h3>
+                {estadisticas.ventasPorHora?.some(h => Number(h.monto) > 0) ? (
+                  <div className="grafico-container">
+                    <div className="grafico-barras grafico-barras-compacto">
+                      {estadisticas.ventasPorHora.map((h) => {
+                        const maxValor = Math.max(...estadisticas.ventasPorHora.map(x => Number(x.monto)));
+                        const altura = maxValor > 0 ? (Number(h.monto) / maxValor) * 100 : 0;
+                        return (
+                          <div key={h.hora} className="barra-container">
+                            <div
+                              className="barra"
+                              style={{ height: `${Math.max(3, altura)}%` }}
+                              title={`${h.hora}:00 · ${h.total_ventas} ventas · ${formatearMoneda(h.monto)}`}
+                            >
+                              <span className="barra-valor">{formatearMoneda(h.monto)}</span>
+                            </div>
+                            <span className="barra-fecha">{h.hora}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : (
+                  <p className="sin-datos">No hay ventas en este período</p>
+                )}
+              </div>
+
+              {/* Ventas por día de la semana */}
+              <div className="card grafico-ventas-dia-semana">
+                <h3>📅 Ventas por día de la semana</h3>
+                {estadisticas.ventasPorDiaSemana?.some(d => Number(d.monto) > 0) ? (
+                  <div className="grafico-container">
+                    <div className="grafico-barras">
+                      {[1, 2, 3, 4, 5, 6, 0].map((numeroDia) => {
+                        const nombresDias = { 0: 'Dom', 1: 'Lun', 2: 'Mar', 3: 'Mié', 4: 'Jue', 5: 'Vie', 6: 'Sáb' };
+                        const dia = estadisticas.ventasPorDiaSemana.find(d => d.numero === numeroDia) || { numero: numeroDia, total_ventas: 0, monto: 0 };
+                        const maxValor = Math.max(...estadisticas.ventasPorDiaSemana.map(x => Number(x.monto)));
+                        const altura = maxValor > 0 ? (Number(dia.monto) / maxValor) * 100 : 0;
+                        return (
+                          <div key={numeroDia} className="barra-container">
+                            <div
+                              className="barra"
+                              style={{ height: `${Math.max(3, altura)}%` }}
+                              title={`${nombresDias[numeroDia]}: ${dia.total_ventas} ventas · ${formatearMoneda(dia.monto)}`}
+                            >
+                              <span className="barra-valor">{formatearMoneda(dia.monto)}</span>
+                            </div>
+                            <span className="barra-fecha">{nombresDias[numeroDia]}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : (
+                  <p className="sin-datos">No hay ventas en este período</p>
+                )}
+              </div>
             </div>
           )}
         </>

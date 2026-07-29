@@ -603,6 +603,23 @@
   grid-column: 1 / -1;
 }
 
+.grafico-ventas-hora,
+.grafico-ventas-dia-semana {
+  grid-column: 1 / -1;
+}
+
+.grafico-barras-compacto {
+  gap: 4px;
+}
+
+.grafico-barras-compacto .barra-container {
+  min-width: 20px;
+}
+
+.grafico-barras-compacto .barra {
+  max-width: 22px;
+}
+
 .ventas-metricas-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
