@@ -48,6 +48,9 @@ const Ventas = ({ user }) => {
   const [numeroClienteBusqueda, setNumeroClienteBusqueda] = useState('');
   const [buscandoPorNumero, setBuscandoPorNumero] = useState(false);
   const [errorNumeroCliente, setErrorNumeroCliente] = useState('');
+  // Pestañas solo para móvil (≤768px): en desktop ambas secciones siguen
+  // mostrándose lado a lado sin depender de este estado.
+  const [vistaMobileActiva, setVistaMobileActiva] = useState('productos');
   const inputRef = useRef(null);
   const scannerRef = useRef(null);
   const carritoSectionRef = useRef(null);
@@ -478,6 +481,14 @@ const Ventas = ({ user }) => {
     }
   }, [carrito, cliente, metodoPago, clienteSeleccionado, cargarProductos]);
 
+  // Cerrar el modal de factura (siempre sigue a una venta exitosa, es lo
+  // único que lo abre) y volver a la pestaña de productos en móvil, lista
+  // para la siguiente venta.
+  const cerrarModalFactura = useCallback(() => {
+    setMostrarFactura(false);
+    setVistaMobileActiva('productos');
+  }, []);
+
   // Limpiar todo
   const limpiarTodo = useCallback(() => {
     if (carrito.length > 0 && !confirm('¿Limpiar todo el carrito?')) return;
@@ -652,7 +663,23 @@ const Ventas = ({ user }) => {
         </div>
       )}
 
-      <div className="ventas-grid">
+      {/* Pestañas solo visibles en móvil (CSS las oculta en desktop/tablet) */}
+      <div className="ventas-mobile-tabs">
+        <button
+          className={`ventas-mobile-tab ${vistaMobileActiva === 'productos' ? 'active' : ''}`}
+          onClick={() => setVistaMobileActiva('productos')}
+        >
+          🛍️ Productos
+        </button>
+        <button
+          className={`ventas-mobile-tab ${vistaMobileActiva === 'carrito' ? 'active' : ''}`}
+          onClick={() => setVistaMobileActiva('carrito')}
+        >
+          🛒 Carrito{carrito.length > 0 ? ` (${carrito.length})` : ''}
+        </button>
+      </div>
+
+      <div className={`ventas-grid mobile-vista-${vistaMobileActiva}`}>
         {/* Lista de productos */}
         <div className="productos-lista">
           <h3>
@@ -862,13 +889,26 @@ const Ventas = ({ user }) => {
         </div>
       </div>
 
+      {/* Botón flotante solo visible en móvil (CSS lo oculta en
+          desktop/tablet). Siempre lleva a la pestaña de carrito, sin
+          importar dónde esté el usuario (incluida la pestaña de productos
+          con el scanner activo). */}
+      {carrito.length > 0 && (
+        <button
+          className="carrito-fab"
+          onClick={() => setVistaMobileActiva('carrito')}
+        >
+          🛒 {carrito.length} · ${subtotal.toLocaleString()}
+        </button>
+      )}
+
       {/* Modal de factura */}
       {mostrarFactura && facturaData && (
-        <div className="factura-modal" onClick={() => setMostrarFactura(false)}>
+        <div className="factura-modal" onClick={cerrarModalFactura}>
           <div className="factura-modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="factura-modal-header">
               <h3>🧾 Factura</h3>
-              <button onClick={() => setMostrarFactura(false)}>✕</button>
+              <button onClick={cerrarModalFactura}>✕</button>
             </div>
 
             <div className="factura-confirmacion">
@@ -936,7 +976,7 @@ const Ventas = ({ user }) => {
             </div>
 
             <div className="factura-modal-footer">
-              <button onClick={() => setMostrarFactura(false)} className="btn-cerrar-factura">
+              <button onClick={cerrarModalFactura} className="btn-cerrar-factura">
                 Cerrar
               </button>
             </div>

@@ -309,6 +309,19 @@
 }
 
 /* ============================================================
+   PESTAÑAS Y BOTÓN FLOTANTE DE CARRITO (SOLO MÓVIL)
+   Ocultos por defecto; el media query de ≤768px los activa. En
+   desktop/tablet no tienen ningún efecto.
+   ============================================================ */
+.ventas-mobile-tabs {
+  display: none;
+}
+
+.carrito-fab {
+  display: none;
+}
+
+/* ============================================================
    GRID PRINCIPAL
    ============================================================ */
 .ventas-grid {
@@ -1231,6 +1244,72 @@
 
   .scanner-container {
     min-height: 200px;
+  }
+
+  /* Pestañas móviles: reemplazan el apilado 50vh/50vh por una sola
+     sección visible a la vez, ocupando el alto disponible completo. */
+  .ventas-mobile-tabs {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+
+  .ventas-mobile-tab {
+    flex: 1;
+    padding: 10px;
+    border: 2px solid #e2e8f0;
+    border-radius: 10px;
+    background: white;
+    color: #4a5568;
+    font-weight: 600;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+
+  .ventas-mobile-tab.active {
+    background: #4299e1;
+    border-color: #4299e1;
+    color: white;
+  }
+
+  /* La sección inactiva se oculta por completo (no se comprime); la
+     activa ya no tiene el max-height: 50vh heredado del breakpoint de
+     1024px, así que usa el alto que necesite y la página hace scroll. */
+  .productos-lista,
+  .carrito-section {
+    max-height: none;
+  }
+
+  .ventas-grid.mobile-vista-productos .carrito-section {
+    display: none;
+  }
+
+  .ventas-grid.mobile-vista-carrito .productos-lista {
+    display: none;
+  }
+
+  /* Botón flotante: mismo z-index alto que .scanner-toast (5) más un
+     margen amplio para no quedar tapado por scanner-container-wrapper
+     (que no define z-index propio) ni por ningún otro elemento normal
+     de la página. */
+  .carrito-fab {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    padding: 14px 20px;
+    background: linear-gradient(135deg, #48bb78 0%, #38a169 100%);
+    color: white;
+    border: none;
+    border-radius: 30px;
+    font-weight: 700;
+    font-size: 15px;
+    cursor: pointer;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+    z-index: 999;
   }
 }
 
