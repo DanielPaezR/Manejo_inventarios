@@ -1,0 +1,29 @@
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <rect width="512" height="512" fill="#4299e1"/>
+
+  <!-- Toldo: rayas -->
+  <rect x="100" y="160" width="62.4" height="90" fill="#ffffff"/>
+  <rect x="162.4" y="160" width="62.4" height="90" fill="#ed8936"/>
+  <rect x="224.8" y="160" width="62.4" height="90" fill="#ffffff"/>
+  <rect x="287.2" y="160" width="62.4" height="90" fill="#ed8936"/>
+  <rect x="349.6" y="160" width="62.4" height="90" fill="#ffffff"/>
+  <rect x="100" y="160" width="312" height="90" fill="none" stroke="#2c5282" stroke-width="6"/>
+
+  <!-- Toldo: filo (valance) -->
+  <polygon points="100,250 162.4,250 131.2,274" fill="#ffffff"/>
+  <polygon points="162.4,250 224.8,250 193.6,274" fill="#ed8936"/>
+  <polygon points="224.8,250 287.2,250 256,274" fill="#ffffff"/>
+  <polygon points="287.2,250 349.6,250 318.4,274" fill="#ed8936"/>
+  <polygon points="349.6,250 412,250 380.8,274" fill="#ffffff"/>
+
+  <!-- Fachada -->
+  <rect x="120" y="274" width="272" height="156" rx="12" fill="#ffffff" stroke="#2c5282" stroke-width="6"/>
+
+  <!-- Ventanas -->
+  <rect x="150" y="304" width="40" height="40" rx="6" fill="#bee3f8" stroke="#2c5282" stroke-width="4"/>
+  <rect x="322" y="304" width="40" height="40" rx="6" fill="#bee3f8" stroke="#2c5282" stroke-width="4"/>
+
+  <!-- Puerta -->
+  <rect x="226" y="350" width="60" height="80" rx="10" fill="#2c5282"/>
+  <circle cx="270" cy="390" r="4" fill="#ffffff"/>
+</svg>
