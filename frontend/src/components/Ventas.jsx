@@ -51,6 +51,11 @@ const Ventas = ({ user }) => {
   // Pestañas solo para móvil (≤768px): en desktop ambas secciones siguen
   // mostrándose lado a lado sin depender de este estado.
   const [vistaMobileActiva, setVistaMobileActiva] = useState('productos');
+  // Alto ocupado por el teclado en móvil (para fijar la barra de búsqueda
+  // justo encima de él en vez de que quede tapada). Solo se actualiza si
+  // el navegador soporta visualViewport; en los que no, queda en 0 y la
+  // barra usa el comportamiento de respaldo definido en CSS.
+  const [tecladoAltura, setTecladoAltura] = useState(0);
   const inputRef = useRef(null);
   const scannerRef = useRef(null);
   const carritoSectionRef = useRef(null);
@@ -120,6 +125,30 @@ const Ventas = ({ user }) => {
     return () => {
       if (scanToastTimeoutRef.current) clearTimeout(scanToastTimeoutRef.current);
       if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+    };
+  }, []);
+
+  // Sigue el espacio que tapa el teclado en móvil (vía visualViewport) para
+  // que la barra de búsqueda fija pueda subirse justo encima de él.
+  useEffect(() => {
+    if (!window.visualViewport) return;
+
+    const actualizarAlturaTeclado = () => {
+      const alturaTeclado = Math.max(
+        0,
+        window.innerHeight - window.visualViewport.height - window.visualViewport.offsetTop
+      );
+      setTecladoAltura(alturaTeclado);
+      document.documentElement.style.setProperty('--teclado-alto', `${alturaTeclado}px`);
+    };
+
+    actualizarAlturaTeclado();
+    window.visualViewport.addEventListener('resize', actualizarAlturaTeclado);
+    window.visualViewport.addEventListener('scroll', actualizarAlturaTeclado);
+
+    return () => {
+      window.visualViewport.removeEventListener('resize', actualizarAlturaTeclado);
+      window.visualViewport.removeEventListener('scroll', actualizarAlturaTeclado);
     };
   }, []);
 
@@ -596,7 +625,7 @@ const Ventas = ({ user }) => {
       </div>
 
       {/* Scanner y búsqueda */}
-      <div className="busqueda-section">
+      <div className={`busqueda-section ${vistaMobileActiva === 'productos' && !modoScanner ? 'busqueda-fija-movil' : ''}`}>
         <div className="busqueda-input">
           <input
             ref={inputRef}
