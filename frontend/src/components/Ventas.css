@@ -465,6 +465,13 @@
   max-height: 70vh;
   display: flex;
   flex-direction: column;
+  /* Con min-height en .carrito-lista, el contenido total puede superar
+     70vh/50vh en pantallas bajas (ej. varios productos + el bloque de
+     "paga con" visible). Sin esto, en vez de comprimir la lista el
+     contenido se saldría visualmente de la tarjeta; con esto, la propia
+     tarjeta scrollea como respaldo. No aplica en móvil (max-height: none
+     ahí, ver breakpoint 768px), donde ya scrollea la página completa. */
+  overflow-y: auto;
 }
 
 .carrito-section h3 {
@@ -821,6 +828,7 @@
   flex: 1;
   overflow-y: auto;
   margin-bottom: 12px;
+  min-height: 150px;
 }
 
 .carrito-lista::-webkit-scrollbar {
