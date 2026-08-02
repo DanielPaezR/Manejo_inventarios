@@ -12,7 +12,8 @@ const crearCuentaVacia = (id, nombre) => ({
   carrito: [],
   cliente: clienteVacio(),
   clienteSeleccionado: null,
-  metodoPago: 'efectivo'
+  metodoPago: 'efectivo',
+  montoRecibido: ''
 });
 
 // Se llama una sola vez, desde los inicializadores lazy de useState (nunca
@@ -133,6 +134,7 @@ const Ventas = ({ user }) => {
   const cliente = cuentaActiva?.cliente || clienteVacio();
   const clienteSeleccionado = cuentaActiva?.clienteSeleccionado || null;
   const metodoPago = cuentaActiva?.metodoPago || 'efectivo';
+  const montoRecibido = cuentaActiva?.montoRecibido || '';
 
   const actualizarCuentaPorId = useCallback((id, cambios) => {
     setCuentas(prev => prev.map(c => (c.id === id ? { ...c, ...cambios } : c)));
@@ -613,7 +615,8 @@ const Ventas = ({ user }) => {
           actualizarCuentaActiva({
             carrito: [],
             cliente: clienteVacio(),
-            clienteSeleccionado: null
+            clienteSeleccionado: null,
+            montoRecibido: ''
           });
         } else {
           const restantes = cuentas.filter(c => c.id !== cuentaActivaId);
@@ -1145,6 +1148,30 @@ const Ventas = ({ user }) => {
                   <option value="otros">📱 Otros</option>
                 </select>
               </div>
+
+              {metodoPago === 'efectivo' && (
+                <div className="calculadora-cambio">
+                  <label>💵 Paga con:</label>
+                  <input
+                    type="number"
+                    min="0"
+                    placeholder="Valor del billete/monto recibido"
+                    value={montoRecibido}
+                    onChange={(e) => actualizarCuentaActiva({ montoRecibido: e.target.value })}
+                  />
+                  {montoRecibido && Number(montoRecibido) > 0 && (
+                    Number(montoRecibido) >= subtotal ? (
+                      <div className="cambio-resultado positivo">
+                        Cambio a devolver: <strong>${(Number(montoRecibido) - subtotal).toLocaleString()}</strong>
+                      </div>
+                    ) : (
+                      <div className="cambio-resultado negativo">
+                        ⚠️ Falta ${(subtotal - Number(montoRecibido)).toLocaleString()}
+                      </div>
+                    )
+                  )}
+                </div>
+              )}
 
               <button
                 onClick={procesarVenta}
