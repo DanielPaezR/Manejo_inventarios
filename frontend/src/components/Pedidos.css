@@ -64,6 +64,273 @@
 }
 
 /* ============================================================
+   MENSAJES FLOTANTES (revisar pedido / sugerencia por proveedor)
+   ============================================================ */
+.mensaje-flotante {
+  padding: 14px 20px;
+  border-radius: 12px;
+  margin-bottom: 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-weight: 500;
+  font-size: 14px;
+  animation: slideDown 0.3s ease;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.mensaje-flotante.exito {
+  background: #f0fff4;
+  border: 1px solid #48bb78;
+  color: #22543d;
+}
+
+.mensaje-flotante.error {
+  background: #fff5f5;
+  border: 1px solid #fc8181;
+  color: #742a2a;
+}
+
+.mensaje-flotante.info {
+  background: #ebf8ff;
+  border: 1px solid #63b3ed;
+  color: #2a4365;
+}
+
+.btn-cerrar-mensaje {
+  background: none;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  font-size: 18px;
+  padding: 0 4px;
+  opacity: 0.6;
+  transition: opacity 0.2s;
+}
+
+.btn-cerrar-mensaje:hover {
+  opacity: 1;
+}
+
+/* ============================================================
+   TARJETAS (revisar pedido / sugerencia por proveedor)
+   ============================================================ */
+.card {
+  background: white;
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+  border: 1px solid #e2e8f0;
+  margin-bottom: 20px;
+}
+
+.card h3 {
+  margin: 0 0 20px 0;
+  font-size: 17px;
+  color: #2d3748;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.sin-alertas {
+  text-align: center;
+  padding: 24px;
+  color: #48bb78;
+  font-weight: 500;
+  font-size: 16px;
+}
+
+/* ============================================================
+   REVISAR PEDIDO POR PROVEEDOR
+   ============================================================ */
+.proveedores-revisar-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px;
+}
+
+.proveedor-revisar-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 16px;
+  background: #f7fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+}
+
+.proveedor-revisar-nombre {
+  font-size: 14px;
+  font-weight: 600;
+  color: #2d3748;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.btn-revisar-pedido {
+  padding: 6px 12px;
+  background: #ebf8ff;
+  color: #2b6cb0;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 12px;
+  white-space: nowrap;
+  transition: all 0.2s ease;
+}
+
+.btn-revisar-pedido:hover {
+  background: #bee3f8;
+}
+
+.btn-pedir-todo {
+  padding: 6px 16px;
+  background: linear-gradient(135deg, #48bb78 0%, #38a169 100%);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 13px;
+  transition: all 0.3s ease;
+}
+
+.btn-pedir-todo:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(56, 161, 105, 0.3);
+}
+
+/* ============================================================
+   SUGERENCIA DE PEDIDO POR PROVEEDOR
+   ============================================================ */
+.sugerencia-pedido-proveedor {
+  border-left: 4px solid #4299e1;
+}
+
+.sugerencia-descripcion {
+  margin: -10px 0 16px 0;
+  color: #718096;
+  font-size: 14px;
+}
+
+.sugerencia-controles {
+  display: flex;
+  align-items: flex-end;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+
+.sugerencia-controles .form-group {
+  margin-bottom: 0;
+  min-width: 200px;
+}
+
+.sugerencia-controles .form-group label {
+  display: block;
+  font-size: 14px;
+  font-weight: 500;
+  color: #4a5568;
+  margin-bottom: 4px;
+}
+
+.sugerencia-controles .form-group select,
+.sugerencia-controles .form-group input {
+  width: 100%;
+  padding: 8px 12px;
+  border: 2px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 14px;
+  transition: all 0.3s ease;
+}
+
+.sugerencia-controles .form-group select:focus,
+.sugerencia-controles .form-group input:focus {
+  outline: none;
+  border-color: #4299e1;
+  box-shadow: 0 0 0 4px rgba(66, 153, 225, 0.1);
+}
+
+.btn-calcular-sugerencia {
+  padding: 9px 20px;
+  background: linear-gradient(135deg, #4299e1 0%, #3182ce 100%);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  white-space: nowrap;
+}
+
+.btn-calcular-sugerencia:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(66, 153, 225, 0.3);
+}
+
+.btn-calcular-sugerencia:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.tabla-sugerencia-pedido {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+  margin-bottom: 16px;
+}
+
+.tabla-sugerencia-pedido th {
+  text-align: left;
+  padding: 10px 14px;
+  background: #f7fafc;
+  font-weight: 600;
+  color: #4a5568;
+  border-bottom: 2px solid #e2e8f0;
+}
+
+.tabla-sugerencia-pedido td {
+  padding: 8px 14px;
+  border-bottom: 1px solid #edf2f7;
+}
+
+.tabla-sugerencia-pedido tr:hover td {
+  background: #f7fafc;
+}
+
+.input-cantidad-sugerida {
+  width: 80px;
+  padding: 6px 10px;
+  border: 2px solid #e2e8f0;
+  border-radius: 6px;
+  font-size: 14px;
+}
+
+.input-cantidad-sugerida:focus {
+  outline: none;
+  border-color: #4299e1;
+}
+
+/* ============================================================
    FILTROS
    ============================================================ */
 .filtros-pedidos {
@@ -717,6 +984,23 @@
   .badge {
     font-size: 12px;
     padding: 2px 12px;
+  }
+
+  .card {
+    padding: 16px;
+  }
+
+  .card h3 {
+    font-size: 15px;
+  }
+
+  .btn-pedir-todo {
+    width: 100%;
+  }
+
+  .mensaje-flotante {
+    font-size: 13px;
+    padding: 12px 16px;
   }
 
   .btn-agregar {

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import api from '../services/api';
 import { useModulo } from '../hooks/useModulo';
 import './Pedidos.css';
@@ -18,6 +18,16 @@ const Pedidos = ({ user }) => {
     detalles: [],
     observaciones: ''
   });
+  // Revisar pedido por proveedor / sugerencia de pedido (antes en la
+  // página eliminada "Gestión de Inventario"). Reutiliza proveedores/
+  // cargarProveedores de arriba en vez de duplicar la carga.
+  const [mensaje, setMensaje] = useState('');
+  const [proveedorSugerenciaId, setProveedorSugerenciaId] = useState('');
+  const [diasHistorial, setDiasHistorial] = useState(30);
+  const [sugerenciaPedido, setSugerenciaPedido] = useState([]);
+  const [sugerenciaConsultada, setSugerenciaConsultada] = useState(false);
+  const [cargandoSugerencia, setCargandoSugerencia] = useState(false);
+  const sugerenciaPedidoRef = useRef(null);
 
   // Verificar permisos
   const puedeGestionar = user?.rol === 'admin' || user?.rol === 'super_admin';
@@ -60,6 +70,121 @@ const Pedidos = ({ user }) => {
     } catch (error) {
       console.error('Error cargando productos:', error);
     }
+  };
+
+  // Enviar pedido múltiple (varios productos al mismo proveedor) por WhatsApp
+  const enviarPedidoMultipleWhatsApp = (productosDelProveedor, proveedor) => {
+    const telefono = proveedor.telefono?.replace(/\D/g, '');
+    if (!telefono) {
+      setMensaje(`❌ El proveedor "${proveedor.nombre}" no tiene número de teléfono registrado`);
+      return;
+    }
+
+    let mensajeTexto = `📦 *PEDIDO DE REPOSICIÓN MÚLTIPLE*\n\n`;
+    mensajeTexto += `📅 *Fecha:* ${new Date().toLocaleDateString()}\n`;
+    mensajeTexto += `🏪 *Módulo:* ${moduloActivo.nombre}\n\n`;
+    mensajeTexto += `*Lista de productos:*\n`;
+    mensajeTexto += `-------------------\n`;
+
+    productosDelProveedor.forEach((item, index) => {
+      mensajeTexto += `${index + 1}. *${item.producto.nombre}*\n`;
+      mensajeTexto += `   Cantidad: ${item.cantidadSugerida} unidades\n\n`;
+    });
+
+    mensajeTexto += `-------------------\n`;
+    mensajeTexto += `Por favor, confirmar disponibilidad y fecha de entrega. 🙏`;
+
+    const url = `https://wa.me/${telefono}?text=${encodeURIComponent(mensajeTexto)}`;
+    window.open(url, '_blank');
+
+    setMensaje(`📤 Enviando pedido múltiple a ${proveedor.nombre}...`);
+    setTimeout(() => setMensaje(''), 3000);
+  };
+
+  // Sugerencia de pedido para un proveedor específico, basada en ventas
+  // históricas y tiempo de entrega. Recibe el id explícito en vez de leerlo de
+  // proveedorSugerenciaId porque setProveedorSugerenciaId es asíncrono: si
+  // se llama justo después de seleccionarlo (ej. desde "Revisar pedido"),
+  // el estado todavía no se actualizó y se consultaría el proveedor viejo.
+  const calcularSugerenciaParaProveedor = async (idProveedor) => {
+    if (!idProveedor) {
+      setMensaje('⚠️ Selecciona un proveedor');
+      return;
+    }
+
+    try {
+      setCargandoSugerencia(true);
+      const response = await api.get(`/proveedores/${idProveedor}/sugerencia-pedido`, {
+        params: { dias_historial: diasHistorial || 30 }
+      });
+      setSugerenciaPedido(
+        response.data.map(item => ({
+          ...item,
+          cantidadEditada: item.cantidadSugerida,
+          incluido: item.cantidadSugerida > 0
+        }))
+      );
+      setSugerenciaConsultada(true);
+    } catch (error) {
+      console.error('Error calculando sugerencia de pedido:', error);
+      setMensaje('❌ Error al calcular la sugerencia de pedido');
+    } finally {
+      setCargandoSugerencia(false);
+    }
+  };
+
+  // Usada directamente por el botón "🧮 Calcular sugerencia" (sí lee el
+  // estado, porque ahí el usuario ya seleccionó el proveedor desde el
+  // select y el estado ya está al día para cuando hace click).
+  const calcularSugerenciaPedido = () => calcularSugerenciaParaProveedor(proveedorSugerenciaId);
+
+  // Atajo para "🧾 Revisar pedido": selecciona el proveedor, calcula su
+  // sugerencia y lleva al usuario directo a la tarjeta de revisión, sin
+  // que tenga que buscarla ni repetir la selección en el select de abajo.
+  const revisarPedidoProveedor = (proveedorId) => {
+    setProveedorSugerenciaId(String(proveedorId));
+    calcularSugerenciaParaProveedor(proveedorId);
+    sugerenciaPedidoRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  const actualizarCantidadSugerencia = (productoId, valor) => {
+    setSugerenciaPedido(prev => prev.map(item =>
+      item.producto_id === productoId ? { ...item, cantidadEditada: valor } : item
+    ));
+  };
+
+  const toggleIncluidoSugerencia = (productoId) => {
+    setSugerenciaPedido(prev => prev.map(item =>
+      item.producto_id === productoId ? { ...item, incluido: !item.incluido } : item
+    ));
+  };
+
+  // Reutiliza enviarPedidoMultipleWhatsApp adaptando el formato de items
+  // ({ producto, cantidadSugerida }) a partir de la sugerencia editable.
+  const enviarSugerenciaPorWhatsApp = () => {
+    const proveedor = proveedores.find(p => p.id === parseInt(proveedorSugerenciaId));
+    if (!proveedor) {
+      setMensaje('⚠️ Selecciona un proveedor válido');
+      return;
+    }
+
+    const itemsIncluidos = sugerenciaPedido
+      .filter(item => item.incluido && parseInt(item.cantidadEditada) > 0)
+      .map(item => ({
+        producto: {
+          nombre: item.nombre,
+          codigo_ean: item.codigo_ean,
+          stock_actual: item.stock_actual
+        },
+        cantidadSugerida: parseInt(item.cantidadEditada) || 0
+      }));
+
+    if (itemsIncluidos.length === 0) {
+      setMensaje('⚠️ Selecciona al menos un producto con cantidad mayor a 0');
+      return;
+    }
+
+    enviarPedidoMultipleWhatsApp(itemsIncluidos, proveedor);
   };
 
   const verDetalle = async (id) => {
@@ -198,12 +323,137 @@ const Pedidos = ({ user }) => {
             <span className="badge">📁 {moduloActivo.nombre}</span>
           </div>
         </div>
-        <button 
-          onClick={() => setShowCrearModal(true)} 
+        <button
+          onClick={() => setShowCrearModal(true)}
           className="btn-agregar"
         >
           + Nuevo Pedido
         </button>
+      </div>
+
+      {mensaje && (
+        <div className={`mensaje-flotante ${mensaje.includes('✅') ? 'exito' : mensaje.includes('❌') || mensaje.includes('⚠️') ? 'error' : 'info'}`}>
+          {mensaje}
+          <button onClick={() => setMensaje('')} className="btn-cerrar-mensaje">✕</button>
+        </div>
+      )}
+
+      {/* Revisar pedido por proveedor: TODOS los proveedores activos, no
+          solo los que el sistema detecta con stock crítico ahora mismo. */}
+      <div className="card revisar-pedido-proveedores">
+        <h3>🧾 Revisar pedido por proveedor</h3>
+        {proveedores.length === 0 ? (
+          <p className="sin-alertas">
+            No hay proveedores registrados. Ve a <strong>Proveedores</strong> para agregar uno.
+          </p>
+        ) : (
+          <div className="proveedores-revisar-grid">
+            {proveedores.map(proveedor => (
+              <div key={proveedor.id} className="proveedor-revisar-card">
+                <span className="proveedor-revisar-nombre">{proveedor.nombre}</span>
+                <button
+                  onClick={() => revisarPedidoProveedor(proveedor.id)}
+                  className="btn-revisar-pedido"
+                >
+                  🧾 Revisar pedido
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Sugerencia de pedido por proveedor específico */}
+      <div className="card sugerencia-pedido-proveedor" ref={sugerenciaPedidoRef}>
+        <h3>🧮 Sugerencia de Pedido por Proveedor</h3>
+        <p className="sugerencia-descripcion">
+          Calcula cuánto pedir de cada producto asociado a un proveedor, según el promedio de ventas y su tiempo de entrega.
+        </p>
+
+        <div className="sugerencia-controles">
+          <div className="form-group">
+            <label>Proveedor</label>
+            <select
+              value={proveedorSugerenciaId}
+              onChange={(e) => {
+                setProveedorSugerenciaId(e.target.value);
+                setSugerenciaPedido([]);
+                setSugerenciaConsultada(false);
+              }}
+            >
+              <option value="">Seleccionar proveedor...</option>
+              {proveedores.map(proveedor => (
+                <option key={proveedor.id} value={proveedor.id}>{proveedor.nombre}</option>
+              ))}
+            </select>
+          </div>
+          <div className="form-group">
+            <label>Basado en ventas de los últimos {diasHistorial || 30} días</label>
+            <input
+              type="number"
+              min="1"
+              value={diasHistorial}
+              onChange={(e) => setDiasHistorial(e.target.value)}
+            />
+          </div>
+          <button
+            onClick={calcularSugerenciaPedido}
+            className="btn-calcular-sugerencia"
+            disabled={!proveedorSugerenciaId || cargandoSugerencia}
+          >
+            {cargandoSugerencia ? '⏳ Calculando...' : '🧮 Calcular sugerencia'}
+          </button>
+        </div>
+
+        {sugerenciaConsultada && (
+          sugerenciaPedido.length === 0 ? (
+            <p className="sin-alertas">
+              Este proveedor no tiene productos asociados. Ve a <strong>Proveedores</strong> para asociar productos antes de calcular una sugerencia.
+            </p>
+          ) : (
+            <>
+              <table className="tabla-sugerencia-pedido">
+                <thead>
+                  <tr>
+                    <th></th>
+                    <th>Producto</th>
+                    <th>Stock actual</th>
+                    <th>Promedio diario</th>
+                    <th>Cantidad sugerida</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sugerenciaPedido.map(item => (
+                    <tr key={item.producto_id}>
+                      <td>
+                        <input
+                          type="checkbox"
+                          checked={item.incluido}
+                          onChange={() => toggleIncluidoSugerencia(item.producto_id)}
+                        />
+                      </td>
+                      <td>{item.nombre}</td>
+                      <td>{item.stock_actual}</td>
+                      <td>{item.promedioDiario.toFixed(1)} uds/día</td>
+                      <td>
+                        <input
+                          type="number"
+                          min="0"
+                          value={item.cantidadEditada}
+                          onChange={(e) => actualizarCantidadSugerencia(item.producto_id, e.target.value)}
+                          className="input-cantidad-sugerida"
+                        />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <button onClick={enviarSugerenciaPorWhatsApp} className="btn-pedir-todo">
+                📤 Enviar por WhatsApp
+              </button>
+            </>
+          )
+        )}
       </div>
 
       <div className="filtros-pedidos">

@@ -83,7 +83,6 @@ const Dashboard = ({ user, onLogout }) => {
       { path: '/productos', icon: '📦', label: 'Productos' },
       { path: '/estadisticas', icon: '📊', label: 'Estadísticas' },
       { path: '/reportes', icon: '📄', label: 'Reportes' },
-      { path: '/inventario', icon: '📋', label: 'Gestión Inventario' },
       { path: '/proveedores', icon: '🤝', label: 'Proveedores' },      // ✅ NUEVO
       { path: '/pedidos', icon: '📦', label: 'Pedidos' },              // ✅ NUEVO
       { path: '/clientes', icon: '👤', label: 'Clientes' },            // ✅ NUEVO
