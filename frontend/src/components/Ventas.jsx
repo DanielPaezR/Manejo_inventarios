@@ -4,33 +4,71 @@ import { useModulo } from '../hooks/useModulo';
 import { Html5Qrcode } from 'html5-qrcode';
 import './Ventas.css';
 
+const clienteVacio = () => ({ nombre: '', documento: '', direccion: '', telefono: '' });
+
+const crearCuentaVacia = (id, nombre) => ({
+  id,
+  nombre,
+  carrito: [],
+  cliente: clienteVacio(),
+  clienteSeleccionado: null,
+  metodoPago: 'efectivo'
+});
+
+// Se llama una sola vez, desde los inicializadores lazy de useState (nunca
+// en cada render). Si ya existe el formato nuevo ('cuentasActivas') lo usa
+// tal cual; si no, migra el formato viejo (carrito/cliente planos, una
+// sola cuenta) envolviéndolo en "Cuenta 1" para no perder nada que ya
+// estuviera en progreso.
+const resolverCuentasIniciales = () => {
+  try {
+    const savedCuentas = localStorage.getItem('cuentasActivas');
+    if (savedCuentas) {
+      const parsed = JSON.parse(savedCuentas);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    }
+  } catch (error) {
+    console.error('Error leyendo cuentas de localStorage:', error);
+  }
+
+  const cuenta = crearCuentaVacia('cuenta-1', 'Cuenta 1');
+  try {
+    const carritoViejo = localStorage.getItem('carrito');
+    if (carritoViejo) {
+      const parsedCarrito = JSON.parse(carritoViejo);
+      if (Array.isArray(parsedCarrito)) cuenta.carrito = parsedCarrito;
+    }
+    const clienteViejo = localStorage.getItem('cliente');
+    if (clienteViejo) {
+      const parsedCliente = JSON.parse(clienteViejo);
+      if (parsedCliente && typeof parsedCliente === 'object') cuenta.cliente = parsedCliente;
+    }
+  } catch (error) {
+    console.error('Error migrando carrito/cliente del formato anterior:', error);
+  }
+  return [cuenta];
+};
 
 const Ventas = ({ user }) => {
   const { moduloActivo } = useModulo();
   const [productos, setProductos] = useState([]);
-  const [carrito, setCarrito] = useState(() => {
-    // Recuperar carrito del localStorage al iniciar. Si quedó corrupto
-    // (escritura interrumpida, edición manual), no debe tumbar el render.
+  // Varias "cuentas" (mesas/personas) en simultáneo, cada una con su propio
+  // carrito/cliente/método de pago. Ver crearCuentaVacia y
+  // resolverCuentasIniciales.
+  const [cuentas, setCuentas] = useState(() => resolverCuentasIniciales());
+  const [cuentaActivaId, setCuentaActivaId] = useState(() => {
+    const inicial = resolverCuentasIniciales();
     try {
-      const saved = localStorage.getItem('carrito');
-      return saved ? JSON.parse(saved) : [];
+      const saved = localStorage.getItem('cuentaActivaId');
+      if (saved && inicial.some(c => c.id === saved)) return saved;
     } catch (error) {
-      console.error('Error leyendo carrito de localStorage:', error);
-      return [];
+      console.error('Error leyendo cuentaActivaId de localStorage:', error);
     }
+    return inicial[0]?.id || 'cuenta-1';
   });
+  const [cuentaEditandoId, setCuentaEditandoId] = useState(null);
+  const [nombreEditando, setNombreEditando] = useState('');
   const [busqueda, setBusqueda] = useState('');
-  const [cliente, setCliente] = useState(() => {
-    const clienteVacio = { nombre: '', documento: '', direccion: '', telefono: '' };
-    try {
-      const saved = localStorage.getItem('cliente');
-      return saved ? JSON.parse(saved) : clienteVacio;
-    } catch (error) {
-      console.error('Error leyendo cliente de localStorage:', error);
-      return clienteVacio;
-    }
-  });
-  const [metodoPago, setMetodoPago] = useState('efectivo');
   const [loading, setLoading] = useState(false);
   const [mostrarFactura, setMostrarFactura] = useState(false);
   const [facturaData, setFacturaData] = useState(null);
@@ -38,7 +76,6 @@ const Ventas = ({ user }) => {
   const [scannerActivo, setScannerActivo] = useState(false);
   const [error, setError] = useState(null);
   const [scanToast, setScanToast] = useState(null); // { nombre, cantidad }
-  const [clienteSeleccionado, setClienteSeleccionado] = useState(null);
   const [clienteResultados, setClienteResultados] = useState([]);
   const [buscandoCliente, setBuscandoCliente] = useState(false);
   const [mostrarResultadosCliente, setMostrarResultadosCliente] = useState(false);
@@ -66,16 +103,50 @@ const Ventas = ({ user }) => {
   // Último código leído por la cámara + cuándo, para ignorar relecturas
   // del mismo código mientras el usuario sigue apuntando al producto.
   const ultimoEscaneoRef = useRef({ codigo: null, timestamp: 0 });
-
-  // Guardar carrito en localStorage cuando cambie
+  // Siempre refleja el cuentaActivaId más reciente, incluso dentro de
+  // closures viejos (ej. buscarPorEAN tiene deps [] y nunca se vuelve a
+  // crear) — así agregarAlCarrito/eliminarDelCarrito/cambiarCantidad
+  // pueden mantener sus mismos deps de siempre y seguir operando sobre la
+  // cuenta activa REAL en vez de una capturada al montar.
+  const cuentaActivaIdRef = useRef(cuentaActivaId);
   useEffect(() => {
-    localStorage.setItem('carrito', JSON.stringify(carrito));
-  }, [carrito]);
+    cuentaActivaIdRef.current = cuentaActivaId;
+  }, [cuentaActivaId]);
+  // Numeración de "Mesa N" para cuentas nuevas: nunca reutiliza un número
+  // aunque se hayan cerrado cuentas antes (persiste en localStorage, no
+  // depende de cuántas cuentas hay abiertas ahora mismo).
+  const contadorMesaRef = useRef(null);
+  if (contadorMesaRef.current === null) {
+    try {
+      const saved = localStorage.getItem('mesaContador');
+      contadorMesaRef.current = saved ? parseInt(saved, 10) : 2;
+    } catch (error) {
+      contadorMesaRef.current = 2;
+    }
+  }
 
-  // Guardar cliente en localStorage cuando cambie
+  // Valores derivados de la cuenta activa: el resto del componente sigue
+  // leyendo/escribiendo carrito/cliente/clienteSeleccionado/metodoPago
+  // exactamente igual que antes, solo que ahora viven dentro de `cuentas`.
+  const cuentaActiva = cuentas.find(c => c.id === cuentaActivaId);
+  const carrito = cuentaActiva?.carrito || [];
+  const cliente = cuentaActiva?.cliente || clienteVacio();
+  const clienteSeleccionado = cuentaActiva?.clienteSeleccionado || null;
+  const metodoPago = cuentaActiva?.metodoPago || 'efectivo';
+
+  const actualizarCuentaPorId = useCallback((id, cambios) => {
+    setCuentas(prev => prev.map(c => (c.id === id ? { ...c, ...cambios } : c)));
+  }, []);
+
+  const actualizarCuentaActiva = useCallback((cambios) => {
+    actualizarCuentaPorId(cuentaActivaId, cambios);
+  }, [cuentaActivaId, actualizarCuentaPorId]);
+
+  // Guardar cuentas + cuál está activa en localStorage cuando cambien
   useEffect(() => {
-    localStorage.setItem('cliente', JSON.stringify(cliente));
-  }, [cliente]);
+    localStorage.setItem('cuentasActivas', JSON.stringify(cuentas));
+    localStorage.setItem('cuentaActivaId', cuentaActivaId);
+  }, [cuentas, cuentaActivaId]);
 
   // Autocomplete de clientes: buscar con debounce mientras se escribe el
   // nombre, salvo que ya haya un cliente seleccionado (el texto entonces
@@ -159,8 +230,8 @@ const Ventas = ({ user }) => {
   useEffect(() => {
     if (moduloActivo) {
       cargarProductos();
-      // Limpiar carrito al cambiar de módulo (opcional)
-      // setCarrito([]);
+      // Limpiar cuentas al cambiar de módulo (opcional)
+      // setCuentas([crearCuentaVacia('cuenta-1', 'Cuenta 1')]);
     }
     return () => {
       // Limpiar scanner al desmontar
@@ -387,7 +458,9 @@ const Ventas = ({ user }) => {
     }
   }, [modoScanner, scannerActivo, iniciarCamara]);
 
-  // Agregar al carrito
+  // Agregar al carrito. Usa cuentaActivaIdRef (no el estado cuentaActivaId)
+  // para poder mantener deps [] igual que antes de las cuentas — así sigue
+  // siendo seguro llamarla desde closures viejos como buscarPorEAN.
   const agregarAlCarrito = useCallback((producto) => {
     if (producto.stock_actual <= 0) {
       setError(`❌ "${producto.nombre}" no tiene stock disponible`);
@@ -395,36 +468,48 @@ const Ventas = ({ user }) => {
       return;
     }
 
-    setCarrito(prev => {
-      const existe = prev.find(item => item.producto_id === producto.id);
+    setCuentas(prev => prev.map(c => {
+      if (c.id !== cuentaActivaIdRef.current) return c;
+
+      const existe = c.carrito.find(item => item.producto_id === producto.id);
       if (existe) {
         if (existe.cantidad >= producto.stock_actual) {
           setError(`⚠️ Stock insuficiente. Solo hay ${producto.stock_actual} unidades`);
-          return prev;
+          return c;
         }
-        return prev.map(item =>
-          item.producto_id === producto.id
-            ? { ...item, cantidad: item.cantidad + 1 }
-            : item
-        );
+        return {
+          ...c,
+          carrito: c.carrito.map(item =>
+            item.producto_id === producto.id
+              ? { ...item, cantidad: item.cantidad + 1 }
+              : item
+          )
+        };
       }
-      return [...prev, {
-        producto_id: producto.id,
-        nombre: producto.nombre,
-        precio_unitario: producto.precio_venta,
-        cantidad: 1,
-        stock_actual: producto.stock_actual,
-        codigo_ean: producto.codigo_ean
-      }];
-    });
-    
+      return {
+        ...c,
+        carrito: [...c.carrito, {
+          producto_id: producto.id,
+          nombre: producto.nombre,
+          precio_unitario: producto.precio_venta,
+          cantidad: 1,
+          stock_actual: producto.stock_actual,
+          codigo_ean: producto.codigo_ean
+        }]
+      };
+    }));
+
     // Limpiar error si existe
     setError(null);
   }, []);
 
   // Eliminar del carrito
   const eliminarDelCarrito = useCallback((productoId) => {
-    setCarrito(prev => prev.filter(item => item.producto_id !== productoId));
+    setCuentas(prev => prev.map(c =>
+      c.id === cuentaActivaIdRef.current
+        ? { ...c, carrito: c.carrito.filter(item => item.producto_id !== productoId) }
+        : c
+    ));
   }, []);
 
   // Cambiar cantidad
@@ -433,19 +518,24 @@ const Ventas = ({ user }) => {
       eliminarDelCarrito(productoId);
       return;
     }
-    
-    setCarrito(prev => {
-      const producto = prev.find(item => item.producto_id === productoId);
+
+    setCuentas(prev => prev.map(c => {
+      if (c.id !== cuentaActivaIdRef.current) return c;
+
+      const producto = c.carrito.find(item => item.producto_id === productoId);
       if (producto && cantidad > producto.stock_actual) {
         setError(`⚠️ Stock insuficiente. Solo hay ${producto.stock_actual} unidades`);
-        return prev;
+        return c;
       }
-      return prev.map(item =>
-        item.producto_id === productoId
-          ? { ...item, cantidad }
-          : item
-      );
-    });
+      return {
+        ...c,
+        carrito: c.carrito.map(item =>
+          item.producto_id === productoId
+            ? { ...item, cantidad }
+            : item
+        )
+      };
+    }));
   }, [eliminarDelCarrito]);
 
   // Atajo de teclado: F1 para activar scanner, Escape para limpiar
@@ -515,14 +605,22 @@ const Ventas = ({ user }) => {
       if (response.data) {
         setFacturaData(response.data);
         setMostrarFactura(true);
-        setCarrito([]);
-        setCliente({
-          nombre: '',
-          documento: '',
-          direccion: '',
-          telefono: ''
-        });
-        setClienteSeleccionado(null);
+
+        // Si es la única cuenta, se resetea en el mismo lugar (igual que
+        // antes). Si hay más, la cuenta que acaba de pagar se cierra (la
+        // "mesa" ya se liberó) y se cambia a otra cuenta existente.
+        if (cuentas.length <= 1) {
+          actualizarCuentaActiva({
+            carrito: [],
+            cliente: clienteVacio(),
+            clienteSeleccionado: null
+          });
+        } else {
+          const restantes = cuentas.filter(c => c.id !== cuentaActivaId);
+          setCuentas(restantes);
+          setCuentaActivaId(restantes[0].id);
+        }
+
         // Recargar productos para actualizar stock
         cargarProductos();
 
@@ -536,7 +634,7 @@ const Ventas = ({ user }) => {
     } finally {
       setLoading(false);
     }
-  }, [carrito, cliente, metodoPago, clienteSeleccionado, cargarProductos]);
+  }, [carrito, cliente, metodoPago, clienteSeleccionado, cargarProductos, cuentas, cuentaActivaId, actualizarCuentaActiva]);
 
   // Cerrar el modal de factura (siempre sigue a una venta exitosa, es lo
   // único que lo abre) y volver a la pestaña de productos en móvil, lista
@@ -549,27 +647,77 @@ const Ventas = ({ user }) => {
   // Limpiar todo
   const limpiarTodo = useCallback(() => {
     if (carrito.length > 0 && !confirm('¿Limpiar todo el carrito?')) return;
-    setCarrito([]);
+    actualizarCuentaActiva({ carrito: [] });
     setError(null);
     setBusqueda('');
-  }, [carrito]);
+  }, [carrito, actualizarCuentaActiva]);
+
+  // Nueva cuenta ("Mesa N", N incremental sin repetir) y la activa de una vez
+  const agregarCuenta = useCallback(() => {
+    const numero = contadorMesaRef.current;
+    contadorMesaRef.current += 1;
+    try {
+      localStorage.setItem('mesaContador', String(contadorMesaRef.current));
+    } catch (error) {
+      console.error('Error guardando el contador de mesas:', error);
+    }
+
+    const nuevaCuenta = crearCuentaVacia(`cuenta-${Date.now()}`, `Mesa ${numero}`);
+    setCuentas(prev => [...prev, nuevaCuenta]);
+    setCuentaActivaId(nuevaCuenta.id);
+  }, []);
+
+  // Cierra una cuenta (excepto si es la única que queda). Si tiene items
+  // sin procesar, pide confirmación antes. Si era la activa, cambia a la
+  // primera cuenta restante.
+  const cerrarCuenta = useCallback((id) => {
+    if (cuentas.length <= 1) return;
+
+    const cuenta = cuentas.find(c => c.id === id);
+    if (!cuenta) return;
+
+    if (cuenta.carrito.length > 0) {
+      if (!confirm('Esta cuenta tiene productos sin procesar, ¿cerrar de todas formas?')) return;
+    }
+
+    const restantes = cuentas.filter(c => c.id !== id);
+    setCuentas(restantes);
+    if (cuentaActivaId === id) {
+      setCuentaActivaId(restantes[0].id);
+    }
+  }, [cuentas, cuentaActivaId]);
+
+  const iniciarRenombreCuenta = useCallback((cuenta) => {
+    setCuentaEditandoId(cuenta.id);
+    setNombreEditando(cuenta.nombre);
+  }, []);
+
+  const confirmarRenombreCuenta = useCallback((id) => {
+    const nombreLimpio = nombreEditando.trim();
+    if (nombreLimpio) {
+      actualizarCuentaPorId(id, { nombre: nombreLimpio });
+    }
+    setCuentaEditandoId(null);
+  }, [nombreEditando, actualizarCuentaPorId]);
 
   // Seleccionar un cliente existente del autocomplete
   const seleccionarCliente = useCallback((clienteEncontrado) => {
-    setClienteSeleccionado(clienteEncontrado);
-    setCliente(prev => ({
-      ...prev,
-      nombre: clienteEncontrado.nombre,
-      documento: clienteEncontrado.cedula || ''
-    }));
+    actualizarCuentaActiva({
+      clienteSeleccionado: clienteEncontrado,
+      cliente: {
+        ...cliente,
+        nombre: clienteEncontrado.nombre,
+        documento: clienteEncontrado.cedula || ''
+      }
+    });
     setClienteResultados([]);
     setMostrarResultadosCliente(false);
     setErrorNumeroCliente('');
-  }, []);
+  }, [cliente, actualizarCuentaActiva]);
 
   const quitarClienteSeleccionado = useCallback(() => {
-    setClienteSeleccionado(null);
-  }, []);
+    actualizarCuentaActiva({ clienteSeleccionado: null });
+  }, [actualizarCuentaActiva]);
 
   const abrirNuevoCliente = useCallback(() => {
     setNuevoClienteForm({ nombre: cliente.nombre || '', cedula: '', telefono: '' });
@@ -784,7 +932,72 @@ const Ventas = ({ user }) => {
             Carrito
             <span className="carrito-count">({carrito.length} items)</span>
           </h3>
-          
+
+          {/* Cuentas (mesas/personas) en simultáneo */}
+          <div className="cuentas-tabs">
+            {cuentas.map(cuenta => (
+              <div
+                key={cuenta.id}
+                className={`cuenta-pill ${cuenta.id === cuentaActivaId ? 'active' : ''}`}
+                onClick={() => setCuentaActivaId(cuenta.id)}
+              >
+                {cuentaEditandoId === cuenta.id ? (
+                  <input
+                    type="text"
+                    value={nombreEditando}
+                    autoFocus
+                    onClick={(e) => e.stopPropagation()}
+                    onChange={(e) => setNombreEditando(e.target.value)}
+                    onBlur={() => confirmarRenombreCuenta(cuenta.id)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') confirmarRenombreCuenta(cuenta.id);
+                      if (e.key === 'Escape') setCuentaEditandoId(null);
+                    }}
+                    className="cuenta-pill-input"
+                  />
+                ) : (
+                  <span
+                    className="cuenta-pill-nombre"
+                    onDoubleClick={(e) => {
+                      e.stopPropagation();
+                      iniciarRenombreCuenta(cuenta);
+                    }}
+                  >
+                    {cuenta.nombre}
+                    {cuenta.carrito.length > 0 ? ` (${cuenta.carrito.length})` : ''}
+                  </span>
+                )}
+                <button
+                  type="button"
+                  className="cuenta-pill-editar"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    iniciarRenombreCuenta(cuenta);
+                  }}
+                  title="Renombrar"
+                >
+                  ✏️
+                </button>
+                {cuentas.length > 1 && (
+                  <button
+                    type="button"
+                    className="cuenta-pill-cerrar"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      cerrarCuenta(cuenta.id);
+                    }}
+                    title="Cerrar cuenta"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+            ))}
+            <button type="button" className="cuenta-pill-nueva" onClick={agregarCuenta}>
+              + Nueva
+            </button>
+          </div>
+
           {/* Datos del cliente */}
           <div className="cliente-form">
             <div className="cliente-busqueda-wrapper">
@@ -793,8 +1006,10 @@ const Ventas = ({ user }) => {
                 placeholder="Buscar o escribir nombre del cliente"
                 value={cliente.nombre}
                 onChange={(e) => {
-                  if (clienteSeleccionado) setClienteSeleccionado(null);
-                  setCliente({ ...cliente, nombre: e.target.value });
+                  actualizarCuentaActiva({
+                    cliente: { ...cliente, nombre: e.target.value },
+                    ...(clienteSeleccionado ? { clienteSeleccionado: null } : {})
+                  });
                 }}
                 className="cliente-input"
                 autoComplete="off"
@@ -855,7 +1070,7 @@ const Ventas = ({ user }) => {
               type="text"
               placeholder="Documento"
               value={cliente.documento}
-              onChange={(e) => setCliente({ ...cliente, documento: e.target.value })}
+              onChange={(e) => actualizarCuentaActiva({ cliente: { ...cliente, documento: e.target.value } })}
               className="cliente-input"
             />
           </div>
@@ -921,7 +1136,7 @@ const Ventas = ({ user }) => {
                 <label>💳 Método de pago:</label>
                 <select
                   value={metodoPago}
-                  onChange={(e) => setMetodoPago(e.target.value)}
+                  onChange={(e) => actualizarCuentaActiva({ metodoPago: e.target.value })}
                 >
                   <option value="efectivo">💵 Efectivo</option>
                   <option value="tarjeta">💳 Tarjeta</option>

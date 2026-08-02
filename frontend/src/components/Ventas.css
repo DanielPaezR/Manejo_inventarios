@@ -482,6 +482,86 @@
   font-weight: 400;
 }
 
+/* Cuentas (mesas/personas) en simultáneo */
+.cuentas-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.cuenta-pill {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 10px;
+  background: #f7fafc;
+  border: 2px solid #e2e8f0;
+  border-radius: 20px;
+  font-size: 13px;
+  color: #4a5568;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.cuenta-pill:hover {
+  border-color: #cbd5e0;
+}
+
+.cuenta-pill.active {
+  background: #ebf8ff;
+  border-color: #4299e1;
+  color: #2b6cb0;
+  font-weight: 600;
+}
+
+.cuenta-pill-nombre {
+  white-space: nowrap;
+}
+
+.cuenta-pill-input {
+  width: 90px;
+  padding: 2px 6px;
+  border: 1px solid #4299e1;
+  border-radius: 6px;
+  font-size: 13px;
+}
+
+.cuenta-pill-editar,
+.cuenta-pill-cerrar {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 11px;
+  padding: 2px 4px;
+  border-radius: 4px;
+  color: inherit;
+  opacity: 0.6;
+  transition: opacity 0.2s;
+}
+
+.cuenta-pill-editar:hover,
+.cuenta-pill-cerrar:hover {
+  opacity: 1;
+}
+
+.cuenta-pill-nueva {
+  padding: 6px 14px;
+  background: white;
+  border: 2px dashed #cbd5e0;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #4299e1;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.cuenta-pill-nueva:hover {
+  border-color: #4299e1;
+  background: #ebf8ff;
+}
+
 /* Cliente form */
 .cliente-form {
   display: grid;
