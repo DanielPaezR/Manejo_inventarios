@@ -63,6 +63,9 @@ const Ventas = ({ user }) => {
   const scanToastTimeoutRef = useRef(null);
   const searchTimeoutRef = useRef(null);
   const productosRequestIdRef = useRef(0);
+  // Último código leído por la cámara + cuándo, para ignorar relecturas
+  // del mismo código mientras el usuario sigue apuntando al producto.
+  const ultimoEscaneoRef = useRef({ codigo: null, timestamp: 0 });
 
   // Guardar carrito en localStorage cuando cambie
   useEffect(() => {
@@ -296,22 +299,19 @@ const Ventas = ({ user }) => {
     });
   }, []);
 
-  // Iniciar escaneo con cámara
-  const iniciarScanner = useCallback(() => {
-    if (!modoScanner) {
-      setModoScanner(true);
-      return;
-    }
+  // Cuánto esperar antes de aceptar una relectura del MISMO código. Sin esto,
+  // a fps:10 la cámara puede disparar el callback de éxito varias veces por
+  // segundo mientras el usuario sigue apuntando al mismo producto, agregando
+  // varias unidades de golpe. Un código distinto sí se procesa de inmediato.
+  const COOLDOWN_ESCANEO_MS = 2000;
 
-    // Si ya está activo, desactivar
-    if (scannerActivo) {
-      cerrarScanner();
-      return;
-    }
+  // Arranca la cámara. Requiere que #scanner-container ya exista en el DOM
+  // (se renderiza en cuanto modoScanner es true), por eso se dispara desde
+  // el useEffect de más abajo en vez de desde el mismo click que activa
+  // modoScanner.
+  const iniciarCamara = useCallback(() => {
+    if (scannerRef.current) return; // ya está iniciando/iniciado
 
-    // Iniciar scanner. El elemento #scanner-container debe existir en el DOM
-    // en este punto; si la instanciación falla, mostramos el mismo error que
-    // el .catch() de abajo en vez de fallar silenciosamente.
     let html5QrCode;
     try {
       const contenedor = document.getElementById('scanner-container');
@@ -337,14 +337,14 @@ const Ventas = ({ user }) => {
       { facingMode: "environment" },
       config,
       (decodedText) => {
-        // Éxito: código escaneado
+        const ahora = Date.now();
+        const ultimo = ultimoEscaneoRef.current;
+        if (decodedText === ultimo.codigo && (ahora - ultimo.timestamp) < COOLDOWN_ESCANEO_MS) {
+          return; // mismo código leído hace poco, ignorar relectura
+        }
+        ultimoEscaneoRef.current = { codigo: decodedText, timestamp: ahora };
         buscarPorEAN(decodedText);
-        // Vibrar para feedback
         if (navigator.vibrate) navigator.vibrate(50);
-        // Opcional: detener scanner después de escanear
-        // html5QrCode.stop();
-        // setScannerActivo(false);
-        // setModoScanner(false);
       },
       (errorMessage) => {
         // Error al escanear (ignorar, es normal)
@@ -355,9 +355,37 @@ const Ventas = ({ user }) => {
     }).catch((err) => {
       console.error('Error iniciando scanner:', err);
       setError('❌ No se pudo acceder a la cámara. Verifica los permisos.');
+      scannerRef.current = null;
       setModoScanner(false);
     });
-  }, [modoScanner, scannerActivo, buscarPorEAN, cerrarScanner]);
+  }, [buscarPorEAN]);
+
+  // Activar/desactivar el modo scanner con un solo click: activarlo ya
+  // dispara la cámara automáticamente (vía el useEffect de abajo), sin el
+  // paso intermedio de un botón "Iniciar Cámara".
+  const iniciarScanner = useCallback(() => {
+    if (!modoScanner) {
+      setModoScanner(true);
+      return;
+    }
+
+    if (scannerActivo) {
+      cerrarScanner();
+      return;
+    }
+
+    // modoScanner ya estaba activo pero la cámara no llegó a arrancar
+    // (ej. reintento manual tras un error de permisos)
+    iniciarCamara();
+  }, [modoScanner, scannerActivo, cerrarScanner, iniciarCamara]);
+
+  // Dispara automáticamente el arranque de la cámara en cuanto modoScanner
+  // pasa a true y #scanner-container ya está montado en el DOM.
+  useEffect(() => {
+    if (modoScanner && !scannerActivo && !scannerRef.current) {
+      iniciarCamara();
+    }
+  }, [modoScanner, scannerActivo, iniciarCamara]);
 
   // Agregar al carrito
   const agregarAlCarrito = useCallback((producto) => {
@@ -658,12 +686,9 @@ const Ventas = ({ user }) => {
 
         {modoScanner && (
           <div className="scanner-info">
-            💡 Modo scanner activo. Apunta la cámara al código de barras.
-            {!scannerActivo && (
-              <button onClick={iniciarScanner} className="btn-iniciar-camara">
-                📷 Iniciar Cámara
-              </button>
-            )}
+            {scannerActivo
+              ? '💡 Modo scanner activo. Apunta la cámara al código de barras.'
+              : '📷 Iniciando cámara...'}
           </div>
         )}
       </div>

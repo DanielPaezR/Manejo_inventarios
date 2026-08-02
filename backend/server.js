@@ -1740,8 +1740,7 @@ app.put('/api/proveedores/:id', authenticateToken, checkAccess, requireAdmin, as
            email = $4,
            direccion = $5,
            activo = COALESCE($6, activo),
-           dias_entrega = $7,
-           fecha_actualizacion = NOW()
+           dias_entrega = $7
        WHERE id = $8 AND negocio_id = $9
        RETURNING *`,
       [nombre, contacto, telefono, email, direccion, activo, diasEntregaValor, id, negocioId]
@@ -1871,6 +1870,137 @@ app.get('/api/proveedores/:id/sugerencia-pedido', authenticateToken, checkAccess
   }
 });
 
+// Detalle completo de los productos activos asociados a un proveedor
+// (nombre, EAN, precio del producto y los datos propios de la asociación).
+app.get('/api/proveedores/:id/productos-asociados', authenticateToken, checkAccess, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const negocioId = req.negocioId;
+    const moduloId = req.moduloId;
+
+    if (!moduloId) {
+      return res.status(400).json({ error: 'Se requiere un módulo' });
+    }
+
+    const proveedorResult = await pool.query(
+      'SELECT id FROM proveedores WHERE id = $1 AND negocio_id = $2 AND activo = true',
+      [id, negocioId]
+    );
+
+    if (proveedorResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Proveedor no encontrado' });
+    }
+
+    const result = await pool.query(
+      `SELECT p.id, p.nombre, p.codigo_ean, p.precio_compra as precio_compra_producto,
+              pp.precio_compra, pp.tiempo_entrega_dias, pp.cantidad_minima_pedido
+       FROM producto_proveedor pp
+       JOIN productos p ON pp.producto_id = p.id
+       WHERE pp.proveedor_id = $1 AND pp.activo = true AND p.modulo_id = $2
+       ORDER BY p.nombre`,
+      [id, moduloId]
+    );
+
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error obteniendo productos asociados al proveedor:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// Asociar varios productos de una sola vez con un proveedor. Mismo upsert
+// que la ruta individual de abajo, pero en lote y dentro de una única
+// transacción: si algo falla, no queda la mitad asociada.
+app.post('/api/proveedores/:id/productos-bulk', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+  const client = await pool.connect();
+
+  try {
+    await client.query('BEGIN');
+
+    const { id } = req.params;
+    const negocioId = req.negocioId;
+    const moduloId = req.moduloId;
+    const { productos } = req.body;
+
+    if (!moduloId) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'Se requiere un módulo' });
+    }
+
+    if (!Array.isArray(productos) || productos.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'Se requiere un arreglo de productos' });
+    }
+
+    const proveedorResult = await client.query(
+      'SELECT id, dias_entrega FROM proveedores WHERE id = $1 AND negocio_id = $2 AND activo = true',
+      [id, negocioId]
+    );
+
+    if (proveedorResult.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Proveedor no encontrado' });
+    }
+
+    const proveedor = proveedorResult.rows[0];
+
+    for (const item of productos) {
+      const { producto_id } = item;
+
+      if (!producto_id) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: 'Cada producto requiere producto_id' });
+      }
+
+      // Cada producto debe pertenecer al mismo módulo/negocio que está
+      // gestionando el proveedor (evita asociar productos ajenos).
+      const productoResult = await client.query(
+        'SELECT id, precio_compra FROM productos WHERE id = $1 AND modulo_id = $2 AND activo = true',
+        [producto_id, moduloId]
+      );
+
+      if (productoResult.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return res.status(404).json({ error: `Producto ${producto_id} no encontrado` });
+      }
+
+      const producto = productoResult.rows[0];
+
+      let precioCompra = Number(item.precio_compra);
+      if (!Number.isFinite(precioCompra) || precioCompra < 0) {
+        precioCompra = producto.precio_compra;
+      }
+
+      let tiempoEntregaDias = parseInt(item.tiempo_entrega_dias, 10);
+      if (!Number.isFinite(tiempoEntregaDias) || tiempoEntregaDias <= 0) {
+        tiempoEntregaDias = proveedor.dias_entrega || 3;
+      }
+
+      let cantidadMinimaPedido = parseInt(item.cantidad_minima_pedido, 10);
+      if (!Number.isFinite(cantidadMinimaPedido) || cantidadMinimaPedido <= 0) {
+        cantidadMinimaPedido = 1;
+      }
+
+      await client.query(
+        `INSERT INTO producto_proveedor (producto_id, proveedor_id, precio_compra, tiempo_entrega_dias, cantidad_minima_pedido)
+         VALUES ($1, $2, $3, $4, $5)
+         ON CONFLICT (producto_id, proveedor_id)
+         DO UPDATE SET precio_compra = $3, tiempo_entrega_dias = $4, cantidad_minima_pedido = $5, activo = true`,
+        [producto_id, id, precioCompra, tiempoEntregaDias, cantidadMinimaPedido]
+      );
+    }
+
+    await client.query('COMMIT');
+    res.json({ asociados: productos.length });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Error asociando productos en lote:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  } finally {
+    client.release();
+  }
+});
+
 // ==================== RUTAS DE PRODUCTO-PROVEEDOR ====================
 
 // Asociar producto con proveedor
@@ -1914,6 +2044,33 @@ app.post('/api/productos/:productoId/proveedores/:proveedorId', authenticateToke
     res.status(201).json(result.rows[0]);
   } catch (error) {
     console.error('Error asociando producto con proveedor:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// Desasociar producto de proveedor (soft delete, igual que el resto de la app)
+app.delete('/api/productos/:productoId/proveedores/:proveedorId', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+  try {
+    const { productoId, proveedorId } = req.params;
+    const negocioId = req.negocioId;
+
+    const proveedorResult = await pool.query(
+      'SELECT id FROM proveedores WHERE id = $1 AND negocio_id = $2 AND activo = true',
+      [proveedorId, negocioId]
+    );
+
+    if (proveedorResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Proveedor no encontrado' });
+    }
+
+    await pool.query(
+      'UPDATE producto_proveedor SET activo = false WHERE producto_id = $1 AND proveedor_id = $2',
+      [productoId, proveedorId]
+    );
+
+    res.json({ message: 'Producto desasociado correctamente' });
+  } catch (error) {
+    console.error('Error desasociando producto de proveedor:', error);
     res.status(500).json({ error: 'Error interno del servidor' });
   }
 });
