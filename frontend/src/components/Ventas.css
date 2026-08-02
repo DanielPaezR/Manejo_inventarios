@@ -424,7 +424,7 @@
   display: block;
 }
 
-.btn-agregar {
+.btn-agregar-carrito-item {
   position: absolute;
   bottom: 10px;
   right: 10px;
@@ -443,12 +443,12 @@
   justify-content: center;
 }
 
-.btn-agregar:hover:not(:disabled) {
+.btn-agregar-carrito-item:hover:not(:disabled) {
   background: #3182ce;
   transform: scale(1.1);
 }
 
-.btn-agregar:disabled {
+.btn-agregar-carrito-item:disabled {
   background: #a0aec0;
   cursor: not-allowed;
 }
@@ -1216,7 +1216,7 @@
     font-size: 14px;
   }
 
-  .btn-agregar {
+  .btn-agregar-carrito-item {
     width: 28px;
     height: 28px;
     font-size: 16px;

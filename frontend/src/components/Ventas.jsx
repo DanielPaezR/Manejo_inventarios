@@ -766,8 +766,8 @@ const Ventas = ({ user }) => {
                       <small className="producto-ean">📷 {producto.codigo_ean}</small>
                     )}
                   </div>
-                  <button 
-                    className="btn-agregar"
+                  <button
+                    className="btn-agregar-carrito-item"
                     disabled={producto.stock_actual <= 0}
                   >
                     {producto.stock_actual > 0 ? '+' : '🚫'}

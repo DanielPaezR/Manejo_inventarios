@@ -2344,6 +2344,120 @@ app.put('/api/pedidos/:id/estado', authenticateToken, checkAccess, requireAdmin,
   }
 });
 
+// ==================== RUTAS DE CATEGORÍAS DE GASTO ====================
+// Clasificación propia para egresos manuales (distinta del campo de texto
+// libre movimientos_caja.categoria, que sigue usándose tal cual, incluyendo
+// el marcador 'abono_credito').
+
+app.get('/api/categorias-gasto', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+  try {
+    const negocioId = req.negocioId;
+
+    if (!negocioId) {
+      return res.status(400).json({ error: 'Negocio no identificado' });
+    }
+
+    const result = await pool.query(
+      'SELECT * FROM categorias_gasto WHERE negocio_id = $1 AND activo = true ORDER BY nombre',
+      [negocioId]
+    );
+
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error obteniendo categorías de gasto:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+app.post('/api/categorias-gasto', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+  try {
+    const negocioId = req.negocioId;
+    const { nombre } = req.body;
+
+    if (!negocioId) {
+      return res.status(400).json({ error: 'Negocio no identificado' });
+    }
+
+    if (!nombre || !nombre.trim()) {
+      return res.status(400).json({ error: 'El nombre es requerido' });
+    }
+
+    // El UNIQUE(negocio_id, nombre) de la tabla incluye las inactivas, así
+    // que validamos antes para responder con un mensaje claro en vez del
+    // error crudo del constraint.
+    const existente = await pool.query(
+      'SELECT id FROM categorias_gasto WHERE negocio_id = $1 AND nombre = $2',
+      [negocioId, nombre.trim()]
+    );
+    if (existente.rows.length > 0) {
+      return res.status(400).json({ error: 'Ya existe una categoría de gasto con ese nombre' });
+    }
+
+    const result = await pool.query(
+      'INSERT INTO categorias_gasto (negocio_id, nombre) VALUES ($1, $2) RETURNING *',
+      [negocioId, nombre.trim()]
+    );
+
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error('Error creando categoría de gasto:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+app.put('/api/categorias-gasto/:id', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const negocioId = req.negocioId;
+    const { nombre } = req.body;
+
+    if (!nombre || !nombre.trim()) {
+      return res.status(400).json({ error: 'El nombre es requerido' });
+    }
+
+    const existente = await pool.query(
+      'SELECT id FROM categorias_gasto WHERE negocio_id = $1 AND nombre = $2 AND id != $3',
+      [negocioId, nombre.trim(), id]
+    );
+    if (existente.rows.length > 0) {
+      return res.status(400).json({ error: 'Ya existe una categoría de gasto con ese nombre' });
+    }
+
+    const result = await pool.query(
+      'UPDATE categorias_gasto SET nombre = $1 WHERE id = $2 AND negocio_id = $3 RETURNING *',
+      [nombre.trim(), id, negocioId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Categoría de gasto no encontrada' });
+    }
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error actualizando categoría de gasto:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// Soft delete: los movimientos_caja que ya la usan conservan su
+// categoria_gasto_id, solo deja de ofrecerse para nuevos registros.
+app.delete('/api/categorias-gasto/:id', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const negocioId = req.negocioId;
+
+    await pool.query(
+      'UPDATE categorias_gasto SET activo = false WHERE id = $1 AND negocio_id = $2',
+      [id, negocioId]
+    );
+
+    res.json({ message: 'Categoría de gasto eliminada correctamente' });
+  } catch (error) {
+    console.error('Error eliminando categoría de gasto:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
 // ==================== RUTAS DE FINANZAS ====================
 // Caja del negocio completo (no por módulo). Los ingresos por venta se
 // insertan automáticamente dentro de la transacción de POST /api/ventas
@@ -2359,7 +2473,7 @@ app.post('/api/finanzas/movimientos', authenticateToken, checkAccess, requireAdm
   try {
     const negocioId = req.negocioId;
     const usuarioId = req.user.id;
-    const { tipo, monto, concepto, categoria, pedido_id } = req.body;
+    const { tipo, monto, concepto, categoria, pedido_id, categoria_gasto_id } = req.body;
 
     if (!negocioId) {
       return res.status(400).json({ error: 'Negocio no identificado' });
@@ -2419,12 +2533,31 @@ app.post('/api/finanzas/movimientos', authenticateToken, checkAccess, requireAdm
       origen = 'pedido';
     }
 
+    // categoria_gasto_id es independiente de pedido_id: un egreso puede
+    // tener uno, otro, ambos o ninguno.
+    let categoriaGastoIdValida = null;
+    if (categoria_gasto_id !== undefined && categoria_gasto_id !== null && categoria_gasto_id !== '') {
+      if (tipo !== 'egreso') {
+        return res.status(400).json({ error: 'categoria_gasto_id solo puede vincularse a un movimiento de tipo egreso' });
+      }
+
+      const categoriaResult = await pool.query(
+        'SELECT id FROM categorias_gasto WHERE id = $1 AND negocio_id = $2',
+        [categoria_gasto_id, negocioId]
+      );
+      if (categoriaResult.rows.length === 0) {
+        return res.status(404).json({ error: 'Categoría de gasto no encontrada' });
+      }
+
+      categoriaGastoIdValida = categoria_gasto_id;
+    }
+
     const result = await pool.query(
       `INSERT INTO movimientos_caja
-       (negocio_id, tipo, origen, monto, concepto, categoria, pedido_id, usuario_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       (negocio_id, tipo, origen, monto, concepto, categoria, pedido_id, usuario_id, categoria_gasto_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
        RETURNING *`,
-      [negocioId, tipo, origen, montoNum, concepto.trim(), categoria || null, origen === 'pedido' ? pedido_id : null, usuarioId]
+      [negocioId, tipo, origen, montoNum, concepto.trim(), categoria || null, origen === 'pedido' ? pedido_id : null, usuarioId, categoriaGastoIdValida]
     );
 
     res.status(201).json(result.rows[0]);
@@ -2483,9 +2616,10 @@ app.get('/api/finanzas/movimientos', authenticateToken, checkAccess, requireAdmi
     }
 
     const result = await pool.query(
-      `SELECT mc.*, u.nombre as usuario_nombre
+      `SELECT mc.*, u.nombre as usuario_nombre, cg.nombre as categoria_gasto_nombre
        FROM movimientos_caja mc
        LEFT JOIN usuarios u ON mc.usuario_id = u.id
+       LEFT JOIN categorias_gasto cg ON mc.categoria_gasto_id = cg.id
        WHERE mc.negocio_id = $1
        ORDER BY mc.fecha DESC
        LIMIT $2`,
@@ -2526,6 +2660,132 @@ app.get('/api/finanzas/balance', authenticateToken, checkAccess, requireAdmin, a
     res.json(result.rows[0]);
   } catch (error) {
     console.error('Error obteniendo balance de caja:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// Resumen de ingresos/egresos de un período, para la pestaña "Ingresos y
+// Egresos" de Estadísticas. Misma resolución de fechas que GET
+// /api/estadisticas, pero sobre el negocio completo (movimientos_caja no
+// es por módulo).
+app.get('/api/finanzas/resumen-periodo', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+  try {
+    const negocioId = req.negocioId;
+    const { periodo, fecha_inicio, fecha_fin } = req.query;
+
+    if (!negocioId) {
+      return res.status(400).json({ error: 'Negocio no identificado' });
+    }
+
+    let startDate, endDate;
+
+    switch (periodo) {
+      case 'hoy':
+        startDate = moment().startOf('day').toDate();
+        endDate = moment().endOf('day').toDate();
+        break;
+      case 'semana':
+        startDate = moment().subtract(7, 'days').startOf('day').toDate();
+        endDate = moment().endOf('day').toDate();
+        break;
+      case 'mes':
+        startDate = moment().subtract(30, 'days').startOf('day').toDate();
+        endDate = moment().endOf('day').toDate();
+        break;
+      case 'personalizado':
+        if (!fecha_inicio || !fecha_fin) {
+          return res.status(400).json({ error: 'Para período personalizado se requieren fecha_inicio y fecha_fin' });
+        }
+        startDate = moment(fecha_inicio).startOf('day').toDate();
+        endDate = moment(fecha_fin).endOf('day').toDate();
+        break;
+      default:
+        startDate = moment().startOf('day').toDate();
+        endDate = moment().endOf('day').toDate();
+    }
+
+    const totales = await pool.query(
+      `SELECT
+          COALESCE(SUM(monto) FILTER (WHERE tipo IN ('ingreso', 'saldo_inicial')), 0) as total_ingresos,
+          COALESCE(SUM(monto) FILTER (WHERE tipo = 'egreso'), 0) as total_egresos
+       FROM movimientos_caja
+       WHERE negocio_id = $1 AND fecha BETWEEN $2 AND $3`,
+      [negocioId, startDate, endDate]
+    );
+
+    const totalIngresos = Number(totales.rows[0]?.total_ingresos || 0);
+    const totalEgresos = Number(totales.rows[0]?.total_egresos || 0);
+
+    // categoria_gasto_id tiene prioridad sobre origen = 'pedido': un egreso
+    // vinculado a un pedido TAMBIÉN puede tener una categoría de gasto
+    // asignada (son independientes), y de ser así se agrupa por categoría
+    // para que ningún egreso quede contado en más de un grupo.
+    const egresosPorCategoria = await pool.query(
+      `SELECT
+          CASE
+            WHEN mc.categoria_gasto_id IS NOT NULL THEN 'cat_' || mc.categoria_gasto_id::text
+            WHEN mc.origen = 'pedido' THEN 'pedido'
+            ELSE 'sin_categoria'
+          END as grupo_key,
+          CASE
+            WHEN mc.categoria_gasto_id IS NOT NULL THEN cg.nombre
+            WHEN mc.origen = 'pedido' THEN '📦 Pedidos a proveedor'
+            ELSE '🗂️ Sin categoría'
+          END as grupo_nombre,
+          SUM(mc.monto) as monto
+       FROM movimientos_caja mc
+       LEFT JOIN categorias_gasto cg ON mc.categoria_gasto_id = cg.id
+       WHERE mc.negocio_id = $1 AND mc.tipo = 'egreso' AND mc.fecha BETWEEN $2 AND $3
+       GROUP BY grupo_key, grupo_nombre
+       ORDER BY monto DESC`,
+      [negocioId, startDate, endDate]
+    );
+
+    // tipo = 'saldo_inicial' se evalúa primero para que nunca caiga en el
+    // grupo "Ingresos manuales" (ambos tienen origen = 'manual').
+    const ingresosPorOrigen = await pool.query(
+      `SELECT
+          CASE
+            WHEN mc.tipo = 'saldo_inicial' THEN 'saldo_inicial'
+            WHEN mc.origen = 'venta' THEN 'venta'
+            WHEN mc.origen = 'manual' AND mc.categoria = 'abono_credito' THEN 'abono'
+            ELSE 'manual'
+          END as grupo_key,
+          CASE
+            WHEN mc.tipo = 'saldo_inicial' THEN '🏦 Saldo inicial'
+            WHEN mc.origen = 'venta' THEN '🛒 Ventas'
+            WHEN mc.origen = 'manual' AND mc.categoria = 'abono_credito' THEN '💰 Abonos de clientes'
+            ELSE '✋ Ingresos manuales'
+          END as grupo_nombre,
+          SUM(mc.monto) as monto
+       FROM movimientos_caja mc
+       WHERE mc.negocio_id = $1 AND mc.tipo IN ('ingreso', 'saldo_inicial') AND mc.fecha BETWEEN $2 AND $3
+       GROUP BY grupo_key, grupo_nombre
+       ORDER BY monto DESC`,
+      [negocioId, startDate, endDate]
+    );
+
+    res.json({
+      total_ingresos: totalIngresos,
+      total_egresos: totalEgresos,
+      egresos_por_categoria: egresosPorCategoria.rows.map(r => ({
+        nombre: r.grupo_nombre,
+        monto: Number(r.monto),
+        porcentaje: totalEgresos > 0 ? (Number(r.monto) / totalEgresos) * 100 : 0
+      })),
+      ingresos_por_origen: ingresosPorOrigen.rows.map(r => ({
+        nombre: r.grupo_nombre,
+        monto: Number(r.monto),
+        porcentaje: totalIngresos > 0 ? (Number(r.monto) / totalIngresos) * 100 : 0
+      })),
+      periodoInfo: {
+        tipo: periodo || 'hoy',
+        fecha_inicio: moment(startDate).format('YYYY-MM-DD'),
+        fecha_fin: moment(endDate).format('YYYY-MM-DD')
+      }
+    });
+  } catch (error) {
+    console.error('Error obteniendo resumen financiero del período:', error);
     res.status(500).json({ error: 'Error interno del servidor' });
   }
 });

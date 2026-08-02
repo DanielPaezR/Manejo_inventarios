@@ -9,8 +9,10 @@ const Estadisticas = ({ user }) => {
   const [loading, setLoading] = useState(false);
   const [periodo, setPeriodo] = useState('hoy');
   const [fechas, setFechas] = useState({ inicio: '', fin: '' });
-  const [vistaActiva, setVistaActiva] = useState('general'); // 'general', 'productos', 'ventas', 'clientes'
+  const [vistaActiva, setVistaActiva] = useState('general'); // 'general', 'productos', 'ventas', 'finanzas'
   const [hoveredProducto, setHoveredProducto] = useState(null);
+  const [finanzasResumen, setFinanzasResumen] = useState(null);
+  const [loadingFinanzas, setLoadingFinanzas] = useState(false);
 
   // Cargar estadísticas
   const cargarEstadisticas = useCallback(async () => {
@@ -43,6 +45,40 @@ const Estadisticas = ({ user }) => {
       cargarEstadisticas();
     }
   }, [moduloActivo, periodo, cargarEstadisticas]);
+
+  // movimientos_caja es del negocio completo, no por módulo, pero se
+  // gatea igual por moduloActivo para ser consistente con el resto de la
+  // página. Reutiliza el mismo estado de periodo/fechas, se carga solo al
+  // entrar a la pestaña Finanzas (no en cada cambio de periodo si no está
+  // activa).
+  const cargarFinanzasResumen = useCallback(async () => {
+    try {
+      setLoadingFinanzas(true);
+
+      let params = { periodo };
+      if (periodo === 'personalizado') {
+        if (!fechas.inicio || !fechas.fin) {
+          setLoadingFinanzas(false);
+          return;
+        }
+        params.fecha_inicio = fechas.inicio;
+        params.fecha_fin = fechas.fin;
+      }
+
+      const response = await api.get('/finanzas/resumen-periodo', { params });
+      setFinanzasResumen(response.data);
+    } catch (error) {
+      console.error('Error cargando resumen financiero:', error);
+    } finally {
+      setLoadingFinanzas(false);
+    }
+  }, [periodo, fechas]);
+
+  useEffect(() => {
+    if (moduloActivo && vistaActiva === 'finanzas') {
+      cargarFinanzasResumen();
+    }
+  }, [moduloActivo, vistaActiva, periodo, cargarFinanzasResumen]);
 
   // Calcular métricas adicionales
   const metricasAvanzadas = useMemo(() => {
@@ -128,11 +164,17 @@ const Estadisticas = ({ user }) => {
           >
             📦 Productos
           </button>
-          <button 
+          <button
             className={`btn-vista ${vistaActiva === 'ventas' ? 'active' : ''}`}
             onClick={() => setVistaActiva('ventas')}
           >
             💰 Ventas
+          </button>
+          <button
+            className={`btn-vista ${vistaActiva === 'finanzas' ? 'active' : ''}`}
+            onClick={() => setVistaActiva('finanzas')}
+          >
+            💰 Ingresos y Egresos
           </button>
         </div>
       </div>
@@ -181,7 +223,13 @@ const Estadisticas = ({ user }) => {
               onChange={(e) => setFechas({ ...fechas, fin: e.target.value })}
               className="input-fecha"
             />
-            <button onClick={cargarEstadisticas} className="btn-aplicar">
+            <button
+              onClick={() => {
+                cargarEstadisticas();
+                if (vistaActiva === 'finanzas') cargarFinanzasResumen();
+              }}
+              className="btn-aplicar"
+            >
               ✅ Aplicar
             </button>
           </div>
@@ -551,6 +599,85 @@ const Estadisticas = ({ user }) => {
                   <p className="sin-datos">No hay ventas en este período</p>
                 )}
               </div>
+            </div>
+          )}
+
+          {/* ============================================================
+              VISTA DE FINANZAS (ingresos y egresos)
+              ============================================================ */}
+          {vistaActiva === 'finanzas' && (
+            <div className="estadisticas-grid">
+              {loadingFinanzas && !finanzasResumen ? (
+                <div className="loading-container">
+                  <div className="spinner"></div>
+                  <p>Cargando resumen financiero...</p>
+                </div>
+              ) : (
+                <>
+                  <div className="card finanzas-totales-card">
+                    <div className="finanzas-total-item ingreso">
+                      <span className="finanzas-total-label">💵 Total ingresos</span>
+                      <span className="finanzas-total-valor">{formatearMoneda(finanzasResumen?.total_ingresos)}</span>
+                    </div>
+                    <div className="finanzas-total-item egreso">
+                      <span className="finanzas-total-label">💸 Total egresos</span>
+                      <span className="finanzas-total-valor">{formatearMoneda(finanzasResumen?.total_egresos)}</span>
+                    </div>
+                  </div>
+
+                  <div className="card grafico-horizontal-card">
+                    <h3>📉 Egresos por categoría</h3>
+                    {finanzasResumen?.egresos_por_categoria?.length > 0 ? (
+                      <div className="barras-horizontales">
+                        {finanzasResumen.egresos_por_categoria.map((item, index) => (
+                          <div key={index} className="barra-horizontal-item">
+                            <div className="barra-horizontal-header">
+                              <span className="barra-horizontal-nombre">{item.nombre}</span>
+                              <span className="barra-horizontal-valor">
+                                {formatearMoneda(item.monto)} ({item.porcentaje.toFixed(1)}%)
+                              </span>
+                            </div>
+                            <div className="barra-horizontal-track">
+                              <div
+                                className="barra-horizontal-fill egreso"
+                                style={{ width: `${Math.max(2, item.porcentaje)}%` }}
+                              ></div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="sin-datos">No hay datos en este período</p>
+                    )}
+                  </div>
+
+                  <div className="card grafico-horizontal-card">
+                    <h3>📈 Ingresos por origen</h3>
+                    {finanzasResumen?.ingresos_por_origen?.length > 0 ? (
+                      <div className="barras-horizontales">
+                        {finanzasResumen.ingresos_por_origen.map((item, index) => (
+                          <div key={index} className="barra-horizontal-item">
+                            <div className="barra-horizontal-header">
+                              <span className="barra-horizontal-nombre">{item.nombre}</span>
+                              <span className="barra-horizontal-valor">
+                                {formatearMoneda(item.monto)} ({item.porcentaje.toFixed(1)}%)
+                              </span>
+                            </div>
+                            <div className="barra-horizontal-track">
+                              <div
+                                className="barra-horizontal-fill ingreso"
+                                style={{ width: `${Math.max(2, item.porcentaje)}%` }}
+                              ></div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="sin-datos">No hay datos en este período</p>
+                    )}
+                  </div>
+                </>
+              )}
             </div>
           )}
         </>

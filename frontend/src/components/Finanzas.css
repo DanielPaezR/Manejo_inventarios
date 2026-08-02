@@ -149,6 +149,106 @@
 }
 
 /* ============================================================
+   CATEGORÍAS DE GASTO
+   ============================================================ */
+.categorias-gasto-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: pointer;
+}
+
+.categorias-gasto-header h3 {
+  margin: 0;
+}
+
+.categorias-gasto-toggle {
+  color: #a0aec0;
+  font-size: 13px;
+}
+
+.categorias-gasto-body {
+  margin-top: 16px;
+}
+
+.categorias-gasto-lista {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+
+.categoria-gasto-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border: 1px solid #edf2f7;
+  border-radius: 8px;
+}
+
+.categoria-gasto-nombre {
+  flex: 1;
+  font-size: 14px;
+  color: #2d3748;
+}
+
+.categoria-gasto-item input {
+  flex: 1;
+  padding: 6px 10px;
+  border: 2px solid #4299e1;
+  border-radius: 6px;
+  font-size: 14px;
+}
+
+.btn-icono {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+  padding: 4px 6px;
+  border-radius: 6px;
+  transition: background 0.2s;
+}
+
+.btn-icono:hover {
+  background: #f7fafc;
+}
+
+.categoria-gasto-form {
+  display: flex;
+  gap: 10px;
+}
+
+.categoria-gasto-form input {
+  flex: 1;
+  padding: 8px 12px;
+  border: 2px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 14px;
+}
+
+.categoria-gasto-form input:focus {
+  outline: none;
+  border-color: #4299e1;
+  box-shadow: 0 0 0 4px rgba(66, 153, 225, 0.1);
+}
+
+.categoria-gasto-form .btn-guardar {
+  width: auto;
+  white-space: nowrap;
+  padding: 8px 20px;
+}
+
+.movimiento-categoria-gasto {
+  font-size: 12px;
+  color: #2b6cb0;
+  background: #ebf8ff;
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+
+/* ============================================================
    FORMULARIO
    ============================================================ */
 .finanzas-form .form-row {
@@ -335,5 +435,13 @@
 
   .movimiento-monto {
     text-align: right;
+  }
+
+  .categoria-gasto-form {
+    flex-direction: column;
+  }
+
+  .categoria-gasto-form .btn-guardar {
+    width: 100%;
   }
 }

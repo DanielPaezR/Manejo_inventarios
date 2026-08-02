@@ -711,6 +711,102 @@
 }
 
 /* ============================================================
+   VISTA DE FINANZAS
+   ============================================================ */
+.finanzas-totales-card {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
+.finanzas-total-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 20px;
+  border-radius: 12px;
+}
+
+.finanzas-total-item.ingreso {
+  background: #f0fff4;
+  border: 1px solid #c6f6d5;
+}
+
+.finanzas-total-item.egreso {
+  background: #fff5f5;
+  border: 1px solid #fed7d7;
+}
+
+.finanzas-total-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: #4a5568;
+}
+
+.finanzas-total-valor {
+  font-size: 28px;
+  font-weight: 700;
+  color: #2d3748;
+}
+
+.grafico-horizontal-card {
+  grid-column: 1 / -1;
+}
+
+.barras-horizontales {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.barra-horizontal-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.barra-horizontal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  font-size: 14px;
+}
+
+.barra-horizontal-nombre {
+  color: #2d3748;
+  font-weight: 600;
+}
+
+.barra-horizontal-valor {
+  color: #718096;
+  white-space: nowrap;
+}
+
+.barra-horizontal-track {
+  width: 100%;
+  height: 14px;
+  background: #f0f4f8;
+  border-radius: 7px;
+  overflow: hidden;
+}
+
+.barra-horizontal-fill {
+  height: 100%;
+  border-radius: 7px;
+  transition: width 0.6s ease;
+}
+
+.barra-horizontal-fill.ingreso {
+  background: linear-gradient(90deg, #48bb78, #38a169);
+}
+
+.barra-horizontal-fill.egreso {
+  background: linear-gradient(90deg, #fc8181, #e53e3e);
+}
+
+/* ============================================================
    UTILIDADES
    ============================================================ */
 .sin-datos {
@@ -855,6 +951,10 @@
 
   .periodo-detalles {
     grid-template-columns: 1fr 1fr;
+  }
+
+  .finanzas-totales-card {
+    grid-template-columns: 1fr;
   }
 
   .card {
