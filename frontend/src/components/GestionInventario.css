@@ -137,6 +137,49 @@
   font-weight: 600;
 }
 
+.proveedores-revisar-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px;
+}
+
+.proveedor-revisar-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 16px;
+  background: #f7fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+}
+
+.proveedor-revisar-nombre {
+  font-size: 14px;
+  font-weight: 600;
+  color: #2d3748;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.btn-revisar-pedido {
+  padding: 6px 12px;
+  background: #ebf8ff;
+  color: #2b6cb0;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 12px;
+  white-space: nowrap;
+  transition: all 0.2s ease;
+}
+
+.btn-revisar-pedido:hover {
+  background: #bee3f8;
+}
+
 .pedidos-grid {
   display: grid;
   gap: 16px;

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import api from '../services/api';
 import { useModulo } from '../hooks/useModulo';
 import './GestionInventario.css';
@@ -30,6 +30,7 @@ const GestionInventario = ({ user }) => {
   const [sugerenciaPedido, setSugerenciaPedido] = useState([]);
   const [sugerenciaConsultada, setSugerenciaConsultada] = useState(false);
   const [cargandoSugerencia, setCargandoSugerencia] = useState(false);
+  const sugerenciaPedidoRef = useRef(null);
 
   // Verificar permisos
   const puedeGestionar = user?.rol === 'admin' || user?.rol === 'super_admin';
@@ -184,7 +185,6 @@ const GestionInventario = ({ user }) => {
     const mensajeWhatsApp = encodeURIComponent(
       `📦 *PEDIDO DE REPOSICIÓN*\n\n` +
       `🔹 *Producto:* ${producto.nombre}\n` +
-      `🔹 *Código:* ${producto.codigo_ean || 'N/A'}\n` +
       `🔹 *Cantidad sugerida:* ${cantidadSugerida} unidades\n` +
       `🔹 *Stock actual:* ${producto.stock_actual} unidades\n` +
       `🔹 *Stock mínimo:* ${producto.stock_minimo} unidades\n` +
@@ -221,8 +221,7 @@ const GestionInventario = ({ user }) => {
     productosDelProveedor.forEach((item, index) => {
       mensaje += `${index + 1}. *${item.producto.nombre}*\n`;
       mensaje += `   Cantidad: ${item.cantidadSugerida} unidades\n`;
-      mensaje += `   Stock actual: ${item.producto.stock_actual}\n`;
-      mensaje += `   Código: ${item.producto.codigo_ean || 'N/A'}\n\n`;
+      mensaje += `   Stock actual: ${item.producto.stock_actual}\n\n`;
     });
 
     mensaje += `-------------------\n`;
@@ -237,16 +236,19 @@ const GestionInventario = ({ user }) => {
 
   // Sugerencia de pedido para un proveedor específico, basada en ventas
   // históricas y tiempo de entrega (complementaria a "Pedidos Sugeridos",
-  // que es por stock crítico).
-  const calcularSugerenciaPedido = async () => {
-    if (!proveedorSugerenciaId) {
+  // que es por stock crítico). Recibe el id explícito en vez de leerlo de
+  // proveedorSugerenciaId porque setProveedorSugerenciaId es asíncrono: si
+  // se llama justo después de seleccionarlo (ej. desde "Revisar pedido"),
+  // el estado todavía no se actualizó y se consultaría el proveedor viejo.
+  const calcularSugerenciaParaProveedor = async (idProveedor) => {
+    if (!idProveedor) {
       setMensaje('⚠️ Selecciona un proveedor');
       return;
     }
 
     try {
       setCargandoSugerencia(true);
-      const response = await api.get(`/proveedores/${proveedorSugerenciaId}/sugerencia-pedido`, {
+      const response = await api.get(`/proveedores/${idProveedor}/sugerencia-pedido`, {
         params: { dias_historial: diasHistorial || 30 }
       });
       setSugerenciaPedido(
@@ -263,6 +265,20 @@ const GestionInventario = ({ user }) => {
     } finally {
       setCargandoSugerencia(false);
     }
+  };
+
+  // Usada directamente por el botón "🧮 Calcular sugerencia" (sí lee el
+  // estado, porque ahí el usuario ya seleccionó el proveedor desde el
+  // select y el estado ya está al día para cuando hace click).
+  const calcularSugerenciaPedido = () => calcularSugerenciaParaProveedor(proveedorSugerenciaId);
+
+  // Atajo para "🧾 Revisar pedido": selecciona el proveedor, calcula su
+  // sugerencia y lleva al usuario directo a la tarjeta de revisión, sin
+  // que tenga que buscarla ni repetir la selección en el select de abajo.
+  const revisarPedidoProveedor = (proveedorId) => {
+    setProveedorSugerenciaId(String(proveedorId));
+    calcularSugerenciaParaProveedor(proveedorId);
+    sugerenciaPedidoRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
   const actualizarCantidadSugerencia = (productoId, valor) => {
@@ -354,6 +370,31 @@ const GestionInventario = ({ user }) => {
         </div>
       )}
 
+      {/* Revisar pedido por proveedor: TODOS los proveedores activos, no
+          solo los que el sistema detecta con stock crítico ahora mismo. */}
+      <div className="card revisar-pedido-proveedores">
+        <h3>🧾 Revisar pedido por proveedor</h3>
+        {proveedores.length === 0 ? (
+          <p className="sin-alertas">
+            No hay proveedores registrados. Ve a <strong>Proveedores</strong> para agregar uno.
+          </p>
+        ) : (
+          <div className="proveedores-revisar-grid">
+            {proveedores.map(proveedor => (
+              <div key={proveedor.id} className="proveedor-revisar-card">
+                <span className="proveedor-revisar-nombre">{proveedor.nombre}</span>
+                <button
+                  onClick={() => revisarPedidoProveedor(proveedor.id)}
+                  className="btn-revisar-pedido"
+                >
+                  🧾 Revisar pedido
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
       {/* Panel de Pedidos Sugeridos */}
       {pedidosSugeridos.length > 0 && (
         <div className="card pedidos-sugeridos">
@@ -373,11 +414,11 @@ const GestionInventario = ({ user }) => {
                     )}
                   </div>
                   <button
-                    onClick={() => enviarPedidoMultipleWhatsApp(grupo.productos, grupo.proveedor)}
+                    onClick={() => revisarPedidoProveedor(grupo.proveedor.id)}
                     className="btn-pedir-todo"
-                    title="Enviar pedido de todos los productos a este proveedor"
+                    title="Revisar y ajustar el pedido antes de enviarlo"
                   >
-                    📤 Pedir Todos
+                    🧾 Revisar pedido
                   </button>
                 </div>
                 
@@ -604,7 +645,7 @@ const GestionInventario = ({ user }) => {
       </div>
 
       {/* Sugerencia de pedido por proveedor específico */}
-      <div className="card sugerencia-pedido-proveedor">
+      <div className="card sugerencia-pedido-proveedor" ref={sugerenciaPedidoRef}>
         <h3>🧮 Sugerencia de Pedido por Proveedor</h3>
         <p className="sugerencia-descripcion">
           Calcula cuánto pedir de cada producto asociado a un proveedor, según el promedio de ventas y su tiempo de entrega.
