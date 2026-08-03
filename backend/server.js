@@ -7,6 +7,16 @@ const moment = require('moment');
 const path = require('path');
 require('dotenv').config();
 
+// El servidor corre en UTC (confirmado con SHOW timezone en Postgres), pero
+// el negocio opera en Colombia (UTC-5, sin horario de verano). moment()
+// solo, sin fijar el offset, calcula "hoy"/"inicio de día" según la zona
+// horaria del proceso — que en producción es UTC, no Bogotá. Esto hacía
+// que los filtros de período de Estadísticas y Finanzas (hoy/semana/mes)
+// no coincidieran con el día real en Colombia. ahoraColombia() fija el
+// offset explícitamente para que el cálculo sea correcto sin importar en
+// qué zona horaria esté corriendo el proceso de Node.
+const ahoraColombia = () => moment().utcOffset(-300);
+
 // ==================== IMPORTS DE MIDDLEWARES Y HELPERS ====================
 const { authenticateToken, requireAdmin, requireSuperAdmin } = require('./src/middleware/auth');
 const { checkAccess } = require('./src/middleware/checkAccess');
@@ -1314,27 +1324,30 @@ app.get('/api/estadisticas', authenticateToken, checkAccess, requireAdmin, async
     
     switch (periodo) {
       case 'hoy':
-        startDate = moment().startOf('day').toDate();
-        endDate = moment().endOf('day').toDate();
+        startDate = ahoraColombia().startOf('day').toDate();
+        endDate = ahoraColombia().endOf('day').toDate();
         break;
       case 'semana':
-        startDate = moment().subtract(7, 'days').startOf('day').toDate();
-        endDate = moment().endOf('day').toDate();
+        startDate = ahoraColombia().subtract(7, 'days').startOf('day').toDate();
+        endDate = ahoraColombia().endOf('day').toDate();
         break;
       case 'mes':
-        startDate = moment().subtract(30, 'days').startOf('day').toDate();
-        endDate = moment().endOf('day').toDate();
+        startDate = ahoraColombia().subtract(30, 'days').startOf('day').toDate();
+        endDate = ahoraColombia().endOf('day').toDate();
         break;
       case 'personalizado':
         if (!fecha_inicio || !fecha_fin) {
           return res.status(400).json({ error: 'Para período personalizado se requieren fecha_inicio y fecha_fin' });
         }
-        startDate = moment(fecha_inicio).startOf('day').toDate();
-        endDate = moment(fecha_fin).endOf('day').toDate();
+        // fecha_inicio/fecha_fin llegan como 'YYYY-MM-DD' sin hora ni zona;
+        // se ancla explícitamente a -05:00 para que "el día completo" sea
+        // el día completo en Colombia, sin importar la zona del proceso.
+        startDate = moment(`${fecha_inicio} 00:00:00-05:00`).toDate();
+        endDate = moment(`${fecha_fin} 23:59:59-05:00`).toDate();
         break;
       default:
-        startDate = moment().startOf('day').toDate();
-        endDate = moment().endOf('day').toDate();
+        startDate = ahoraColombia().startOf('day').toDate();
+        endDate = ahoraColombia().endOf('day').toDate();
     }
 
     // Período anterior equivalente (misma duración, inmediatamente antes
@@ -1506,8 +1519,8 @@ app.get('/api/estadisticas', authenticateToken, checkAccess, requireAdmin, async
       },
       periodoInfo: {
         tipo: periodo || 'hoy',
-        fecha_inicio: moment(startDate).format('YYYY-MM-DD'),
-        fecha_fin: moment(endDate).format('YYYY-MM-DD'),
+        fecha_inicio: moment(startDate).utcOffset(-300).format('YYYY-MM-DD'),
+        fecha_fin: moment(endDate).utcOffset(-300).format('YYYY-MM-DD'),
         dias: moment(endDate).diff(moment(startDate), 'days') + 1
       }
     };
@@ -1539,27 +1552,30 @@ app.get('/api/estadisticas/global', authenticateToken, requireAdmin, async (req,
     
     switch (periodo) {
       case 'hoy':
-        startDate = moment().startOf('day').toDate();
-        endDate = moment().endOf('day').toDate();
+        startDate = ahoraColombia().startOf('day').toDate();
+        endDate = ahoraColombia().endOf('day').toDate();
         break;
       case 'semana':
-        startDate = moment().subtract(7, 'days').startOf('day').toDate();
-        endDate = moment().endOf('day').toDate();
+        startDate = ahoraColombia().subtract(7, 'days').startOf('day').toDate();
+        endDate = ahoraColombia().endOf('day').toDate();
         break;
       case 'mes':
-        startDate = moment().subtract(30, 'days').startOf('day').toDate();
-        endDate = moment().endOf('day').toDate();
+        startDate = ahoraColombia().subtract(30, 'days').startOf('day').toDate();
+        endDate = ahoraColombia().endOf('day').toDate();
         break;
       case 'personalizado':
         if (!fecha_inicio || !fecha_fin) {
           return res.status(400).json({ error: 'Para período personalizado se requieren fecha_inicio y fecha_fin' });
         }
-        startDate = moment(fecha_inicio).startOf('day').toDate();
-        endDate = moment(fecha_fin).endOf('day').toDate();
+        // fecha_inicio/fecha_fin llegan como 'YYYY-MM-DD' sin hora ni zona;
+        // se ancla explícitamente a -05:00 para que "el día completo" sea
+        // el día completo en Colombia, sin importar la zona del proceso.
+        startDate = moment(`${fecha_inicio} 00:00:00-05:00`).toDate();
+        endDate = moment(`${fecha_fin} 23:59:59-05:00`).toDate();
         break;
       default:
-        startDate = moment().startOf('day').toDate();
-        endDate = moment().endOf('day').toDate();
+        startDate = ahoraColombia().startOf('day').toDate();
+        endDate = ahoraColombia().endOf('day').toDate();
     }
 
     const modulosResult = await pool.query(
@@ -1630,8 +1646,8 @@ app.get('/api/estadisticas/global', authenticateToken, requireAdmin, async (req,
       negocio_id: negocioId,
       periodo_info: {
         tipo: periodo || 'hoy',
-        fecha_inicio: moment(startDate).format('YYYY-MM-DD'),
-        fecha_fin: moment(endDate).format('YYYY-MM-DD')
+        fecha_inicio: moment(startDate).utcOffset(-300).format('YYYY-MM-DD'),
+        fecha_fin: moment(endDate).utcOffset(-300).format('YYYY-MM-DD')
       },
       global: {
         ventas: ventasGlobales.rows[0],
@@ -2681,27 +2697,30 @@ app.get('/api/finanzas/resumen-periodo', authenticateToken, checkAccess, require
 
     switch (periodo) {
       case 'hoy':
-        startDate = moment().startOf('day').toDate();
-        endDate = moment().endOf('day').toDate();
+        startDate = ahoraColombia().startOf('day').toDate();
+        endDate = ahoraColombia().endOf('day').toDate();
         break;
       case 'semana':
-        startDate = moment().subtract(7, 'days').startOf('day').toDate();
-        endDate = moment().endOf('day').toDate();
+        startDate = ahoraColombia().subtract(7, 'days').startOf('day').toDate();
+        endDate = ahoraColombia().endOf('day').toDate();
         break;
       case 'mes':
-        startDate = moment().subtract(30, 'days').startOf('day').toDate();
-        endDate = moment().endOf('day').toDate();
+        startDate = ahoraColombia().subtract(30, 'days').startOf('day').toDate();
+        endDate = ahoraColombia().endOf('day').toDate();
         break;
       case 'personalizado':
         if (!fecha_inicio || !fecha_fin) {
           return res.status(400).json({ error: 'Para período personalizado se requieren fecha_inicio y fecha_fin' });
         }
-        startDate = moment(fecha_inicio).startOf('day').toDate();
-        endDate = moment(fecha_fin).endOf('day').toDate();
+        // fecha_inicio/fecha_fin llegan como 'YYYY-MM-DD' sin hora ni zona;
+        // se ancla explícitamente a -05:00 para que "el día completo" sea
+        // el día completo en Colombia, sin importar la zona del proceso.
+        startDate = moment(`${fecha_inicio} 00:00:00-05:00`).toDate();
+        endDate = moment(`${fecha_fin} 23:59:59-05:00`).toDate();
         break;
       default:
-        startDate = moment().startOf('day').toDate();
-        endDate = moment().endOf('day').toDate();
+        startDate = ahoraColombia().startOf('day').toDate();
+        endDate = ahoraColombia().endOf('day').toDate();
     }
 
     const totales = await pool.query(
@@ -2780,8 +2799,8 @@ app.get('/api/finanzas/resumen-periodo', authenticateToken, checkAccess, require
       })),
       periodoInfo: {
         tipo: periodo || 'hoy',
-        fecha_inicio: moment(startDate).format('YYYY-MM-DD'),
-        fecha_fin: moment(endDate).format('YYYY-MM-DD')
+        fecha_inicio: moment(startDate).utcOffset(-300).format('YYYY-MM-DD'),
+        fecha_fin: moment(endDate).utcOffset(-300).format('YYYY-MM-DD')
       }
     });
   } catch (error) {
