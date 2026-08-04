@@ -21,6 +21,12 @@ const Productos = ({ user }) => {
     stock_minimo: '',
     categoria_id: ''
   });
+  // Gestión de categorías (solo desde este modal, no hay página aparte)
+  const [showCategoriasModal, setShowCategoriasModal] = useState(false);
+  const [nuevaCategoriaNombre, setNuevaCategoriaNombre] = useState('');
+  const [guardandoCategoria, setGuardandoCategoria] = useState(false);
+  const [categoriaEditandoId, setCategoriaEditandoId] = useState(null);
+  const [categoriaEditandoNombre, setCategoriaEditandoNombre] = useState('');
 
   // Cargar datos al iniciar o cambiar de módulo
   useEffect(() => {
@@ -49,6 +55,56 @@ const Productos = ({ user }) => {
       setCategorias(response.data);
     } catch (error) {
       console.error('Error cargando categorías:', error);
+    }
+  };
+
+  const handleAgregarCategoria = async (e) => {
+    e.preventDefault();
+    if (!nuevaCategoriaNombre.trim()) return;
+
+    try {
+      setGuardandoCategoria(true);
+      await api.post('/categorias', { nombre: nuevaCategoriaNombre.trim() });
+      setNuevaCategoriaNombre('');
+      await cargarCategorias();
+    } catch (error) {
+      console.error('Error creando categoría:', error);
+      alert(error.response?.data?.error || 'Error al crear la categoría');
+    } finally {
+      setGuardandoCategoria(false);
+    }
+  };
+
+  const iniciarEdicionCategoria = (categoria) => {
+    setCategoriaEditandoId(categoria.id);
+    setCategoriaEditandoNombre(categoria.nombre);
+  };
+
+  const handleRenombrarCategoria = async (id) => {
+    if (!categoriaEditandoNombre.trim()) return;
+
+    try {
+      await api.put(`/categorias/${id}`, { nombre: categoriaEditandoNombre.trim() });
+      setCategoriaEditandoId(null);
+      setCategoriaEditandoNombre('');
+      await cargarCategorias();
+    } catch (error) {
+      console.error('Error renombrando categoría:', error);
+      alert(error.response?.data?.error || 'Error al renombrar la categoría');
+    }
+  };
+
+  const handleEliminarCategoria = async (id) => {
+    if (!confirm('¿Eliminar esta categoría?')) return;
+
+    try {
+      await api.delete(`/categorias/${id}`);
+      await cargarCategorias();
+    } catch (error) {
+      console.error('Error eliminando categoría:', error);
+      // El backend explica exactamente por qué no se puede (ej. productos
+      // asociados) — se muestra tal cual, sin generalizar el mensaje.
+      alert(error.response?.data?.error || 'Error al eliminar la categoría');
     }
   };
 
@@ -308,7 +364,16 @@ const Productos = ({ user }) => {
               </div>
 
               <div className="form-group">
-                <label>Categoría</label>
+                <div className="categoria-label-row">
+                  <label>Categoría</label>
+                  <button
+                    type="button"
+                    onClick={() => setShowCategoriasModal(true)}
+                    className="btn-gestionar-categorias"
+                  >
+                    🗂️ Gestionar categorías
+                  </button>
+                </div>
                 <select
                   value={formData.categoria_id}
                   onChange={(e) => setFormData({ ...formData, categoria_id: e.target.value })}
@@ -328,6 +393,67 @@ const Productos = ({ user }) => {
                   Cancelar
                 </button>
               </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de gestión de categorías */}
+      {showCategoriasModal && (
+        <div className="modal" onClick={() => setShowCategoriasModal(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>🗂️ Gestionar categorías</h3>
+              <button onClick={() => setShowCategoriasModal(false)}>✕</button>
+            </div>
+
+            {categorias.length === 0 ? (
+              <p className="sin-datos">Aún no hay categorías</p>
+            ) : (
+              <div className="categorias-lista">
+                {categorias.map(cat => (
+                  <div key={cat.id} className="categoria-item">
+                    {categoriaEditandoId === cat.id ? (
+                      <>
+                        <input
+                          type="text"
+                          value={categoriaEditandoNombre}
+                          onChange={(e) => setCategoriaEditandoNombre(e.target.value)}
+                          autoFocus
+                        />
+                        <button onClick={() => handleRenombrarCategoria(cat.id)} className="btn-icono" title="Guardar">
+                          ✅
+                        </button>
+                        <button onClick={() => setCategoriaEditandoId(null)} className="btn-icono" title="Cancelar">
+                          ✕
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <span className="categoria-nombre">{cat.nombre}</span>
+                        <button onClick={() => iniciarEdicionCategoria(cat)} className="btn-icono" title="Renombrar">
+                          ✏️
+                        </button>
+                        <button onClick={() => handleEliminarCategoria(cat.id)} className="btn-icono" title="Eliminar">
+                          🗑️
+                        </button>
+                      </>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <form onSubmit={handleAgregarCategoria} className="categoria-form-agregar">
+              <input
+                type="text"
+                value={nuevaCategoriaNombre}
+                onChange={(e) => setNuevaCategoriaNombre(e.target.value)}
+                placeholder="Nueva categoría..."
+              />
+              <button type="submit" className="btn-guardar" disabled={guardandoCategoria}>
+                {guardandoCategoria ? 'Agregando...' : '+ Agregar'}
+              </button>
             </form>
           </div>
         </div>

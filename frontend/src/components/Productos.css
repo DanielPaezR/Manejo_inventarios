@@ -436,6 +436,114 @@
 }
 
 /* ============================================================
+   GESTIÓN DE CATEGORÍAS (modal)
+   ============================================================ */
+.categoria-label-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+
+.categoria-label-row label {
+  margin-bottom: 0;
+}
+
+.btn-gestionar-categorias {
+  background: none;
+  border: none;
+  color: #4299e1;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 2px 4px;
+  white-space: nowrap;
+}
+
+.btn-gestionar-categorias:hover {
+  text-decoration: underline;
+}
+
+.categorias-lista {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.categoria-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+}
+
+.categoria-nombre {
+  flex: 1;
+  font-size: 14px;
+  color: #2d3748;
+}
+
+.categoria-item input {
+  flex: 1;
+  padding: 6px 10px;
+  border: 2px solid #4299e1;
+  border-radius: 6px;
+  font-size: 14px;
+}
+
+.btn-icono {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+  padding: 4px 6px;
+  border-radius: 6px;
+  transition: background 0.2s;
+}
+
+.btn-icono:hover {
+  background: #f7fafc;
+}
+
+.categoria-form-agregar {
+  display: flex;
+  gap: 10px;
+}
+
+.categoria-form-agregar input {
+  flex: 1;
+  padding: 8px 12px;
+  border: 2px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 14px;
+}
+
+.categoria-form-agregar input:focus {
+  outline: none;
+  border-color: #4299e1;
+  box-shadow: 0 0 0 4px rgba(66, 153, 225, 0.1);
+}
+
+.categoria-form-agregar .btn-guardar {
+  flex: none;
+  white-space: nowrap;
+  padding: 8px 20px;
+}
+
+.sin-datos {
+  text-align: center;
+  padding: 20px 0;
+  color: #a0aec0;
+  font-size: 14px;
+}
+
+/* ============================================================
    UTILIDADES
    ============================================================ */
 .loading {

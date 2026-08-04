@@ -667,6 +667,118 @@ app.get('/api/categorias', authenticateToken, checkAccess, async (req, res) => {
   }
 });
 
+// Crear categoría de producto
+app.post('/api/categorias', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+  try {
+    const moduloId = req.moduloId;
+    const negocioId = req.negocioId;
+    const { nombre } = req.body;
+
+    if (!moduloId) {
+      return res.status(400).json({ error: 'Se requiere un módulo' });
+    }
+
+    if (!nombre || !nombre.trim()) {
+      return res.status(400).json({ error: 'El nombre es requerido' });
+    }
+
+    // categorias no tiene UNIQUE(modulo_id, nombre), así que se valida a
+    // mano antes de insertar para responder un mensaje claro.
+    const existente = await pool.query(
+      'SELECT id FROM categorias WHERE modulo_id = $1 AND nombre = $2',
+      [moduloId, nombre.trim()]
+    );
+    if (existente.rows.length > 0) {
+      return res.status(400).json({ error: 'Ya existe una categoría con ese nombre' });
+    }
+
+    const result = await pool.query(
+      'INSERT INTO categorias (negocio_id, modulo_id, nombre) VALUES ($1, $2, $3) RETURNING *',
+      [negocioId, moduloId, nombre.trim()]
+    );
+
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error('Error creando categoría:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// Renombrar categoría de producto
+app.put('/api/categorias/:id', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const moduloId = req.moduloId;
+    const { nombre } = req.body;
+
+    if (!nombre || !nombre.trim()) {
+      return res.status(400).json({ error: 'El nombre es requerido' });
+    }
+
+    const existente = await pool.query(
+      'SELECT id FROM categorias WHERE modulo_id = $1 AND nombre = $2 AND id != $3',
+      [moduloId, nombre.trim(), id]
+    );
+    if (existente.rows.length > 0) {
+      return res.status(400).json({ error: 'Ya existe una categoría con ese nombre' });
+    }
+
+    const result = await pool.query(
+      'UPDATE categorias SET nombre = $1 WHERE id = $2 AND modulo_id = $3 RETURNING *',
+      [nombre.trim(), id, moduloId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Categoría no encontrada' });
+    }
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error actualizando categoría:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// Eliminar categoría de producto. La tabla no tiene columna `activo`
+// (sin soft-delete posible), así que es un DELETE real: primero se
+// valida que ningún producto ACTIVO la use.
+app.delete('/api/categorias/:id', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const moduloId = req.moduloId;
+
+    const categoriaResult = await pool.query(
+      'SELECT id FROM categorias WHERE id = $1 AND modulo_id = $2',
+      [id, moduloId]
+    );
+    if (categoriaResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Categoría no encontrada' });
+    }
+
+    const enUso = await pool.query(
+      'SELECT COUNT(*) as total FROM productos WHERE categoria_id = $1 AND activo = true',
+      [id]
+    );
+    if (Number(enUso.rows[0].total) > 0) {
+      return res.status(400).json({ error: 'Esta categoría tiene productos asociados. Reasígnalos a otra categoría antes de eliminarla.' });
+    }
+
+    await pool.query('DELETE FROM categorias WHERE id = $1 AND modulo_id = $2', [id, moduloId]);
+
+    res.json({ message: 'Categoría eliminada correctamente' });
+  } catch (error) {
+    // productos.categoria_id no tiene ON DELETE, y el chequeo de arriba
+    // solo mira productos activos: si quedan productos INACTIVOS con
+    // esta categoría, el DELETE falla con violación de FK (23503). Se
+    // traduce a un mensaje claro en vez del error crudo de Postgres.
+    if (error.code === '23503') {
+      return res.status(400).json({ error: 'Esta categoría todavía tiene productos asociados (incluso inactivos). Reasígnalos antes de eliminarla.' });
+    }
+    console.error('Error eliminando categoría:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
 // ==================== RUTAS DE VENTAS ====================
 
 app.post('/api/ventas', authenticateToken, checkAccess, async (req, res) => {
