@@ -901,9 +901,10 @@ app.post('/api/ventas', authenticateToken, checkAccess, async (req, res) => {
     // Registro automático en caja: si esto falla, hace throw y cae al
     // catch de abajo, que hace ROLLBACK de toda la venta — no debe poder
     // completarse una venta sin su movimiento de caja correspondiente.
-    // Excepción: a crédito no es efectivo real todavía, así que no genera
-    // ingreso ahora — eso se registra cuando el cliente abona.
-    if (metodo_pago !== 'credito') {
+    // Excepciones: a crédito no es efectivo real todavía (se registra
+    // cuando el cliente abona), y consumo propio no es efectivo real en
+    // absoluto (mercancía retirada para uso personal, no una venta).
+    if (metodo_pago !== 'credito' && metodo_pago !== 'consumo_propio') {
       await client.query(
         `INSERT INTO movimientos_caja
          (negocio_id, tipo, origen, monto, concepto, venta_id, usuario_id)
@@ -1473,7 +1474,8 @@ app.get('/api/estadisticas', authenticateToken, checkAccess, requireAdmin, async
        FROM ventas
        WHERE modulo_id = $1
        AND fecha_venta BETWEEN $2 AND $3
-       AND es_ajuste_manual = false`,
+       AND es_ajuste_manual = false
+       AND metodo_pago != 'consumo_propio'`,
       [moduloId, startDate, endDate]
     );
 
@@ -1497,8 +1499,10 @@ app.get('/api/estadisticas', authenticateToken, checkAccess, requireAdmin, async
        FROM detalle_venta dv
        JOIN productos p ON dv.producto_id = p.id
        JOIN ventas v ON dv.venta_id = v.id
-       WHERE v.modulo_id = $1 
+       WHERE v.modulo_id = $1
        AND v.fecha_venta BETWEEN $2 AND $3
+       AND v.es_ajuste_manual = false
+       AND v.metodo_pago != 'consumo_propio'
        GROUP BY p.id, p.nombre
        ORDER BY total_vendido DESC
        LIMIT 10`,
@@ -1514,6 +1518,7 @@ app.get('/api/estadisticas', authenticateToken, checkAccess, requireAdmin, async
        WHERE modulo_id = $1
        AND fecha_venta BETWEEN $2 AND $3
        AND es_ajuste_manual = false
+       AND metodo_pago != 'consumo_propio'
        GROUP BY DATE(fecha_venta)
        ORDER BY fecha ASC`,
       [moduloId, startDate, endDate]
@@ -1533,6 +1538,7 @@ app.get('/api/estadisticas', authenticateToken, checkAccess, requireAdmin, async
          AND v.modulo_id = $1
          AND v.fecha_venta BETWEEN $2 AND $3
          AND v.es_ajuste_manual = false
+         AND v.metodo_pago != 'consumo_propio'
        GROUP BY h.hora
        ORDER BY h.hora`,
       [moduloId, startDate, endDate]
@@ -1549,6 +1555,7 @@ app.get('/api/estadisticas', authenticateToken, checkAccess, requireAdmin, async
          AND v.modulo_id = $1
          AND v.fecha_venta BETWEEN $2 AND $3
          AND v.es_ajuste_manual = false
+         AND v.metodo_pago != 'consumo_propio'
        GROUP BY dia.numero
        ORDER BY dia.numero`,
       [moduloId, startDate, endDate]
@@ -1571,6 +1578,7 @@ app.get('/api/estadisticas', authenticateToken, checkAccess, requireAdmin, async
        WHERE modulo_id = $1
        AND fecha_venta BETWEEN $2 AND $3
        AND es_ajuste_manual = false
+       AND metodo_pago != 'consumo_propio'
        GROUP BY metodo_pago
        ORDER BY cantidad DESC
        LIMIT 1`,
@@ -1589,6 +1597,8 @@ app.get('/api/estadisticas', authenticateToken, checkAccess, requireAdmin, async
          WHERE dv.producto_id = p.id
          AND v.modulo_id = $1
          AND v.fecha_venta BETWEEN $2 AND $3
+         AND v.es_ajuste_manual = false
+         AND v.metodo_pago != 'consumo_propio'
        )
        ORDER BY p.nombre
        LIMIT 20`,
@@ -1601,7 +1611,8 @@ app.get('/api/estadisticas', authenticateToken, checkAccess, requireAdmin, async
        FROM ventas
        WHERE modulo_id = $1
        AND fecha_venta BETWEEN $2 AND $3
-       AND es_ajuste_manual = false`,
+       AND es_ajuste_manual = false
+       AND metodo_pago != 'consumo_propio'`,
       [moduloId, startDateAnterior, endDateAnterior]
     );
 
@@ -1640,6 +1651,88 @@ app.get('/api/estadisticas', authenticateToken, checkAccess, requireAdmin, async
     res.json(response);
   } catch (error) {
     console.error('Error obteniendo estadísticas:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// Estadística dedicada de "consumo propio" (mercancía retirada para uso
+// personal, no una venta real) — deliberadamente separada del resto de
+// Estadísticas, ya que ese resto excluye consumo_propio por completo.
+// 'total' es una opción nueva exclusiva de esta ruta: sin filtro de
+// fecha en absoluto, para ver el histórico completo.
+app.get('/api/estadisticas/consumo-propio', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+  try {
+    const moduloId = req.moduloId;
+    const { periodo, fecha_inicio, fecha_fin } = req.query;
+
+    if (!moduloId) {
+      return res.status(400).json({ error: 'Se requiere un módulo' });
+    }
+
+    let startDate = null;
+    let endDate = null;
+
+    switch (periodo) {
+      case 'hoy':
+        startDate = ahoraColombia().startOf('day').toDate();
+        endDate = ahoraColombia().endOf('day').toDate();
+        break;
+      case 'semana':
+        startDate = ahoraColombia().subtract(7, 'days').startOf('day').toDate();
+        endDate = ahoraColombia().endOf('day').toDate();
+        break;
+      case 'mes':
+        startDate = ahoraColombia().subtract(30, 'days').startOf('day').toDate();
+        endDate = ahoraColombia().endOf('day').toDate();
+        break;
+      case 'personalizado':
+        if (!fecha_inicio || !fecha_fin) {
+          return res.status(400).json({ error: 'Para período personalizado se requieren fecha_inicio y fecha_fin' });
+        }
+        startDate = moment(`${fecha_inicio} 00:00:00-05:00`).toDate();
+        endDate = moment(`${fecha_fin} 23:59:59-05:00`).toDate();
+        break;
+      case 'total':
+        // Sin filtro de fecha: startDate/endDate quedan null.
+        break;
+      default:
+        startDate = ahoraColombia().startOf('day').toDate();
+        endDate = ahoraColombia().endOf('day').toDate();
+    }
+
+    const filtroFecha = (startDate && endDate) ? 'AND v.fecha_venta BETWEEN $2 AND $3' : '';
+    const params = (startDate && endDate) ? [moduloId, startDate, endDate] : [moduloId];
+
+    // Separado en dos consultas (en vez de un solo JOIN) para no duplicar
+    // ventas.total por cada línea de detalle_venta cuando una "venta" de
+    // consumo propio tiene más de un producto.
+    const valorResult = await pool.query(
+      `SELECT COUNT(*) as total_registros, COALESCE(SUM(v.total), 0) as valor_total
+       FROM ventas v
+       WHERE v.modulo_id = $1 AND v.metodo_pago = 'consumo_propio' ${filtroFecha}`,
+      params
+    );
+
+    const itemsResult = await pool.query(
+      `SELECT COALESCE(SUM(dv.cantidad), 0) as total_items
+       FROM detalle_venta dv
+       JOIN ventas v ON dv.venta_id = v.id
+       WHERE v.modulo_id = $1 AND v.metodo_pago = 'consumo_propio' ${filtroFecha}`,
+      params
+    );
+
+    res.json({
+      totalRegistros: Number(valorResult.rows[0].total_registros),
+      totalItems: Number(itemsResult.rows[0].total_items),
+      valorTotal: Number(valorResult.rows[0].valor_total),
+      periodoInfo: {
+        tipo: periodo || 'hoy',
+        fecha_inicio: startDate ? moment(startDate).utcOffset(-300).format('YYYY-MM-DD') : null,
+        fecha_fin: endDate ? moment(endDate).utcOffset(-300).format('YYYY-MM-DD') : null
+      }
+    });
+  } catch (error) {
+    console.error('Error obteniendo estadística de consumo propio:', error);
     res.status(500).json({ error: 'Error interno del servidor' });
   }
 });
@@ -1702,7 +1795,8 @@ app.get('/api/estadisticas/global', authenticateToken, requireAdmin, async (req,
         `SELECT COUNT(*) as total, COALESCE(SUM(total), 0) as monto
          FROM ventas
          WHERE modulo_id = $1 AND fecha_venta BETWEEN $2 AND $3
-         AND es_ajuste_manual = false`,
+         AND es_ajuste_manual = false
+         AND metodo_pago != 'consumo_propio'`,
         [modulo.id, startDate, endDate]
       );
       
@@ -1734,7 +1828,8 @@ app.get('/api/estadisticas/global', authenticateToken, requireAdmin, async (req,
        FROM ventas v
        JOIN modulos m ON v.modulo_id = m.id
        WHERE m.negocio_id = $1 AND v.fecha_venta BETWEEN $2 AND $3
-       AND v.es_ajuste_manual = false`,
+       AND v.es_ajuste_manual = false
+       AND v.metodo_pago != 'consumo_propio'`,
       [negocioId, startDate, endDate]
     );
 

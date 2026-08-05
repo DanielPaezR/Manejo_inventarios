@@ -35,6 +35,7 @@ module.exports = async function generarReporteVentasDiarias(pool, negocioId, mod
          WHERE v.modulo_id = $1
          AND DATE(v.fecha_venta) BETWEEN COALESCE($2, CURRENT_DATE) AND COALESCE($3, CURRENT_DATE)
          AND v.es_ajuste_manual = false
+         AND v.metodo_pago != 'consumo_propio'
          ORDER BY v.fecha_venta DESC`,
         [moduloId, fechaInicio, fechaFin]
       );
@@ -49,7 +50,8 @@ module.exports = async function generarReporteVentasDiarias(pool, negocioId, mod
          FROM ventas
          WHERE modulo_id = $1
          AND DATE(fecha_venta) BETWEEN COALESCE($2, CURRENT_DATE) AND COALESCE($3, CURRENT_DATE)
-         AND es_ajuste_manual = false`,
+         AND es_ajuste_manual = false
+         AND metodo_pago != 'consumo_propio'`,
         [moduloId, fechaInicio, fechaFin]
       );
 

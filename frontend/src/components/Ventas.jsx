@@ -1145,6 +1145,7 @@ const Ventas = ({ user }) => {
                   <option value="tarjeta">💳 Tarjeta</option>
                   <option value="transferencia">🏦 Transferencia</option>
                   <option value="credito">📒 Crédito</option>
+                  <option value="consumo_propio">🏠 Consumo propio</option>
                   <option value="otros">📱 Otros</option>
                 </select>
               </div>

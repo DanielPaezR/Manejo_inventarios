@@ -80,6 +80,34 @@ const Estadisticas = ({ user }) => {
     }
   }, [moduloActivo, vistaActiva, periodo, cargarFinanzasResumen]);
 
+  // Consumo propio: card independiente dentro de la vista 'ventas', con su
+  // propio selector de periodo (no el general de la página) porque acá sí
+  // queremos poder ver el histórico completo ('total'), algo que el
+  // selector general no ofrece.
+  const [consumoPropioPeriodo, setConsumoPropioPeriodo] = useState('hoy');
+  const [consumoPropioData, setConsumoPropioData] = useState(null);
+  const [loadingConsumoPropio, setLoadingConsumoPropio] = useState(false);
+
+  const cargarConsumoPropio = useCallback(async () => {
+    try {
+      setLoadingConsumoPropio(true);
+      const response = await api.get('/estadisticas/consumo-propio', {
+        params: { periodo: consumoPropioPeriodo }
+      });
+      setConsumoPropioData(response.data);
+    } catch (error) {
+      console.error('Error cargando consumo propio:', error);
+    } finally {
+      setLoadingConsumoPropio(false);
+    }
+  }, [consumoPropioPeriodo]);
+
+  useEffect(() => {
+    if (moduloActivo && vistaActiva === 'ventas') {
+      cargarConsumoPropio();
+    }
+  }, [moduloActivo, vistaActiva, consumoPropioPeriodo, cargarConsumoPropio]);
+
   // Calcular métricas adicionales
   const metricasAvanzadas = useMemo(() => {
     if (!estadisticas) return null;
@@ -538,6 +566,63 @@ const Estadisticas = ({ user }) => {
                     <span><strong>Días:</strong> {estadisticas.periodoInfo?.dias || 0}</span>
                   </div>
                 </div>
+              </div>
+
+              {/* Consumo propio: mercancía retirada para uso personal, no
+                  una venta real — por eso vive aparte del resto de esta
+                  vista y tiene su propio selector de periodo (incluye
+                  "Total", que el selector general de la página no ofrece). */}
+              <div className="card consumo-propio-card">
+                <h3>🏠 Consumo propio</h3>
+                <div className="periodo-selector consumo-propio-periodo-selector">
+                  <button
+                    className={`btn-periodo ${consumoPropioPeriodo === 'hoy' ? 'active' : ''}`}
+                    onClick={() => setConsumoPropioPeriodo('hoy')}
+                  >
+                    Hoy
+                  </button>
+                  <button
+                    className={`btn-periodo ${consumoPropioPeriodo === 'semana' ? 'active' : ''}`}
+                    onClick={() => setConsumoPropioPeriodo('semana')}
+                  >
+                    Semana
+                  </button>
+                  <button
+                    className={`btn-periodo ${consumoPropioPeriodo === 'mes' ? 'active' : ''}`}
+                    onClick={() => setConsumoPropioPeriodo('mes')}
+                  >
+                    Mes
+                  </button>
+                  <button
+                    className={`btn-periodo ${consumoPropioPeriodo === 'total' ? 'active' : ''}`}
+                    onClick={() => setConsumoPropioPeriodo('total')}
+                  >
+                    Total
+                  </button>
+                </div>
+
+                {loadingConsumoPropio && !consumoPropioData ? (
+                  <p className="sin-datos">Cargando...</p>
+                ) : consumoPropioData?.totalRegistros > 0 ? (
+                  <div className="ventas-metricas-grid">
+                    <div className="venta-metrica">
+                      <span className="venta-metrica-icono">📦</span>
+                      <div>
+                        <span className="venta-metrica-valor">{consumoPropioData.totalItems}</span>
+                        <span className="venta-metrica-label">Items consumidos</span>
+                      </div>
+                    </div>
+                    <div className="venta-metrica">
+                      <span className="venta-metrica-icono">💵</span>
+                      <div>
+                        <span className="venta-metrica-valor">{formatearMoneda(consumoPropioData.valorTotal)}</span>
+                        <span className="venta-metrica-label">Valor total</span>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="sin-datos">No hay consumo propio registrado en este período</p>
+                )}
               </div>
 
               {/* Ventas por hora del día */}

@@ -16,6 +16,7 @@ module.exports = async function generarExcelVentas(pool, moduloId, fechaInicio, 
          WHERE v.modulo_id = $1
          AND DATE(v.fecha_venta) BETWEEN COALESCE($2, CURRENT_DATE - INTERVAL '7 days') AND COALESCE($3, CURRENT_DATE)
          AND v.es_ajuste_manual = false
+         AND v.metodo_pago != 'consumo_propio'
          ORDER BY v.fecha_venta DESC`,
         [moduloId, fechaInicio, fechaFin]
       );

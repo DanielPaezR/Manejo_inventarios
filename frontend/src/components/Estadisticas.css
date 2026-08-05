@@ -608,6 +608,14 @@
   grid-column: 1 / -1;
 }
 
+.consumo-propio-card {
+  grid-column: 1 / -1;
+}
+
+.consumo-propio-periodo-selector {
+  margin-bottom: 16px;
+}
+
 .grafico-barras-compacto {
   gap: 4px;
 }

@@ -40,7 +40,8 @@ module.exports = async function generarReporteFinancieroMensual(pool, negocioId,
          FROM ventas
          WHERE modulo_id = $1
          AND fecha_venta BETWEEN $2 AND $3
-         AND es_ajuste_manual = false`,
+         AND es_ajuste_manual = false
+         AND metodo_pago != 'consumo_propio'`,
         [moduloId, startDate, endDate]
       );
 
@@ -54,6 +55,7 @@ module.exports = async function generarReporteFinancieroMensual(pool, negocioId,
          WHERE modulo_id = $1
          AND fecha_venta BETWEEN $2 AND $3
          AND es_ajuste_manual = false
+         AND metodo_pago != 'consumo_propio'
          GROUP BY DATE(fecha_venta)
          ORDER BY fecha_venta`,
         [moduloId, startDate, endDate]
@@ -65,11 +67,12 @@ module.exports = async function generarReporteFinancieroMensual(pool, negocioId,
             metodo_pago,
             COUNT(*) as cantidad_ventas,
             SUM(total) as monto_total,
-            ROUND((COUNT(*) * 100.0 / (SELECT COUNT(*) FROM ventas WHERE modulo_id = $1 AND fecha_venta BETWEEN $2 AND $3 AND es_ajuste_manual = false)), 2) as porcentaje
+            ROUND((COUNT(*) * 100.0 / (SELECT COUNT(*) FROM ventas WHERE modulo_id = $1 AND fecha_venta BETWEEN $2 AND $3 AND es_ajuste_manual = false AND metodo_pago != 'consumo_propio')), 2) as porcentaje
          FROM ventas
          WHERE modulo_id = $1
          AND fecha_venta BETWEEN $2 AND $3
          AND es_ajuste_manual = false
+         AND metodo_pago != 'consumo_propio'
          GROUP BY metodo_pago
          ORDER BY monto_total DESC`,
         [moduloId, startDate, endDate]
@@ -84,8 +87,10 @@ module.exports = async function generarReporteFinancieroMensual(pool, negocioId,
          FROM detalle_venta dv
          JOIN productos p ON dv.producto_id = p.id
          JOIN ventas v ON dv.venta_id = v.id
-         WHERE v.modulo_id = $1 
+         WHERE v.modulo_id = $1
          AND v.fecha_venta BETWEEN $2 AND $3
+         AND v.es_ajuste_manual = false
+         AND v.metodo_pago != 'consumo_propio'
          GROUP BY p.id, p.nombre
          ORDER BY cantidad_vendida DESC
          LIMIT 10`,
