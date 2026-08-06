@@ -19,7 +19,8 @@ const Productos = ({ user }) => {
     precio_venta: '',
     stock_actual: '',
     stock_minimo: '',
-    categoria_id: ''
+    categoria_id: '',
+    es_novedad: false
   });
   // Gestión de categorías (solo desde este modal, no hay página aparte)
   const [showCategoriasModal, setShowCategoriasModal] = useState(false);
@@ -156,7 +157,8 @@ const Productos = ({ user }) => {
         precio_venta: '',
         stock_actual: '',
         stock_minimo: '',
-        categoria_id: ''
+        categoria_id: '',
+        es_novedad: false
       });
       cargarProductos();
     } catch (error) {
@@ -188,7 +190,8 @@ const Productos = ({ user }) => {
       precio_venta: producto.precio_venta || '',
       stock_actual: producto.stock_actual || '',
       stock_minimo: producto.stock_minimo || '',
-      categoria_id: producto.categoria_id || ''
+      categoria_id: producto.categoria_id || '',
+      es_novedad: producto.es_novedad || false
     });
     setShowModal(true);
   };
@@ -229,7 +232,7 @@ const Productos = ({ user }) => {
         </div>
         
         {puedeEditar && (
-          <button onClick={() => { setEditProducto(null); setFormData({ codigo_ean: '', nombre: '', descripcion: '', precio_compra: '', precio_venta: '', stock_actual: '', stock_minimo: '', categoria_id: '' }); setShowModal(true); }} className="btn-agregar">
+          <button onClick={() => { setEditProducto(null); setFormData({ codigo_ean: '', nombre: '', descripcion: '', precio_compra: '', precio_venta: '', stock_actual: '', stock_minimo: '', categoria_id: '', es_novedad: false }); setShowModal(true); }} className="btn-agregar">
             + Nuevo Producto
           </button>
         )}
@@ -383,6 +386,17 @@ const Productos = ({ user }) => {
                     <option key={cat.id} value={cat.id}>{cat.nombre}</option>
                   ))}
                 </select>
+              </div>
+
+              <div className="form-group form-group-checkbox">
+                <label className="checkbox-label">
+                  <input
+                    type="checkbox"
+                    checked={formData.es_novedad}
+                    onChange={(e) => setFormData({ ...formData, es_novedad: e.target.checked })}
+                  />
+                  ✨ Marcar como novedad (aparece destacado en el menú)
+                </label>
               </div>
 
               <div className="form-actions">

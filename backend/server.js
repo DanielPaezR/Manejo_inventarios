@@ -508,15 +508,16 @@ app.get('/api/productos', authenticateToken, checkAccess, async (req, res) => {
 
 app.post('/api/productos', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
   try {
-    const { 
-      codigo_ean, 
-      nombre, 
-      descripcion, 
-      precio_compra, 
-      precio_venta, 
-      stock_actual, 
-      stock_minimo, 
-      categoria_id 
+    const {
+      codigo_ean,
+      nombre,
+      descripcion,
+      precio_compra,
+      precio_venta,
+      stock_actual,
+      stock_minimo,
+      categoria_id,
+      es_novedad
     } = req.body;
 
     const moduloId = req.moduloId;
@@ -530,10 +531,10 @@ app.post('/api/productos', authenticateToken, checkAccess, requireAdmin, async (
 
     const result = await pool.query(
       `INSERT INTO productos
-       (modulo_id, codigo_ean, nombre, descripcion, precio_compra, precio_venta, stock_actual, stock_minimo, categoria_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+       (modulo_id, codigo_ean, nombre, descripcion, precio_compra, precio_venta, stock_actual, stock_minimo, categoria_id, es_novedad)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
        RETURNING *`,
-      [moduloId, codigo_ean, nombre, descripcion, precio_compra, precio_venta, stock_actual, stock_minimo, categoriaIdValor]
+      [moduloId, codigo_ean, nombre, descripcion, precio_compra, precio_venta, stock_actual, stock_minimo, categoriaIdValor, !!es_novedad]
     );
 
     res.status(201).json(result.rows[0]);
@@ -546,15 +547,16 @@ app.post('/api/productos', authenticateToken, checkAccess, requireAdmin, async (
 app.put('/api/productos/:id', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
-    const { 
-      codigo_ean, 
-      nombre, 
-      descripcion, 
-      precio_compra, 
-      precio_venta, 
-      stock_actual, 
-      stock_minimo, 
-      categoria_id 
+    const {
+      codigo_ean,
+      nombre,
+      descripcion,
+      precio_compra,
+      precio_venta,
+      stock_actual,
+      stock_minimo,
+      categoria_id,
+      es_novedad
     } = req.body;
 
     const moduloId = req.moduloId;
@@ -578,10 +580,11 @@ app.put('/api/productos/:id', authenticateToken, checkAccess, requireAdmin, asyn
            stock_actual = $6,
            stock_minimo = $7,
            categoria_id = $8,
+           es_novedad = $9,
            fecha_actualizacion = NOW()
-       WHERE id = $9 AND modulo_id = $10
+       WHERE id = $10 AND modulo_id = $11
        RETURNING *`,
-      [codigo_ean, nombre, descripcion, precio_compra, precio_venta, stock_actual, stock_minimo, categoriaIdValor, id, moduloId]
+      [codigo_ean, nombre, descripcion, precio_compra, precio_venta, stock_actual, stock_minimo, categoriaIdValor, !!es_novedad, id, moduloId]
     );
 
     if (result.rows.length === 0) {
@@ -3833,7 +3836,7 @@ app.get('/api/menu/:moduloId', async (req, res) => {
     }
 
     const productosResult = await pool.query(
-      `SELECT p.id, p.nombre, p.descripcion, p.precio_venta, p.stock_actual,
+      `SELECT p.id, p.nombre, p.descripcion, p.precio_venta, p.stock_actual, p.foto_url, p.es_novedad,
               c.nombre as categoria_nombre
        FROM productos p
        LEFT JOIN categorias c ON p.categoria_id = c.id

@@ -96,8 +96,8 @@ CREATE TABLE secuencias_factura (
 
 -- Insertar datos iniciales
 -- 1. Crear negocio principal
-INSERT INTO negocios (nombre, direccion, telefono, email, ruc_nit) VALUES 
-('Mi Negocio Principal', 'Dirección principal', '3001234567', 'info@minegocio.com', '123456789-0');
+INSERT INTO negocios (nombre, direccion, telefono, email, ruc_nit) VALUES
+('La Curva del Encanto', 'Dirección principal', '3001234567', 'info@minegocio.com', '123456789-0');
 
 -- 2. Crear super admin (sin negocio asignado)
 INSERT INTO usuarios (nombre, email, password, rol) VALUES 

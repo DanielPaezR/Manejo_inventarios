@@ -1,7 +1,40 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import apiPublico from '../services/apiPublico';
 import './MenuPublico.css';
+
+// Paleta para el placeholder de fotos que todavía no existen (foto_url es
+// nullable y arranca vacío para todos los productos). Se elige por hash del
+// nombre para que cada producto tenga un color consistente entre renders.
+const COLORES_PLACEHOLDER = ['#f6ad55', '#4299e1', '#48bb78', '#ed64a6', '#9f7aea', '#38b2ac', '#f56565', '#ecc94b'];
+
+const obtenerColorPlaceholder = (texto) => {
+  let hash = 0;
+  for (let i = 0; i < texto.length; i++) {
+    hash = texto.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  return COLORES_PLACEHOLDER[Math.abs(hash) % COLORES_PLACEHOLDER.length];
+};
+
+const obtenerIniciales = (nombre) =>
+  nombre.trim().split(/\s+/).slice(0, 2).map(palabra => palabra[0]).join('').toUpperCase();
+
+// Compartido entre las tarjetas del acordeón y las del carrusel de
+// Novedades: mismo criterio de placeholder (sin foto_url o si falla al
+// cargar) en los dos lugares.
+const ImagenProducto = ({ producto, conError, onError }) => {
+  const mostrarFoto = producto.foto_url && !conError;
+  return mostrarFoto ? (
+    <img src={producto.foto_url} alt={producto.nombre} onError={onError} />
+  ) : (
+    <div
+      className="menu-producto-imagen-placeholder"
+      style={{ background: obtenerColorPlaceholder(producto.nombre) }}
+    >
+      {obtenerIniciales(producto.nombre)}
+    </div>
+  );
+};
 
 const MenuPublico = () => {
   const { moduloId } = useParams();
@@ -16,6 +49,9 @@ const MenuPublico = () => {
   const [montoRecibido, setMontoRecibido] = useState('');
   const [enviando, setEnviando] = useState(false);
   const [errorEnvio, setErrorEnvio] = useState('');
+  const [categoriasAbiertas, setCategoriasAbiertas] = useState(new Set());
+  const [imagenesConError, setImagenesConError] = useState(new Set());
+  const categoriasInicializadas = useRef(false);
 
   const cargarMenu = useCallback(async () => {
     try {
@@ -36,6 +72,34 @@ const MenuPublico = () => {
     cargarMenu();
   }, [cargarMenu]);
 
+  // Solo la primera categoría abierta por defecto, así el cliente no tiene
+  // que scrollear todo el menú al entrar. Los productos ya llegan ordenados
+  // por categoría (ORDER BY c.nombre del backend), así que productos[0] es
+  // siempre la primera categoría alfabéticamente.
+  useEffect(() => {
+    if (!categoriasInicializadas.current && productos.length > 0) {
+      const primeraCategoria = productos[0].categoria_nombre || 'Otros';
+      setCategoriasAbiertas(new Set([primeraCategoria]));
+      categoriasInicializadas.current = true;
+    }
+  }, [productos]);
+
+  const toggleCategoria = (categoria) => {
+    setCategoriasAbiertas(prev => {
+      const copia = new Set(prev);
+      if (copia.has(categoria)) {
+        copia.delete(categoria);
+      } else {
+        copia.add(categoria);
+      }
+      return copia;
+    });
+  };
+
+  const marcarImagenConError = (productoId) => {
+    setImagenesConError(prev => new Set(prev).add(productoId));
+  };
+
   const cambiarCantidad = (producto, delta) => {
     setCarrito(prev => {
       const actual = prev[producto.id] || 0;
@@ -55,6 +119,10 @@ const MenuPublico = () => {
     acc[categoria].push(producto);
     return acc;
   }, {});
+
+  // El carrusel es un destacado adicional: un producto marcado como novedad
+  // sigue apareciendo también en su categoría normal más abajo.
+  const productosNovedad = productos.filter(p => p.es_novedad);
 
   const itemsCarrito = Object.entries(carrito).map(([productoId, cantidad]) => {
     const producto = productos.find(p => p.id === parseInt(productoId));
@@ -121,46 +189,122 @@ const MenuPublico = () => {
         <p>{modulo?.nombre}</p>
       </div>
 
+      {productosNovedad.length > 0 && (
+        <div className="menu-novedades-seccion">
+          <h2 className="menu-novedades-titulo">✨ Prueba lo nuevo</h2>
+          <div className="menu-novedades-carrusel">
+            {productosNovedad.map(producto => {
+              const cantidad = carrito[producto.id] || 0;
+              return (
+                <div key={producto.id} className="menu-novedad-card">
+                  <span className="menu-novedad-badge">🆕 Nuevo</span>
+                  <div className="menu-novedad-imagen">
+                    <ImagenProducto
+                      producto={producto}
+                      conError={imagenesConError.has(producto.id)}
+                      onError={() => marcarImagenConError(producto.id)}
+                    />
+                  </div>
+                  <div className="menu-producto-info">
+                    <span className="menu-producto-nombre">{producto.nombre}</span>
+                    {producto.descripcion && (
+                      <span className="menu-producto-descripcion">{producto.descripcion}</span>
+                    )}
+                    <span className="menu-producto-precio">{formatearMoneda(producto.precio_venta)}</span>
+                  </div>
+                  <div className="menu-producto-stepper">
+                    <button
+                      onClick={() => cambiarCantidad(producto, -1)}
+                      disabled={cantidad === 0}
+                      className="btn-stepper"
+                    >
+                      −
+                    </button>
+                    <span className="menu-producto-cantidad">{cantidad}</span>
+                    <button
+                      onClick={() => cambiarCantidad(producto, 1)}
+                      disabled={cantidad >= producto.stock_actual}
+                      className="btn-stepper"
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {productos.length === 0 ? (
         <p className="menu-publico-sin-productos">No hay productos disponibles en este momento</p>
       ) : (
         <div className="menu-publico-lista">
-          {Object.entries(productosPorCategoria).map(([categoria, items]) => (
-            <div key={categoria} className="menu-categoria">
-              <h2 className="menu-categoria-titulo">{categoria}</h2>
-              {items.map(producto => {
-                const cantidad = carrito[producto.id] || 0;
-                return (
-                  <div key={producto.id} className="menu-producto-item">
-                    <div className="menu-producto-info">
-                      <span className="menu-producto-nombre">{producto.nombre}</span>
-                      {producto.descripcion && (
-                        <span className="menu-producto-descripcion">{producto.descripcion}</span>
-                      )}
-                      <span className="menu-producto-precio">{formatearMoneda(producto.precio_venta)}</span>
-                    </div>
-                    <div className="menu-producto-stepper">
-                      <button
-                        onClick={() => cambiarCantidad(producto, -1)}
-                        disabled={cantidad === 0}
-                        className="btn-stepper"
-                      >
-                        −
-                      </button>
-                      <span className="menu-producto-cantidad">{cantidad}</span>
-                      <button
-                        onClick={() => cambiarCantidad(producto, 1)}
-                        disabled={cantidad >= producto.stock_actual}
-                        className="btn-stepper"
-                      >
-                        +
-                      </button>
-                    </div>
+          {Object.entries(productosPorCategoria).map(([categoria, items]) => {
+            const abierta = categoriasAbiertas.has(categoria);
+            const cantidadCategoria = items.reduce((sum, p) => sum + (carrito[p.id] || 0), 0);
+
+            return (
+              <div key={categoria} className="menu-categoria">
+                <button
+                  type="button"
+                  className="menu-categoria-titulo"
+                  onClick={() => toggleCategoria(categoria)}
+                  aria-expanded={abierta}
+                >
+                  <span className="menu-categoria-flecha">{abierta ? '▾' : '▸'}</span>
+                  <span className="menu-categoria-nombre">{categoria}</span>
+                  {cantidadCategoria > 0 && (
+                    <span className="menu-categoria-badge">{cantidadCategoria}</span>
+                  )}
+                </button>
+
+                {abierta && (
+                  <div className="menu-categoria-productos">
+                    {items.map(producto => {
+                      const cantidad = carrito[producto.id] || 0;
+
+                      return (
+                        <div key={producto.id} className="menu-producto-card">
+                          <div className="menu-producto-imagen">
+                            <ImagenProducto
+                              producto={producto}
+                              conError={imagenesConError.has(producto.id)}
+                              onError={() => marcarImagenConError(producto.id)}
+                            />
+                          </div>
+                          <div className="menu-producto-info">
+                            <span className="menu-producto-nombre">{producto.nombre}</span>
+                            {producto.descripcion && (
+                              <span className="menu-producto-descripcion">{producto.descripcion}</span>
+                            )}
+                            <span className="menu-producto-precio">{formatearMoneda(producto.precio_venta)}</span>
+                          </div>
+                          <div className="menu-producto-stepper">
+                            <button
+                              onClick={() => cambiarCantidad(producto, -1)}
+                              disabled={cantidad === 0}
+                              className="btn-stepper"
+                            >
+                              −
+                            </button>
+                            <span className="menu-producto-cantidad">{cantidad}</span>
+                            <button
+                              onClick={() => cambiarCantidad(producto, 1)}
+                              disabled={cantidad >= producto.stock_actual}
+                              className="btn-stepper"
+                            >
+                              +
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
-                );
-              })}
-            </div>
-          ))}
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
 
