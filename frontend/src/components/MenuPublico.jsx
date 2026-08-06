@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import apiPublico from '../services/apiPublico';
 import './MenuPublico.css';
@@ -6,7 +6,9 @@ import './MenuPublico.css';
 // Paleta para el placeholder de fotos que todavía no existen (foto_url es
 // nullable y arranca vacío para todos los productos). Se elige por hash del
 // nombre para que cada producto tenga un color consistente entre renders.
-const COLORES_PLACEHOLDER = ['#f6ad55', '#4299e1', '#48bb78', '#ed64a6', '#9f7aea', '#38b2ac', '#f56565', '#ecc94b'];
+// Tonos madera/pino/niebla para que el placeholder se sienta parte de la
+// paleta del estadero, no un ícono gris genérico.
+const COLORES_PLACEHOLDER = ['#3E2A1E', '#566B5A', '#6B4A34', '#4A3B2A', '#3F5347', '#5C4A3A'];
 
 const obtenerColorPlaceholder = (texto) => {
   let hash = 0;
@@ -51,7 +53,6 @@ const MenuPublico = () => {
   const [errorEnvio, setErrorEnvio] = useState('');
   const [categoriasAbiertas, setCategoriasAbiertas] = useState(new Set());
   const [imagenesConError, setImagenesConError] = useState(new Set());
-  const categoriasInicializadas = useRef(false);
 
   const cargarMenu = useCallback(async () => {
     try {
@@ -71,18 +72,6 @@ const MenuPublico = () => {
   useEffect(() => {
     cargarMenu();
   }, [cargarMenu]);
-
-  // Solo la primera categoría abierta por defecto, así el cliente no tiene
-  // que scrollear todo el menú al entrar. Los productos ya llegan ordenados
-  // por categoría (ORDER BY c.nombre del backend), así que productos[0] es
-  // siempre la primera categoría alfabéticamente.
-  useEffect(() => {
-    if (!categoriasInicializadas.current && productos.length > 0) {
-      const primeraCategoria = productos[0].categoria_nombre || 'Otros';
-      setCategoriasAbiertas(new Set([primeraCategoria]));
-      categoriasInicializadas.current = true;
-    }
-  }, [productos]);
 
   const toggleCategoria = (categoria) => {
     setCategoriasAbiertas(prev => {
@@ -185,19 +174,19 @@ const MenuPublico = () => {
   return (
     <div className="menu-publico-container">
       <div className="menu-publico-header">
-        <h1>🍽️ {modulo?.negocio_nombre}</h1>
+        <h1>{modulo?.negocio_nombre}</h1>
         <p>{modulo?.nombre}</p>
       </div>
 
       {productosNovedad.length > 0 && (
         <div className="menu-novedades-seccion">
-          <h2 className="menu-novedades-titulo">✨ Prueba lo nuevo</h2>
+          <h2 className="menu-novedades-titulo">Prueba lo nuevo</h2>
           <div className="menu-novedades-carrusel">
             {productosNovedad.map(producto => {
               const cantidad = carrito[producto.id] || 0;
               return (
                 <div key={producto.id} className="menu-novedad-card">
-                  <span className="menu-novedad-badge">🆕 Nuevo</span>
+                  <span className="menu-novedad-badge">Nuevo</span>
                   <div className="menu-novedad-imagen">
                     <ImagenProducto
                       producto={producto}
@@ -252,7 +241,7 @@ const MenuPublico = () => {
                   onClick={() => toggleCategoria(categoria)}
                   aria-expanded={abierta}
                 >
-                  <span className="menu-categoria-flecha">{abierta ? '▾' : '▸'}</span>
+                  <span className="menu-categoria-flecha">›</span>
                   <span className="menu-categoria-nombre">{categoria}</span>
                   {cantidadCategoria > 0 && (
                     <span className="menu-categoria-badge">{cantidadCategoria}</span>
@@ -311,7 +300,7 @@ const MenuPublico = () => {
       {itemsCarrito.length > 0 && (
         <div className="menu-carrito-panel">
           <div className="menu-carrito-resumen">
-            🛒 {totalItems} item{totalItems !== 1 ? 's' : ''} · {formatearMoneda(totalCarrito)}
+            {totalItems} item{totalItems !== 1 ? 's' : ''} · <span className="menu-carrito-total">{formatearMoneda(totalCarrito)}</span>
           </div>
 
           <input
@@ -337,7 +326,7 @@ const MenuPublico = () => {
             disabled={enviando}
             className="btn-generar-pedido"
           >
-            {enviando ? 'Generando...' : '✅ Generar pedido'}
+            {enviando ? 'Generando...' : 'Generar pedido'}
           </button>
         </div>
       )}

@@ -1,9 +1,11 @@
 /* ============================================================
    MENÚ PÚBLICO (Menú QR) — página standalone, mobile-first
-   Tienda de barrio colombiana: cálida y festiva, no un SaaS
-   minimalista. El festón/toldo (mismo motivo del ícono de la PWA) es
-   el hilo conductor: bajo el header, sobre cada categoría y en el
-   marco de las tarjetas de Novedades.
+   Estadero de montaña colombiano: madera vieja, niebla fría, tallado a
+   mano. Refinado y tranquilo — reemplaza por completo la dirección
+   festiva/festón anterior (no queda nada de esa paleta ni motivo aquí).
+   La curva de la carretera (una línea ondulada fina, no un festón) es
+   el nuevo hilo conductor: separa el header del contenido y cada
+   sección de categoría de la siguiente.
 
    IMPORTANTE — clases compartidas con MenuPedidoConfirmacion.jsx:
    ese archivo reutiliza a propósito (comentario en su propio .css)
@@ -13,26 +15,26 @@
    .menu-carrito-resumen y .menu-carrito-input dentro de su propio
    contenedor (.menu-confirmacion-container). Como se pidió no tocar
    ese archivo, las declaraciones "base" de esas clases se dejan tal
-   cual estaban (mismos colores/tipografía de antes) y la nueva
-   paleta/tipografía de este rediseño se aplica solo mediante
-   selectores descendientes de ".menu-publico-container", que nunca
-   aparece en el DOM de la página de confirmación.
+   cual estaban (mismos colores/tipografía de antes de CUALQUIER
+   rediseño de MenuPublico) y toda la paleta/tipografía nueva se aplica
+   solo mediante selectores descendientes de ".menu-publico-container",
+   que nunca aparece en el DOM de la página de confirmación.
    ============================================================ */
-@import url('https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&family=Inter:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:wght@500;600;700&family=Work+Sans:wght@400;500;600;700&display=swap');
 
 .menu-publico-container {
-  --menu-fondo: #FBF3E1;
-  --menu-rojo: #C4432E;
-  --menu-dorado: #E8A33D;
-  --menu-verde: #2F6E63;
-  --menu-tinta: #2E2118;
-  --menu-tinta-suave: #7A6A5A;
-  --menu-superficie: #FFFDF8;
-  --menu-fuente-display: 'Baloo 2', 'Segoe UI', sans-serif;
-  --menu-fuente-cuerpo: 'Inter', 'Segoe UI', sans-serif;
+  --menu-madera: #3E2A1E;
+  --menu-pergamino: #F0E6D2;
+  --menu-pino: #566B5A;
+  --menu-ambar: #D9A24C;
+  --menu-niebla: #8C9A94;
+  --menu-tinta: #241A12;
+  --menu-superficie: #FBF7EE;
+  --menu-fuente-display: 'Fraunces', Georgia, serif;
+  --menu-fuente-cuerpo: 'Work Sans', 'Segoe UI', sans-serif;
 
   min-height: 100vh;
-  background: var(--menu-fondo);
+  background: var(--menu-pergamino);
   padding: 0 16px 20px;
   padding-bottom: 220px; /* espacio para el panel fijo del carrito */
   max-width: 600px;
@@ -46,7 +48,7 @@
 .menu-publico-sin-productos {
   text-align: center;
   padding: 60px 20px;
-  color: var(--menu-tinta-suave);
+  color: var(--menu-niebla);
   font-size: 15px;
 }
 
@@ -55,57 +57,67 @@
 }
 
 /* ============================================================
-   HEADER — exclusivo de MenuPublico.jsx, con festón/toldo abajo
+   HEADER — exclusivo de MenuPublico.jsx: madera oscura con una
+   textura de niebla sutil detrás del nombre, y la curva de la
+   carretera separándolo del contenido.
    ============================================================ */
 .menu-publico-header {
   position: relative;
   text-align: center;
-  padding: 22px 16px 20px;
-  margin: 0 -16px 30px;
-  background: var(--menu-rojo);
+  padding: 30px 16px 24px;
+  margin: 0 -16px 24px;
+  background:
+    radial-gradient(ellipse 120% 100% at 50% -30%, rgba(255, 255, 255, 0.16), transparent 65%),
+    var(--menu-madera);
 }
 
 .menu-publico-header h1 {
-  margin: 0 0 4px 0;
+  margin: 0 0 6px 0;
   font-family: var(--menu-fuente-display);
   font-weight: 700;
-  font-size: 24px;
-  color: var(--menu-superficie);
+  font-size: 26px;
+  letter-spacing: 0.2px;
+  color: var(--menu-pergamino);
 }
 
 .menu-publico-header p {
   margin: 0;
-  font-size: 14px;
-  color: rgba(255, 253, 248, 0.85);
+  font-family: var(--menu-fuente-cuerpo);
+  font-size: 13px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: rgba(240, 230, 210, 0.68);
 }
 
+/* La curva de la carretera: un trazo fino y ondulado, como una veta de
+   madera o el perfil de una vía de montaña — no un festón de bumps. */
 .menu-publico-header::after {
   content: '';
   position: absolute;
   left: 0;
   right: 0;
-  bottom: -14px;
-  height: 14px;
-  background-image: radial-gradient(circle at 12px 0, var(--menu-rojo) 12px, transparent 12.5px);
-  background-size: 24px 24px;
+  bottom: -13px;
+  height: 13px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='14' viewBox='0 0 140 14'%3E%3Cpath d='M0,7 C35,0 105,14 140,7' fill='none' stroke='%233E2A1E' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-size: 140px 14px;
   background-repeat: repeat-x;
   background-position: top left;
 }
 
 /* ============================================================
    NOVEDADES — carrusel horizontal (scroll-snap CSS puro), exclusivo
-   de MenuPublico.jsx
+   de MenuPublico.jsx. --menu-pino como acento discreto de la sección.
    ============================================================ */
 .menu-novedades-seccion {
-  margin-bottom: 26px;
+  margin-bottom: 24px;
 }
 
 .menu-novedades-titulo {
   margin: 0 0 10px;
   font-family: var(--menu-fuente-display);
-  font-weight: 700;
-  font-size: 17px;
-  color: var(--menu-verde);
+  font-weight: 600;
+  font-size: 18px;
+  color: var(--menu-pino);
 }
 
 .menu-novedades-carrusel {
@@ -113,7 +125,7 @@
   gap: 12px;
   overflow-x: auto;
   scroll-snap-type: x mandatory;
-  padding: 10px 2px 10px;
+  padding: 4px 2px 10px;
   margin: 0 -2px;
   -webkit-overflow-scrolling: touch;
 }
@@ -127,46 +139,30 @@
   gap: 6px;
   background: var(--menu-superficie);
   padding: 10px;
-  border-radius: 12px;
-  border: 2px solid var(--menu-verde);
-  box-shadow: 0 2px 6px rgba(47, 110, 99, 0.15);
-}
-
-/* Marco festoneado arriba de cada tarjeta de Novedades, en verde para
-   que la sección se sienta claramente distinta ("date el gusto"). */
-.menu-novedad-card::before {
-  content: '';
-  position: absolute;
-  top: -9px;
-  left: 6px;
-  right: 6px;
-  height: 9px;
-  background-image: radial-gradient(circle at 9px 0, var(--menu-verde) 9px, transparent 9.5px);
-  background-size: 18px 18px;
-  background-repeat: repeat-x;
-  background-position: top left;
+  border-radius: 8px;
+  border: 1px solid var(--menu-pino);
+  box-shadow: 0 2px 6px rgba(46, 60, 53, 0.1);
 }
 
 .menu-novedad-badge {
-  position: absolute;
-  top: -8px;
-  right: 6px;
-  background: var(--menu-verde);
-  color: var(--menu-superficie);
+  align-self: flex-start;
+  background: rgba(86, 107, 90, 0.14);
+  color: var(--menu-pino);
+  font-family: var(--menu-fuente-cuerpo);
   font-size: 10px;
-  font-weight: 700;
-  padding: 3px 8px;
-  border-radius: 999px;
-  z-index: 1;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  font-weight: 600;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  padding: 2px 8px;
+  border-radius: 4px;
 }
 
 .menu-novedad-imagen {
   width: 100%;
   aspect-ratio: 4 / 3;
-  border-radius: 10px;
+  border-radius: 6px;
   overflow: hidden;
-  background: #edf2ee;
+  background: var(--menu-pergamino);
 }
 
 .menu-novedad-imagen img {
@@ -182,7 +178,7 @@
 }
 
 .menu-novedad-card .menu-producto-precio {
-  color: var(--menu-dorado);
+  color: var(--menu-ambar);
 }
 
 .menu-novedad-card .menu-producto-descripcion {
@@ -198,17 +194,17 @@
 }
 
 .menu-novedad-card .btn-stepper {
-  background: var(--menu-verde);
+  background: var(--menu-pino);
 }
 
 .menu-novedad-card .btn-stepper:hover:not(:disabled) {
-  background: #234f47;
+  background: #3f5347;
 }
 
 /* ============================================================
    CATEGORÍAS Y PRODUCTOS — clases base compartidas con
    MenuPedidoConfirmacion.jsx, SIN TOCAR sus valores (colores/tipografía
-   quedan igual que antes de este rediseño).
+   quedan igual que antes de cualquier rediseño de MenuPublico).
    ============================================================ */
 .menu-categoria {
   margin-bottom: 20px;
@@ -472,55 +468,78 @@
    arriba en su propio contenedor .menu-confirmacion-container) no
    se ve afectado por ninguno de estos overrides.
    ============================================================ */
-.menu-publico-container .menu-categoria-titulo {
+
+/* Cada categoría, como una pequeña placa tallada: fondo superficie,
+   borde fino madera, tipografía display, flecha tipográfica rotada
+   (no un emoji) y separador ondulado sutil bajo cada sección. */
+.menu-publico-container .menu-categoria {
   position: relative;
-  margin-top: 12px;
-  background: var(--menu-superficie);
-  border: none;
-  border-radius: 0 10px 10px 10px;
-  padding: 10px 14px;
-  color: var(--menu-rojo);
-  font-family: var(--menu-fuente-display);
-  text-transform: none;
-  letter-spacing: normal;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+  padding-bottom: 20px;
+  margin-bottom: 0;
+  border-bottom: none;
 }
 
-/* Techito decorativo sobre cada encabezado de categoría, como el filo
-   de una carpa de tienda. */
-.menu-publico-container .menu-categoria-titulo::before {
+.menu-publico-container .menu-categoria:not(:last-child)::after {
   content: '';
   position: absolute;
-  top: -9px;
-  left: 0;
-  width: 60px;
-  height: 9px;
-  background-image: radial-gradient(circle at 9px 0, var(--menu-dorado) 9px, transparent 9.5px);
-  background-size: 18px 18px;
+  left: 8px;
+  right: 8px;
+  bottom: 0;
+  height: 11px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='12' viewBox='0 0 120 12'%3E%3Cpath d='M0,6 C30,0 90,12 120,6' fill='none' stroke='%238C9A94' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-size: 120px 12px;
   background-repeat: repeat-x;
   background-position: top left;
+  opacity: 0.6;
+}
+
+.menu-publico-container .menu-categoria-titulo {
+  background: var(--menu-superficie);
+  border: 1px solid var(--menu-madera);
+  border-radius: 8px;
+  padding: 12px 14px;
+  color: var(--menu-tinta);
+  font-family: var(--menu-fuente-display);
+  font-weight: 600;
+  font-size: 16px;
+  text-transform: none;
+  letter-spacing: normal;
 }
 
 .menu-publico-container .menu-categoria-flecha {
-  color: var(--menu-dorado);
+  font-family: var(--menu-fuente-cuerpo);
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--menu-madera);
+  line-height: 1;
+  transition: transform 0.2s ease;
+  transform: rotate(0deg);
+}
+
+.menu-publico-container .menu-categoria-titulo[aria-expanded="true"] .menu-categoria-flecha {
+  transform: rotate(90deg);
 }
 
 .menu-publico-container .menu-categoria-badge {
-  background: var(--menu-dorado);
+  background: var(--menu-ambar);
   color: var(--menu-tinta);
+  font-family: var(--menu-fuente-cuerpo);
 }
 
 .menu-publico-container .menu-producto-nombre {
-  font-family: var(--menu-fuente-display);
+  font-family: var(--menu-fuente-cuerpo);
+  font-weight: 600;
   color: var(--menu-tinta);
 }
 
 .menu-publico-container .menu-producto-descripcion {
-  color: var(--menu-tinta-suave);
+  color: var(--menu-niebla);
 }
 
 .menu-publico-container .menu-producto-precio {
-  color: var(--menu-dorado);
+  font-family: var(--menu-fuente-cuerpo);
+  color: var(--menu-ambar);
+  font-weight: 700;
 }
 
 .menu-publico-container .menu-producto-cantidad {
@@ -529,10 +548,12 @@
 
 .menu-publico-container .menu-producto-card {
   background: var(--menu-superficie);
+  border: 1px solid rgba(140, 154, 148, 0.35);
+  box-shadow: 0 1px 3px rgba(36, 26, 18, 0.06);
 }
 
 .menu-publico-container .menu-producto-imagen {
-  background: #f1e6d3;
+  background: var(--menu-pergamino);
 }
 
 .menu-publico-container .menu-producto-imagen-placeholder {
@@ -541,49 +562,67 @@
 }
 
 .menu-publico-container .btn-stepper {
-  background: var(--menu-rojo);
+  background: var(--menu-madera);
 }
 
 .menu-publico-container .btn-stepper:disabled {
-  background: #d9cdb8;
+  background: #cabfa9;
 }
 
 .menu-publico-container .btn-stepper:hover:not(:disabled) {
-  background: #a8362a;
+  background: #573823;
 }
 
 .menu-publico-container .menu-carrito-panel {
-  background: var(--menu-superficie);
-  border-top: 3px solid var(--menu-dorado);
+  background: var(--menu-madera);
+  border-top: none;
+  box-shadow: 0 -6px 20px rgba(36, 26, 18, 0.25);
 }
 
 .menu-publico-container .menu-carrito-resumen {
   font-family: var(--menu-fuente-display);
-  color: var(--menu-tinta);
+  font-weight: 600;
+  color: var(--menu-pergamino);
 }
 
+.menu-publico-container .menu-carrito-total {
+  color: var(--menu-ambar);
+  font-weight: 700;
+}
+
+/* Los campos del carrito quedan claros (superficie) dentro del panel
+   oscuro de madera: mantiene la legibilidad y la afordancia de "esto
+   se puede escribir" sin perder la paleta cálida. */
 .menu-publico-container .menu-carrito-input {
   font-family: var(--menu-fuente-cuerpo);
-  border-color: #e7dcc7;
-  background: var(--menu-fondo);
+  background: var(--menu-superficie);
   color: var(--menu-tinta);
+  border-color: transparent;
+}
+
+.menu-publico-container .menu-carrito-input::placeholder {
+  color: var(--menu-niebla);
 }
 
 .menu-publico-container .menu-carrito-input:focus {
-  border-color: var(--menu-rojo);
+  border-color: var(--menu-ambar);
 }
 
 .menu-publico-container .menu-carrito-error {
-  color: var(--menu-rojo);
+  color: #e2a08a;
 }
 
 .menu-publico-container .btn-generar-pedido {
-  background: linear-gradient(135deg, var(--menu-rojo) 0%, var(--menu-dorado) 100%);
+  background: var(--menu-ambar);
+  color: var(--menu-tinta);
   font-family: var(--menu-fuente-display);
+  font-weight: 700;
+  font-size: 17px;
 }
 
 .menu-publico-container .btn-generar-pedido:hover:not(:disabled) {
-  box-shadow: 0 4px 16px rgba(196, 67, 46, 0.35);
+  background: #c6913f;
+  box-shadow: 0 4px 16px rgba(217, 162, 76, 0.4);
 }
 
 @media (max-width: 480px) {
@@ -593,10 +632,10 @@
   }
 
   .menu-publico-header {
-    margin: 0 -12px 30px;
+    margin: 0 -12px 24px;
   }
 
   .menu-publico-header h1 {
-    font-size: 20px;
+    font-size: 22px;
   }
 }
