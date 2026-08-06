@@ -494,6 +494,22 @@
 }
 
 .menu-publico-container .menu-categoria-titulo {
+  /* Pegada arriba mientras se scrollea dentro de sus productos, así el
+     usuario puede cerrarla sin volver a subir hasta el tope del menú.
+     Fondo sólido (superficie) obligatorio para que las tarjetas de abajo
+     no se transparenten al pasar por detrás. Sombra siempre presente
+     mas muy sutil: no hay forma confiable en CSS puro de detectar
+     "¿está pegada ahora mismo?" sin JS (no hay soporte estable de
+     :stuck), así que se deja una sombra tenue constante — se nota más
+     cuando hay contenido pasando debajo y es casi imperceptible cuando
+     no, que es justo el efecto buscado.
+     z-index por encima de las tarjetas de producto (que no declaran
+     z-index, quedan en 0/auto) pero muy por debajo del panel del
+     carrito (position: fixed, z-index explícito más abajo) para que
+     nunca compitan. */
+  position: sticky;
+  top: 0;
+  z-index: 5;
   background: var(--menu-superficie);
   border: 1px solid var(--menu-madera);
   border-radius: 8px;
@@ -504,6 +520,7 @@
   font-size: 16px;
   text-transform: none;
   letter-spacing: normal;
+  box-shadow: 0 2px 6px rgba(36, 26, 18, 0.15);
 }
 
 .menu-publico-container .menu-categoria-flecha {
@@ -577,6 +594,11 @@
   background: var(--menu-madera);
   border-top: none;
   box-shadow: 0 -6px 20px rgba(36, 26, 18, 0.25);
+  /* Explícito y por encima del encabezado de categoría pegajoso
+     (z-index: 5): viven en extremos opuestos de la pantalla (fixed
+     abajo vs. sticky arriba) y no deberían solaparse nunca, pero se
+     deja sin ambigüedad para no depender del orden en el DOM. */
+  z-index: 10;
 }
 
 .menu-publico-container .menu-carrito-resumen {
