@@ -1,0 +1,226 @@
+/* ============================================================
+   PEDIDOS DE CLIENTES (panel del negocio) — Tanda 3 del Menú QR
+   Nota: reutiliza a propósito .header-left, .modulo-indicador, .badge,
+   .loading, .sin-datos, .alert/.alert-warning, .mensaje-flotante,
+   .btn-cerrar-mensaje, .btn-refresh, .form-group, .input-cantidad,
+   .btn-eliminar-detalle, .modal/.modal-content/.modal-header/.modal-footer,
+   .btn-guardar y .btn-cancelar (todo el CSS del frontend se compila en una
+   sola hoja global) — ya usadas con el mismo look en Pedidos.jsx y otras
+   páginas del panel, no se redefinen aquí para no arriesgar un choque de
+   nombres con estilos ligeramente distintos.
+   ============================================================ */
+.pedidos-cliente-container {
+  padding: 24px;
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+.pedidos-cliente-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.pedidos-cliente-lista {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.pedido-cliente-card {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+  overflow: hidden;
+}
+
+.pedido-cliente-resumen {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 18px;
+  cursor: pointer;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.pedido-cliente-resumen:hover {
+  background: #f7fafc;
+}
+
+.pedido-cliente-resumen-principal {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.pedido-cliente-mesa {
+  font-weight: 700;
+  color: #2d3748;
+  font-size: 15px;
+}
+
+.estado-badge-pedidos-cliente {
+  display: inline-block;
+  padding: 4px 14px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.pedido-cliente-resumen-datos {
+  display: flex;
+  gap: 16px;
+  font-size: 13px;
+  color: #718096;
+}
+
+.pedido-cliente-detalle {
+  padding: 0 18px 18px;
+  border-top: 1px solid #edf2f7;
+}
+
+.tabla-pedido-cliente-detalle,
+.tabla-pedido-cliente-edicion {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 14px;
+  font-size: 14px;
+}
+
+.tabla-pedido-cliente-detalle th,
+.tabla-pedido-cliente-edicion th {
+  text-align: left;
+  padding: 8px;
+  color: #718096;
+  font-size: 12px;
+  text-transform: uppercase;
+  border-bottom: 2px solid #edf2f7;
+}
+
+.tabla-pedido-cliente-detalle td,
+.tabla-pedido-cliente-edicion td {
+  padding: 8px;
+  border-bottom: 1px solid #edf2f7;
+  color: #2d3748;
+}
+
+.pedido-cliente-monto-recibido {
+  margin: 10px 0 0;
+  font-size: 13px;
+  color: #718096;
+}
+
+.pedido-cliente-acciones {
+  display: flex;
+  gap: 10px;
+  margin-top: 16px;
+  flex-wrap: wrap;
+}
+
+.pedido-cliente-acciones button {
+  padding: 10px 16px;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.pedido-cliente-acciones button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-confirmar-pedido-cliente {
+  background: #ebf8ff;
+  color: #2b6cb0;
+}
+
+.btn-confirmar-pedido-cliente:hover:not(:disabled) {
+  background: #bee3f8;
+}
+
+.btn-editar-pedido-cliente {
+  background: #edf2f7;
+  color: #4a5568;
+}
+
+.btn-editar-pedido-cliente:hover:not(:disabled) {
+  background: #e2e8f0;
+}
+
+.btn-completar-pedido-cliente {
+  background: linear-gradient(135deg, #48bb78 0%, #38a169 100%);
+  color: white;
+}
+
+.btn-completar-pedido-cliente:hover:not(:disabled) {
+  box-shadow: 0 4px 12px rgba(56, 161, 105, 0.35);
+}
+
+.btn-cancelar-pedido-cliente-panel {
+  background: #fff5f5;
+  color: #c53030;
+}
+
+.btn-cancelar-pedido-cliente-panel:hover:not(:disabled) {
+  background: #fed7d7;
+}
+
+.pedido-cliente-edicion {
+  margin-top: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.pedido-cliente-agregar-producto select {
+  width: 100%;
+  padding: 8px 10px;
+  border: 2px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 14px;
+}
+
+.pedido-cliente-edicion-botones {
+  display: flex;
+  gap: 10px;
+}
+
+.pedido-cliente-modal-completar {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.pedido-cliente-modal-completar select {
+  width: 100%;
+  padding: 8px 10px;
+  border: 2px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 14px;
+}
+
+@media (max-width: 768px) {
+  .pedidos-cliente-container {
+    padding: 14px;
+  }
+
+  .pedido-cliente-resumen-datos {
+    gap: 10px;
+    font-size: 12px;
+  }
+
+  .pedido-cliente-acciones {
+    flex-direction: column;
+  }
+
+  .pedido-cliente-acciones button {
+    width: 100%;
+  }
+}

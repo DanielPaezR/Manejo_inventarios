@@ -12,6 +12,7 @@ import Proveedores from './components/Proveedores';
 import Pedidos from './components/Pedidos';
 import Clientes from './components/Clientes';
 import Finanzas from './components/Finanzas';
+import PedidosCliente from './components/PedidosCliente';
 import MenuPublico from './components/MenuPublico';
 import MenuPedidoConfirmacion from './components/MenuPedidoConfirmacion';
 import './App.css';
@@ -94,6 +95,7 @@ function App() {
               <Route path="pedidos" element={<Pedidos user={user} />} />
               <Route path="clientes" element={<Clientes user={user} />} />
               <Route path="finanzas" element={<Finanzas user={user} />} />
+              <Route path="pedidos-cliente" element={<PedidosCliente user={user} />} />
             </Route>
           </Routes>
         </div>
