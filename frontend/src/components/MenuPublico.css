@@ -1,0 +1,217 @@
+/* ============================================================
+   MENÚ PÚBLICO (Menú QR) — página standalone, mobile-first
+   ============================================================ */
+.menu-publico-container {
+  min-height: 100vh;
+  background: #f5f7fa;
+  padding: 16px 16px 20px;
+  padding-bottom: 220px; /* espacio para el panel fijo del carrito */
+  max-width: 600px;
+  margin: 0 auto;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.menu-publico-loading,
+.menu-publico-error,
+.menu-publico-sin-productos {
+  text-align: center;
+  padding: 60px 20px;
+  color: #718096;
+  font-size: 15px;
+}
+
+.menu-publico-error {
+  color: #742a2a;
+}
+
+.menu-publico-header {
+  text-align: center;
+  padding: 20px 0 16px;
+  margin-bottom: 16px;
+  border-bottom: 2px solid #e2e8f0;
+}
+
+.menu-publico-header h1 {
+  margin: 0 0 4px 0;
+  font-size: 22px;
+  color: #2d3748;
+}
+
+.menu-publico-header p {
+  margin: 0;
+  font-size: 14px;
+  color: #718096;
+}
+
+.menu-categoria {
+  margin-bottom: 20px;
+}
+
+.menu-categoria-titulo {
+  font-size: 15px;
+  font-weight: 700;
+  color: #4299e1;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin: 0 0 10px 0;
+  padding-bottom: 6px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.menu-producto-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  background: white;
+  padding: 12px 14px;
+  border-radius: 12px;
+  margin-bottom: 8px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
+}
+
+.menu-producto-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.menu-producto-nombre {
+  font-weight: 600;
+  font-size: 14px;
+  color: #2d3748;
+}
+
+.menu-producto-descripcion {
+  font-size: 12px;
+  color: #a0aec0;
+}
+
+.menu-producto-precio {
+  font-size: 14px;
+  color: #38a169;
+  font-weight: 700;
+  margin-top: 2px;
+}
+
+.menu-producto-stepper {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.btn-stepper {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: none;
+  background: #4299e1;
+  color: white;
+  font-size: 18px;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.btn-stepper:disabled {
+  background: #cbd5e0;
+  cursor: not-allowed;
+}
+
+.btn-stepper:hover:not(:disabled) {
+  background: #3182ce;
+  transform: scale(1.05);
+}
+
+.menu-producto-cantidad {
+  min-width: 20px;
+  text-align: center;
+  font-weight: 700;
+  font-size: 15px;
+  color: #2d3748;
+}
+
+/* Panel fijo del carrito, abajo de la pantalla */
+.menu-carrito-panel {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: white;
+  border-top: 2px solid #e2e8f0;
+  box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.1);
+  padding: 14px 16px calc(14px + env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+.menu-carrito-resumen {
+  font-size: 16px;
+  font-weight: 700;
+  color: #2d3748;
+  text-align: center;
+  margin-bottom: 4px;
+}
+
+.menu-carrito-input {
+  width: 100%;
+  padding: 10px 14px;
+  border: 2px solid #e2e8f0;
+  border-radius: 10px;
+  font-size: 14px;
+  box-sizing: border-box;
+}
+
+.menu-carrito-input:focus {
+  outline: none;
+  border-color: #4299e1;
+}
+
+.menu-carrito-error {
+  color: #c53030;
+  font-size: 13px;
+  margin: 0;
+  text-align: center;
+}
+
+.btn-generar-pedido {
+  width: 100%;
+  padding: 14px;
+  background: linear-gradient(135deg, #48bb78 0%, #38a169 100%);
+  color: white;
+  border: none;
+  border-radius: 10px;
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-generar-pedido:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(56, 161, 105, 0.35);
+}
+
+.btn-generar-pedido:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+@media (max-width: 480px) {
+  .menu-publico-container {
+    padding: 12px 12px 20px;
+    padding-bottom: 240px;
+  }
+
+  .menu-publico-header h1 {
+    font-size: 19px;
+  }
+}

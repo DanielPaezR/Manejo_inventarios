@@ -5,6 +5,7 @@ const jwt = require('jsonwebtoken');
 const { Pool } = require('pg');
 const moment = require('moment');
 const path = require('path');
+const crypto = require('crypto');
 require('dotenv').config();
 
 // El servidor corre en UTC (confirmado con SHOW timezone en Postgres), pero
@@ -3334,6 +3335,421 @@ app.delete('/api/usuarios/:id', authenticateToken, requireSuperAdmin, async (req
     res.json({ message: 'Usuario eliminado correctamente' });
   } catch (error) {
     console.error('Error eliminando usuario:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// ==================== RUTAS DE MENÚ PÚBLICO (SIN AUTENTICACIÓN) ====================
+// A propósito SIN authenticateToken/checkAccess: son para clientes sin
+// cuenta que escanean un QR. Usan el moduloId de la URL, nunca req.moduloId
+// (que depende de la sesión de un usuario logueado). Tanda 2 de 3 del
+// "Menú QR" — la Tanda 3 (panel del negocio, completar pedido con
+// descuento de stock real) viene en un cambio aparte.
+
+// Menú público: solo productos activos con stock disponible, sin datos
+// internos (precio_compra, codigo_ean, etc.)
+app.get('/api/menu/:moduloId', async (req, res) => {
+  try {
+    const { moduloId } = req.params;
+
+    if (!/^\d+$/.test(moduloId)) {
+      return res.status(404).json({ error: 'Menú no disponible' });
+    }
+
+    const moduloResult = await pool.query(
+      `SELECT m.id, m.nombre, m.activo, n.nombre as negocio_nombre
+       FROM modulos m
+       JOIN negocios n ON m.negocio_id = n.id
+       WHERE m.id = $1`,
+      [moduloId]
+    );
+
+    if (moduloResult.rows.length === 0 || moduloResult.rows[0].activo === false) {
+      return res.status(404).json({ error: 'Menú no disponible' });
+    }
+
+    const productosResult = await pool.query(
+      `SELECT p.id, p.nombre, p.descripcion, p.precio_venta, p.stock_actual,
+              c.nombre as categoria_nombre
+       FROM productos p
+       LEFT JOIN categorias c ON p.categoria_id = c.id
+       WHERE p.modulo_id = $1 AND p.activo = true AND p.stock_actual > 0
+       ORDER BY c.nombre NULLS LAST, p.nombre`,
+      [moduloId]
+    );
+
+    res.json({
+      modulo: {
+        id: moduloResult.rows[0].id,
+        nombre: moduloResult.rows[0].nombre,
+        negocio_nombre: moduloResult.rows[0].negocio_nombre
+      },
+      productos: productosResult.rows
+    });
+  } catch (error) {
+    console.error('Error obteniendo menú público:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// Crear pedido de cliente. NO descuenta stock todavía (eso pasa en la
+// Tanda 3, cuando el negocio lo completa) — solo valida que alcance.
+app.post('/api/menu/:moduloId/pedidos', async (req, res) => {
+  // client se declara afuera y pool.connect() va DENTRO del try: en una
+  // ruta pública sin autenticación, si pool.connect() llega a rechazar
+  // (ej. timeout de conexión) y queda fuera del try, la promesa rechazada
+  // no la atrapa nada — Node la trata como unhandledRejection y tumba
+  // todo el proceso, no solo esta petición.
+  let client;
+
+  try {
+    client = await pool.connect();
+    await client.query('BEGIN');
+
+    const { moduloId } = req.params;
+    const { mesa_nombre, monto_recibido, items } = req.body;
+
+    if (!/^\d+$/.test(moduloId)) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Menú no disponible' });
+    }
+
+    const moduloResult = await client.query(
+      'SELECT id, activo FROM modulos WHERE id = $1',
+      [moduloId]
+    );
+    if (moduloResult.rows.length === 0 || moduloResult.rows[0].activo === false) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Menú no disponible' });
+    }
+
+    if (!mesa_nombre || !mesa_nombre.trim()) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'Ingresa tu nombre o el número de mesa' });
+    }
+
+    if (!Array.isArray(items) || items.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'El pedido debe tener al menos un producto' });
+    }
+
+    let montoRecibidoValido = null;
+    if (monto_recibido !== undefined && monto_recibido !== null && monto_recibido !== '') {
+      const val = Number(monto_recibido);
+      if (!Number.isFinite(val) || val < 0) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: 'Monto recibido inválido' });
+      }
+      montoRecibidoValido = val;
+    }
+
+    const detallesValidados = [];
+    let subtotal = 0;
+
+    for (const item of items) {
+      const cantidad = Number(item.cantidad);
+      if (!Number.isFinite(cantidad) || cantidad <= 0) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: `Cantidad inválida para el producto ${item.producto_id}` });
+      }
+
+      // Snapshot del precio_venta ACTUAL: se guarda en el detalle para que
+      // si el precio cambia después, este pedido ya hecho no se altere.
+      const productoResult = await client.query(
+        'SELECT id, nombre, precio_venta, stock_actual FROM productos WHERE id = $1 AND modulo_id = $2 AND activo = true',
+        [item.producto_id, moduloId]
+      );
+
+      if (productoResult.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: `Producto no disponible: ${item.producto_id}` });
+      }
+
+      const producto = productoResult.rows[0];
+      if (cantidad > producto.stock_actual) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({
+          error: `No hay suficiente stock de "${producto.nombre}". Disponible: ${producto.stock_actual}`
+        });
+      }
+
+      const precioUnitario = Number(producto.precio_venta);
+      const subtotalItem = cantidad * precioUnitario;
+      subtotal += subtotalItem;
+
+      detallesValidados.push({
+        producto_id: producto.id,
+        nombre_producto: producto.nombre,
+        cantidad,
+        precio_unitario: precioUnitario,
+        subtotal: subtotalItem
+      });
+    }
+
+    const total = subtotal;
+    const tokenPublico = crypto.randomBytes(24).toString('hex');
+
+    const pedidoResult = await client.query(
+      `INSERT INTO pedidos_cliente (modulo_id, token_publico, mesa_nombre, monto_recibido, subtotal, total)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING *`,
+      [moduloId, tokenPublico, mesa_nombre.trim(), montoRecibidoValido, subtotal, total]
+    );
+
+    const pedido = pedidoResult.rows[0];
+
+    for (const detalle of detallesValidados) {
+      await client.query(
+        `INSERT INTO pedidos_cliente_detalle
+         (pedido_cliente_id, producto_id, nombre_producto, cantidad, precio_unitario, subtotal)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [pedido.id, detalle.producto_id, detalle.nombre_producto, detalle.cantidad, detalle.precio_unitario, detalle.subtotal]
+      );
+    }
+
+    await client.query('COMMIT');
+
+    res.status(201).json({ ...pedido, detalles: detallesValidados });
+  } catch (error) {
+    if (client) {
+      await client.query('ROLLBACK').catch(() => {});
+    }
+    console.error('Error creando pedido de cliente:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  } finally {
+    if (client) client.release();
+  }
+});
+
+// Consultar un pedido de cliente por su token público. Incluye el
+// teléfono del negocio (vía modulos -> negocios) para que la confirmación
+// pueda armar el link de WhatsApp sin una segunda llamada.
+app.get('/api/menu/pedido/:token', async (req, res) => {
+  try {
+    const { token } = req.params;
+
+    const pedidoResult = await pool.query(
+      `SELECT pc.*, n.telefono as negocio_telefono, n.nombre as negocio_nombre
+       FROM pedidos_cliente pc
+       JOIN modulos m ON pc.modulo_id = m.id
+       JOIN negocios n ON m.negocio_id = n.id
+       WHERE pc.token_publico = $1`,
+      [token]
+    );
+
+    if (pedidoResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Pedido no encontrado' });
+    }
+
+    const detalleResult = await pool.query(
+      'SELECT * FROM pedidos_cliente_detalle WHERE pedido_cliente_id = $1 ORDER BY id',
+      [pedidoResult.rows[0].id]
+    );
+
+    res.json({ ...pedidoResult.rows[0], detalles: detalleResult.rows });
+  } catch (error) {
+    console.error('Error obteniendo pedido de cliente:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// Editar un pedido de cliente (solo si sigue 'pendiente'): reemplaza el
+// detalle completo y revalida stock igual que en la creación.
+app.put('/api/menu/pedido/:token', async (req, res) => {
+  // Mismo motivo que en POST /api/menu/:moduloId/pedidos: pool.connect()
+  // va dentro del try para que un fallo de conexión no tumbe el proceso.
+  let client;
+
+  try {
+    client = await pool.connect();
+    await client.query('BEGIN');
+
+    const { token } = req.params;
+    const { mesa_nombre, monto_recibido, items } = req.body;
+
+    // FOR UPDATE: evita que una edición y, por ejemplo, una cancelación
+    // simultánea del mismo pedido se pisen entre sí.
+    const pedidoResult = await client.query(
+      'SELECT * FROM pedidos_cliente WHERE token_publico = $1 FOR UPDATE',
+      [token]
+    );
+
+    if (pedidoResult.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Pedido no encontrado' });
+    }
+
+    const pedido = pedidoResult.rows[0];
+
+    if (pedido.estado !== 'pendiente') {
+      await client.query('ROLLBACK');
+      return res.status(400).json({
+        error: 'Este pedido ya está siendo procesado por el negocio, no se puede editar. Contacta directamente si necesitas cambiarlo'
+      });
+    }
+
+    if (!mesa_nombre || !mesa_nombre.trim()) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'Ingresa tu nombre o el número de mesa' });
+    }
+
+    if (!Array.isArray(items) || items.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'El pedido debe tener al menos un producto' });
+    }
+
+    let montoRecibidoValido = null;
+    if (monto_recibido !== undefined && monto_recibido !== null && monto_recibido !== '') {
+      const val = Number(monto_recibido);
+      if (!Number.isFinite(val) || val < 0) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: 'Monto recibido inválido' });
+      }
+      montoRecibidoValido = val;
+    }
+
+    const detallesValidados = [];
+    let subtotal = 0;
+
+    for (const item of items) {
+      const cantidad = Number(item.cantidad);
+      if (!Number.isFinite(cantidad) || cantidad <= 0) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: `Cantidad inválida para el producto ${item.producto_id}` });
+      }
+
+      const productoResult = await client.query(
+        'SELECT id, nombre, precio_venta, stock_actual FROM productos WHERE id = $1 AND modulo_id = $2 AND activo = true',
+        [item.producto_id, pedido.modulo_id]
+      );
+
+      if (productoResult.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: `Producto no disponible: ${item.producto_id}` });
+      }
+
+      const producto = productoResult.rows[0];
+      if (cantidad > producto.stock_actual) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({
+          error: `No hay suficiente stock de "${producto.nombre}". Disponible: ${producto.stock_actual}`
+        });
+      }
+
+      const precioUnitario = Number(producto.precio_venta);
+      const subtotalItem = cantidad * precioUnitario;
+      subtotal += subtotalItem;
+
+      detallesValidados.push({
+        producto_id: producto.id,
+        nombre_producto: producto.nombre,
+        cantidad,
+        precio_unitario: precioUnitario,
+        subtotal: subtotalItem
+      });
+    }
+
+    const total = subtotal;
+
+    await client.query('DELETE FROM pedidos_cliente_detalle WHERE pedido_cliente_id = $1', [pedido.id]);
+
+    for (const detalle of detallesValidados) {
+      await client.query(
+        `INSERT INTO pedidos_cliente_detalle
+         (pedido_cliente_id, producto_id, nombre_producto, cantidad, precio_unitario, subtotal)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [pedido.id, detalle.producto_id, detalle.nombre_producto, detalle.cantidad, detalle.precio_unitario, detalle.subtotal]
+      );
+    }
+
+    const actualizado = await client.query(
+      `UPDATE pedidos_cliente
+       SET mesa_nombre = $1, monto_recibido = $2, subtotal = $3, total = $4, fecha_actualizacion = NOW()
+       WHERE id = $5
+       RETURNING *`,
+      [mesa_nombre.trim(), montoRecibidoValido, subtotal, total, pedido.id]
+    );
+
+    await client.query('COMMIT');
+
+    res.json({ ...actualizado.rows[0], detalles: detallesValidados });
+  } catch (error) {
+    if (client) {
+      await client.query('ROLLBACK').catch(() => {});
+    }
+    console.error('Error editando pedido de cliente:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  } finally {
+    if (client) client.release();
+  }
+});
+
+// Cancelar un pedido de cliente (solo si no está ya 'completado')
+// Confirmar un pedido de cliente (solo desde 'pendiente'). Es un cambio de
+// estado real, no solo un botón que abre WhatsApp: si el pedido se queda
+// en 'pendiente' tras enviarlo, el cliente podría seguir editándolo
+// después de mandar el mensaje y el negocio nunca se enteraría del cambio
+// (ya vio el mensaje viejo).
+app.put('/api/menu/pedido/:token/confirmar', async (req, res) => {
+  try {
+    const { token } = req.params;
+
+    const pedidoResult = await pool.query(
+      'SELECT * FROM pedidos_cliente WHERE token_publico = $1',
+      [token]
+    );
+
+    if (pedidoResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Pedido no encontrado' });
+    }
+
+    const pedido = pedidoResult.rows[0];
+
+    if (pedido.estado !== 'pendiente') {
+      return res.status(400).json({
+        error: 'Este pedido ya no está pendiente (puede que ya lo hayan cancelado o procesado). Recarga la página para ver su estado actual.'
+      });
+    }
+
+    const actualizado = await pool.query(
+      `UPDATE pedidos_cliente SET estado = 'confirmado', fecha_actualizacion = NOW() WHERE id = $1 RETURNING *`,
+      [pedido.id]
+    );
+
+    res.json(actualizado.rows[0]);
+  } catch (error) {
+    console.error('Error confirmando pedido de cliente:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+app.put('/api/menu/pedido/:token/cancelar', async (req, res) => {
+  try {
+    const { token } = req.params;
+
+    const pedidoResult = await pool.query(
+      'SELECT * FROM pedidos_cliente WHERE token_publico = $1',
+      [token]
+    );
+
+    if (pedidoResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Pedido no encontrado' });
+    }
+
+    const pedido = pedidoResult.rows[0];
+
+    if (!['pendiente', 'confirmado'].includes(pedido.estado)) {
+      return res.status(400).json({ error: 'Este pedido ya no se puede cancelar' });
+    }
+
+    const actualizado = await pool.query(
+      `UPDATE pedidos_cliente SET estado = 'cancelado', fecha_actualizacion = NOW() WHERE id = $1 RETURNING *`,
+      [pedido.id]
+    );
+
+    res.json(actualizado.rows[0]);
+  } catch (error) {
+    console.error('Error cancelando pedido de cliente:', error);
     res.status(500).json({ error: 'Error interno del servidor' });
   }
 });

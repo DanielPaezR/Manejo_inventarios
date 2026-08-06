@@ -1,0 +1,231 @@
+/* ============================================================
+   CONFIRMACIÓN DE PEDIDO (Menú QR) — página standalone
+   Nota: reutiliza a propósito .menu-categoria, .menu-categoria-titulo,
+   .menu-producto-item, .menu-producto-info, .menu-producto-nombre,
+   .menu-producto-precio, .menu-producto-stepper, .btn-stepper,
+   .menu-producto-cantidad, .menu-carrito-resumen y .menu-carrito-input
+   ya definidas en MenuPublico.css (todo el CSS del frontend se compila
+   en una sola hoja global) — no se redefinen aquí para no arriesgar un
+   choque de nombres con estilos ligeramente distintos.
+   ============================================================ */
+.menu-confirmacion-container {
+  min-height: 100vh;
+  background: #f5f7fa;
+  padding: 16px 16px 40px;
+  max-width: 600px;
+  margin: 0 auto;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.menu-confirmacion-loading,
+.menu-confirmacion-error {
+  text-align: center;
+  padding: 60px 20px;
+  color: #718096;
+  font-size: 15px;
+}
+
+.menu-confirmacion-error {
+  color: #742a2a;
+}
+
+.menu-confirmacion-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  text-align: center;
+  padding: 20px 0;
+  margin-bottom: 16px;
+  border-bottom: 2px solid #e2e8f0;
+}
+
+.menu-confirmacion-header h1 {
+  margin: 0;
+  font-size: 20px;
+  color: #2d3748;
+}
+
+.estado-badge-pedido-cliente {
+  display: inline-block;
+  padding: 6px 16px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.estado-badge-pedido-cliente.estado-pendiente {
+  background: #feebc8;
+  color: #9c4221;
+}
+
+.estado-badge-pedido-cliente.estado-confirmado {
+  background: #bee3f8;
+  color: #2c5282;
+}
+
+.estado-badge-pedido-cliente.estado-completado {
+  background: #c6f6d5;
+  color: #22543d;
+}
+
+.estado-badge-pedido-cliente.estado-cancelado {
+  background: #fed7d7;
+  color: #822727;
+}
+
+.menu-confirmacion-resumen {
+  background: white;
+  border-radius: 14px;
+  padding: 18px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
+  margin-bottom: 16px;
+}
+
+.menu-confirmacion-resumen p {
+  margin: 0 0 12px 0;
+  font-size: 14px;
+  color: #2d3748;
+}
+
+.menu-confirmacion-productos {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 0;
+  border-top: 1px solid #edf2f7;
+  border-bottom: 1px solid #edf2f7;
+  margin-bottom: 12px;
+}
+
+.menu-confirmacion-item {
+  display: flex;
+  justify-content: space-between;
+  font-size: 14px;
+  color: #4a5568;
+}
+
+.menu-confirmacion-total {
+  display: flex;
+  justify-content: space-between;
+  font-size: 17px;
+  font-weight: 700;
+  color: #2d3748;
+}
+
+.menu-confirmacion-monto-recibido {
+  margin-top: 10px !important;
+  font-size: 13px !important;
+  color: #718096 !important;
+}
+
+.menu-confirmacion-error-accion {
+  color: #c53030;
+  font-size: 13px;
+  text-align: center;
+  margin: 0 0 12px 0;
+}
+
+.menu-confirmacion-acciones {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.menu-confirmacion-acciones button {
+  padding: 14px;
+  border: none;
+  border-radius: 10px;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-editar-pedido {
+  background: #ebf8ff;
+  color: #2b6cb0;
+}
+
+.btn-editar-pedido:hover:not(:disabled) {
+  background: #bee3f8;
+}
+
+.btn-editar-pedido:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-confirmar-pedido:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.btn-cancelar-pedido-cliente {
+  background: #fff5f5;
+  color: #c53030;
+}
+
+.btn-cancelar-pedido-cliente:hover:not(:disabled) {
+  background: #fed7d7;
+}
+
+.btn-cancelar-pedido-cliente:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-confirmar-pedido {
+  background: linear-gradient(135deg, #48bb78 0%, #38a169 100%);
+  color: white;
+}
+
+.btn-confirmar-pedido:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(56, 161, 105, 0.35);
+}
+
+.menu-confirmacion-edicion-panel {
+  background: white;
+  border-radius: 14px;
+  padding: 16px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.menu-confirmacion-edicion-botones {
+  display: flex;
+  gap: 10px;
+}
+
+.btn-guardar-edicion {
+  flex: 1;
+  padding: 12px;
+  background: linear-gradient(135deg, #4299e1 0%, #3182ce 100%);
+  color: white;
+  border: none;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.btn-guardar-edicion:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-cancelar-edicion {
+  padding: 12px 20px;
+  background: #edf2f7;
+  color: #4a5568;
+  border: none;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}

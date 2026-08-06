@@ -12,6 +12,8 @@ import Proveedores from './components/Proveedores';
 import Pedidos from './components/Pedidos';
 import Clientes from './components/Clientes';
 import Finanzas from './components/Finanzas';
+import MenuPublico from './components/MenuPublico';
+import MenuPedidoConfirmacion from './components/MenuPedidoConfirmacion';
 import './App.css';
 
 function App() {
@@ -67,14 +69,17 @@ function App() {
       <Router>
         <div className="app" data-version="2.0.0-proveedores">
           <Routes>
-            <Route 
-              path="/login" 
+            <Route
+              path="/login"
               element={
                 !user ? <Login onLogin={login} /> : <Navigate to="/" />
-              } 
+              }
             />
-            <Route 
-              path="/" 
+            {/* Menú QR: páginas públicas standalone, sin login ni sidebar */}
+            <Route path="/menu/:moduloId" element={<MenuPublico />} />
+            <Route path="/menu/:moduloId/pedido/:token" element={<MenuPedidoConfirmacion />} />
+            <Route
+              path="/"
               element={
                 user ? <Dashboard user={user} onLogout={logout} /> : <Navigate to="/login" />
               } 
