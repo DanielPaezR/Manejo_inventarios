@@ -3,11 +3,52 @@ import { useParams } from 'react-router-dom';
 import apiPublico from '../services/apiPublico';
 import './MenuPedidoConfirmacion.css';
 
+// ============================================================
+// Iconografía — mismos paths e iguales criterios que MenuPublico.jsx.
+// Duplicados a propósito: no se agrega un archivo compartido nuevo
+// (fuera del alcance pedido), y ambos archivos ya se mantienen
+// coordinados a mano en el mismo sistema de diseño "Modernist".
+// ============================================================
+const IconoHoja = (props) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+    <path d="M4 20c8 0 14-6 14-14 0-1 0-2-.5-3C10 4 4 10 4 18c0 .7 0 1.4.2 2z" />
+    <path d="M4 20c3-6 7-10 13-13" />
+  </svg>
+);
+
+const IconoMontana = (props) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+    <path d="M3 20l5.5-9.5L12 16l3-5L21 20H3z" />
+  </svg>
+);
+
+const IconoGota = (props) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+    <path d="M12 3s6.5 7.5 6.5 12A6.5 6.5 0 015.5 15C5.5 10.5 12 3 12 3z" />
+  </svg>
+);
+
+const IconoEspiga = (props) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+    <path d="M12 21V9" />
+    <path d="M12 9c-2.2 0-4-1.8-4-4M12 9c2.2 0 4-1.8 4-4M12 14c-2.2 0-4-1.8-4-4M12 14c2.2 0 4-1.8 4-4" />
+  </svg>
+);
+
+const obtenerIconoCategoria = (nombreCategoria) => {
+  const n = (nombreCategoria || '').toLowerCase();
+  if (n.includes('entrada')) return IconoHoja;
+  if (n.includes('fuerte') || n.includes('principal') || n.includes('plato')) return IconoMontana;
+  if (n.includes('bebida') || n.includes('trago') || n.includes('jugo') || n.includes('gaseosa')) return IconoGota;
+  if (n.includes('postre') || n.includes('dulce')) return IconoEspiga;
+  return IconoHoja;
+};
+
 const ESTADO_INFO = {
-  pendiente: { icono: '⏳', label: 'Pendiente de confirmación', clase: 'pendiente' },
-  confirmado: { icono: '✅', label: 'Pedido enviado, el negocio lo está revisando', clase: 'confirmado' },
-  completado: { icono: '🎉', label: 'Completado', clase: 'completado' },
-  cancelado: { icono: '❌', label: 'Cancelado', clase: 'cancelado' }
+  pendiente: { label: 'Pendiente de confirmación', pill: 'mp-pill--neutral' },
+  confirmado: { label: 'Pedido enviado, el negocio lo está revisando', pill: 'mp-pill--accent' },
+  completado: { label: 'Completado', pill: 'mp-pill--accent' },
+  cancelado: { label: 'Cancelado', pill: 'mp-pill--outline' }
 };
 
 const MenuPedidoConfirmacion = () => {
@@ -45,6 +86,12 @@ const MenuPedidoConfirmacion = () => {
     cargarPedido();
   }, [cargarPedido]);
 
+  // Edición in-place (no navega a /menu/:moduloId): mismo PUT
+  // /menu/pedido/:token de siempre, mismo token, mismo pedido. Ver
+  // decisión con el usuario — se descartó a propósito la alternativa de
+  // navegar al menú principal con el carrito precargado, porque
+  // "Generar pedido" allá crea un pedido NUEVO (POST), lo que hubiera
+  // dejado este pedido original huérfano en 'pendiente' para siempre.
   const iniciarEdicion = async () => {
     if (!pedido) return;
     const inicial = {};
@@ -233,101 +280,117 @@ const MenuPedidoConfirmacion = () => {
 
   return (
     <div className="menu-confirmacion-container">
-      <div className="menu-confirmacion-header">
-        <h1>🧾 Tu pedido</h1>
-        <span className={`estado-badge-pedido-cliente estado-${estadoInfo.clase}`}>
-          {estadoInfo.icono} {estadoInfo.label}
-        </span>
-      </div>
-
       {!editando ? (
-        <>
-          <div className="menu-confirmacion-resumen">
-            <p><strong>Mesa/Nombre:</strong> {pedido.mesa_nombre}</p>
+        <div className="mp-checkout">
+          <h1 className="mp-checkout__titulo">Pedido enviado</h1>
+          <span className={`mp-pill ${estadoInfo.pill}`}>{estadoInfo.label}</span>
 
-            <div className="menu-confirmacion-productos">
-              {pedido.detalles.map(detalle => (
-                <div key={detalle.id} className="menu-confirmacion-item">
-                  <span>{detalle.nombre_producto} x{detalle.cantidad}</span>
-                  <span>{formatearMoneda(detalle.subtotal)}</span>
-                </div>
-              ))}
-            </div>
-
-            <div className="menu-confirmacion-total">
+          <div className="mp-card mp-resumen">
+            {pedido.detalles.map(detalle => (
+              <div key={detalle.id} className="mp-resumen__fila">
+                <span>{detalle.nombre_producto} × {detalle.cantidad}</span>
+                <span>{formatearMoneda(detalle.subtotal)}</span>
+              </div>
+            ))}
+            <div className="mp-resumen__total">
               <span>Total</span>
               <span>{formatearMoneda(pedido.total)}</span>
             </div>
-
-            {pedido.monto_recibido && (
-              <p className="menu-confirmacion-monto-recibido">
-                💵 Paga con: {formatearMoneda(pedido.monto_recibido)}
-              </p>
-            )}
           </div>
 
-          {errorAccion && <p className="menu-confirmacion-error-accion">{errorAccion}</p>}
+          {pedido.monto_recibido && (
+            <p className="menu-confirmacion-monto-recibido">
+              Paga con: {formatearMoneda(pedido.monto_recibido)}
+            </p>
+          )}
+
+          {errorAccion && <p className="mp-error">{errorAccion}</p>}
 
           {pedido.estado === 'pendiente' && (
-            <div className="menu-confirmacion-acciones">
-              <button onClick={iniciarEdicion} disabled={cancelando || confirmando} className="btn-editar-pedido">
-                ✏️ Editar
+            <div className="mp-acciones-apiladas">
+              <button onClick={iniciarEdicion} disabled={cancelando || confirmando} className="mp-btn mp-btn--secondary mp-btn--full">
+                Editar pedido
               </button>
-              <button onClick={handleCancelar} disabled={cancelando || confirmando} className="btn-cancelar-pedido-cliente">
-                {cancelando ? 'Cancelando...' : '❌ Cancelar pedido'}
+              <button onClick={handleCancelar} disabled={cancelando || confirmando} className="mp-btn mp-btn--secondary mp-btn--danger-text mp-btn--full">
+                {cancelando ? 'Cancelando...' : 'Cancelar pedido'}
               </button>
-              <button onClick={handleConfirmarWhatsApp} disabled={cancelando || confirmando} className="btn-confirmar-pedido">
-                {confirmando ? 'Confirmando...' : '✅ Confirmar y enviar'}
+              <button onClick={handleConfirmarWhatsApp} disabled={cancelando || confirmando} className="mp-btn mp-btn--primary mp-btn--full">
+                <IconoHoja className="mp-btn__icono" />
+                {confirmando ? 'Confirmando...' : 'Confirmar y enviar'}
               </button>
             </div>
           )}
-        </>
+        </div>
       ) : (
-        <div className="menu-confirmacion-edicion">
-          {Object.entries(productosPorCategoria).map(([categoria, items]) => (
-            <div key={categoria} className="menu-categoria">
-              <h2 className="menu-categoria-titulo">{categoria}</h2>
-              {items.map(producto => {
-                const cantidad = carritoEdit[producto.id] || 0;
-                return (
-                  <div key={producto.id} className="menu-producto-item">
-                    <div className="menu-producto-info">
-                      <span className="menu-producto-nombre">{producto.nombre}</span>
-                      <span className="menu-producto-precio">{formatearMoneda(producto.precio_venta)}</span>
-                    </div>
-                    <div className="menu-producto-stepper">
-                      <button
-                        onClick={() => cambiarCantidadEdit(producto, -1)}
-                        disabled={cantidad === 0}
-                        className="btn-stepper"
-                      >
-                        −
-                      </button>
-                      <span className="menu-producto-cantidad">{cantidad}</span>
-                      <button
-                        onClick={() => cambiarCantidadEdit(producto, 1)}
-                        disabled={cantidad >= producto.stock_actual}
-                        className="btn-stepper"
-                      >
-                        +
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          ))}
+        <div className="mp-checkout">
+          <h1 className="mp-checkout__titulo">Editar pedido</h1>
 
-          <div className="menu-confirmacion-edicion-panel">
-            <div className="menu-carrito-resumen">
-              🛒 {itemsEdit.reduce((s, i) => s + i.cantidad, 0)} items · {formatearMoneda(totalEdit)}
+          <div className="mp-categorias">
+            {Object.entries(productosPorCategoria).map(([categoria, items]) => {
+              const IconoCategoria = obtenerIconoCategoria(categoria);
+              return (
+                <div key={categoria} className="mp-categoria">
+                  <div className="mp-categoria__header mp-categoria__header--estatico">
+                    <span className="mp-categoria__icono">
+                      <IconoCategoria />
+                    </span>
+                    <span className="mp-categoria__nombre">{categoria}</span>
+                  </div>
+                  <div className="mp-categoria__productos">
+                    {items.map(producto => {
+                      const cantidad = carritoEdit[producto.id] || 0;
+                      return (
+                        <div key={producto.id} className="mp-producto-card">
+                          <div className="mp-producto-card__body">
+                            <div className="mp-producto-card__fila">
+                              <span className="mp-producto-card__nombre">{producto.nombre}</span>
+                              <span className="mp-producto-card__precio">{formatearMoneda(producto.precio_venta)}</span>
+                            </div>
+                            <div className="mp-producto-card__stepper-fila">
+                              <div className="mp-stepper">
+                                <button
+                                  type="button"
+                                  onClick={() => cambiarCantidadEdit(producto, -1)}
+                                  disabled={cantidad === 0}
+                                  className="mp-stepper__btn"
+                                >
+                                  −
+                                </button>
+                                <span className="mp-stepper__cantidad">{cantidad}</span>
+                                <button
+                                  type="button"
+                                  onClick={() => cambiarCantidadEdit(producto, 1)}
+                                  disabled={cantidad >= producto.stock_actual}
+                                  className="mp-stepper__btn"
+                                >
+                                  +
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="mp-card mp-resumen">
+            <div className="mp-resumen__total">
+              <span>{itemsEdit.reduce((s, i) => s + i.cantidad, 0)} items</span>
+              <span>{formatearMoneda(totalEdit)}</span>
             </div>
+          </div>
+
+          <div className="mp-campos">
             <input
               type="text"
               placeholder="Mesa o tu nombre *"
               value={mesaNombreEdit}
               onChange={(e) => setMesaNombreEdit(e.target.value)}
-              className="menu-carrito-input"
+              className="mp-input"
             />
             <input
               type="number"
@@ -335,19 +398,19 @@ const MenuPedidoConfirmacion = () => {
               placeholder="¿Con qué billete vas a pagar? (opcional)"
               value={montoRecibidoEdit}
               onChange={(e) => setMontoRecibidoEdit(e.target.value)}
-              className="menu-carrito-input"
+              className="mp-input"
             />
+          </div>
 
-            {errorAccion && <p className="menu-confirmacion-error-accion">{errorAccion}</p>}
+          {errorAccion && <p className="mp-error">{errorAccion}</p>}
 
-            <div className="menu-confirmacion-edicion-botones">
-              <button onClick={handleGuardarEdicion} disabled={guardando} className="btn-guardar-edicion">
-                {guardando ? 'Guardando...' : '💾 Guardar cambios'}
-              </button>
-              <button onClick={() => setEditando(false)} className="btn-cancelar-edicion">
-                Cancelar
-              </button>
-            </div>
+          <div className="mp-acciones-apiladas">
+            <button onClick={handleGuardarEdicion} disabled={guardando} className="mp-btn mp-btn--primary mp-btn--full">
+              {guardando ? 'Guardando...' : 'Guardar cambios'}
+            </button>
+            <button onClick={() => setEditando(false)} className="mp-btn mp-btn--secondary mp-btn--full">
+              Cancelar
+            </button>
           </div>
         </div>
       )}

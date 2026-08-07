@@ -1,46 +1,41 @@
 /* ============================================================
-   MENÚ PÚBLICO (Menú QR) — página standalone, mobile-first
-   Estadero de montaña colombiano: madera vieja, niebla fría, tallado a
-   mano. Refinado y tranquilo — reemplaza por completo la dirección
-   festiva/festón anterior (no queda nada de esa paleta ni motivo aquí).
-   La curva de la carretera (una línea ondulada fina, no un festón) es
-   el nuevo hilo conductor: separa el header del contenido y cada
-   sección de categoría de la siguiente.
-
-   IMPORTANTE — clases compartidas con MenuPedidoConfirmacion.jsx:
-   ese archivo reutiliza a propósito (comentario en su propio .css)
-   .menu-categoria, .menu-categoria-titulo, .menu-producto-item,
-   .menu-producto-info, .menu-producto-nombre, .menu-producto-precio,
-   .menu-producto-stepper, .btn-stepper, .menu-producto-cantidad,
-   .menu-carrito-resumen y .menu-carrito-input dentro de su propio
-   contenedor (.menu-confirmacion-container). Como se pidió no tocar
-   ese archivo, las declaraciones "base" de esas clases se dejan tal
-   cual estaban (mismos colores/tipografía de antes de CUALQUIER
-   rediseño de MenuPublico) y toda la paleta/tipografía nueva se aplica
-   solo mediante selectores descendientes de ".menu-publico-container",
-   que nunca aparece en el DOM de la página de confirmación.
+   MENÚ PÚBLICO (Menú QR) — diseño "Modernist"
+   Reemplaza por completo cualquier dirección visual anterior (festón de
+   tienda de barrio, estadero de montaña). Los tokens de :root se
+   comparten con MenuPedidoConfirmacion.css — ambas pantallas del
+   cliente público usan el mismo sistema de diseño a propósito, ya no
+   hay necesidad de aislar estilos entre ellas (solo PedidosCliente.jsx,
+   que vive en otra parte de la app, no toca ninguna de estas clases).
    ============================================================ */
-@import url('https://fonts.googleapis.com/css2?family=Fraunces:wght@500;600;700&family=Work+Sans:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Archivo:wght@400;600;800&display=swap');
+
+:root {
+  --color-bg: #f3f2f2;
+  --color-surface: #eae9e9;
+  --color-text: #201e1d;
+  --color-accent: #ec3013;
+  --color-accent-700: #ae1800;
+  --color-accent-100: #fff2ef;
+  --color-accent-200: color-mix(in srgb, #ec3013 45%, white);
+  --color-divider: color-mix(in srgb, #201e1d 40%, transparent);
+  --shadow-sm: 0 1px 2px rgba(45, 43, 43, .14);
+  --shadow-md: 0 3px 10px rgba(45, 43, 43, .16);
+  --shadow-lg: 0 12px 32px rgba(45, 43, 43, .22);
+  --mp-fuente: 'Archivo', 'Segoe UI', sans-serif;
+}
 
 .menu-publico-container {
-  --menu-madera: #3E2A1E;
-  --menu-pergamino: #F0E6D2;
-  --menu-pino: #566B5A;
-  --menu-ambar: #D9A24C;
-  --menu-niebla: #8C9A94;
-  --menu-tinta: #241A12;
-  --menu-superficie: #FBF7EE;
-  --menu-fuente-display: 'Fraunces', Georgia, serif;
-  --menu-fuente-cuerpo: 'Work Sans', 'Segoe UI', sans-serif;
-
   min-height: 100vh;
-  background: var(--menu-pergamino);
-  padding: 0 16px 20px;
-  padding-bottom: 220px; /* espacio para el panel fijo del carrito */
+  background: var(--color-bg);
+  padding: 0 20px 28px;
   max-width: 600px;
   margin: 0 auto;
-  font-family: var(--menu-fuente-cuerpo);
-  color: var(--menu-tinta);
+  font-family: var(--mp-fuente);
+  color: var(--color-text);
+}
+
+.menu-publico-container--con-cartbar {
+  padding-bottom: 100px; /* espacio para la barra flotante del carrito */
 }
 
 .menu-publico-loading,
@@ -48,616 +43,591 @@
 .menu-publico-sin-productos {
   text-align: center;
   padding: 60px 20px;
-  color: var(--menu-niebla);
+  color: color-mix(in srgb, var(--color-text) 55%, transparent);
   font-size: 15px;
 }
 
 .menu-publico-error {
-  color: #7a2a1e;
+  color: var(--color-accent-700);
 }
 
 /* ============================================================
-   HEADER — exclusivo de MenuPublico.jsx: madera oscura con una
-   textura de niebla sutil detrás del nombre, y la curva de la
-   carretera separándolo del contenido.
+   PRIMITIVOS COMPARTIDOS — botones, tarjeta, pill, chevron, stepper,
+   input, error. Reutilizados también por MenuPedidoConfirmacion.jsx.
    ============================================================ */
-.menu-publico-header {
-  position: relative;
-  text-align: center;
-  padding: 30px 16px 24px;
-  margin: 0 -16px 24px;
-  background:
-    radial-gradient(ellipse 120% 100% at 50% -30%, rgba(255, 255, 255, 0.16), transparent 65%),
-    var(--menu-madera);
-}
-
-.menu-publico-header h1 {
-  margin: 0 0 6px 0;
-  font-family: var(--menu-fuente-display);
-  font-weight: 700;
-  font-size: 26px;
-  letter-spacing: 0.2px;
-  color: var(--menu-pergamino);
-}
-
-.menu-publico-header p {
-  margin: 0;
-  font-family: var(--menu-fuente-cuerpo);
-  font-size: 13px;
-  letter-spacing: 0.5px;
-  text-transform: uppercase;
-  color: rgba(240, 230, 210, 0.68);
-}
-
-/* La curva de la carretera: un trazo fino y ondulado, como una veta de
-   madera o el perfil de una vía de montaña — no un festón de bumps. */
-.menu-publico-header::after {
-  content: '';
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: -13px;
-  height: 13px;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='14' viewBox='0 0 140 14'%3E%3Cpath d='M0,7 C35,0 105,14 140,7' fill='none' stroke='%233E2A1E' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E");
-  background-size: 140px 14px;
-  background-repeat: repeat-x;
-  background-position: top left;
-}
-
-/* ============================================================
-   NOVEDADES — carrusel horizontal (scroll-snap CSS puro), exclusivo
-   de MenuPublico.jsx. --menu-pino como acento discreto de la sección.
-   ============================================================ */
-.menu-novedades-seccion {
-  margin-bottom: 24px;
-}
-
-.menu-novedades-titulo {
-  margin: 0 0 10px;
-  font-family: var(--menu-fuente-display);
-  font-weight: 600;
-  font-size: 18px;
-  color: var(--menu-pino);
-}
-
-.menu-novedades-carrusel {
+.mp-btn {
   display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: none;
+  border-radius: 14px;
+  font-family: var(--mp-fuente);
+  font-weight: 800;
+  font-size: 15px;
+  cursor: pointer;
+  padding: 14px 20px;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease;
+}
+
+.mp-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.mp-btn--full {
+  width: 100%;
+}
+
+.mp-btn--primary {
+  background: var(--color-accent);
+  color: white;
+  box-shadow: var(--shadow-sm);
+}
+
+.mp-btn--primary:hover:not(:disabled) {
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
+}
+
+.mp-btn--secondary {
+  background: var(--color-surface);
+  color: var(--color-text);
+}
+
+.mp-btn--secondary:hover:not(:disabled) {
+  box-shadow: var(--shadow-sm);
+}
+
+.mp-btn--danger-text {
+  color: var(--color-accent-700);
+}
+
+.mp-btn__icono {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+
+.mp-card {
+  background: var(--color-surface);
+  border-radius: 20px;
+  padding: 14px;
+  box-shadow: var(--shadow-sm);
+}
+
+.mp-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-family: var(--mp-fuente);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.4px;
+  flex-shrink: 0;
+}
+
+.mp-pill--accent {
+  background: var(--color-accent);
+  color: white;
+}
+
+.mp-pill--neutral {
+  background: var(--color-surface);
+  color: var(--color-text);
+  border: 1px solid var(--color-divider);
+}
+
+.mp-pill--outline {
+  background: transparent;
+  color: var(--color-text);
+  border: 1px solid var(--color-divider);
+}
+
+.mp-chevron {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  color: var(--color-text);
+}
+
+.mp-chevron svg {
+  width: 100%;
+  height: 100%;
+  transition: transform 0.15s ease;
+}
+
+.mp-chevron--open svg {
+  transform: rotate(180deg);
+}
+
+.mp-stepper {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.mp-stepper__btn {
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  border: none;
+  background: var(--color-accent);
+  color: white;
+  font-size: 17px;
+  font-weight: 800;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+
+.mp-stepper__btn:disabled {
+  background: var(--color-divider);
+  cursor: not-allowed;
+}
+
+.mp-stepper__btn:hover:not(:disabled) {
+  transform: scale(1.06);
+}
+
+.mp-stepper__cantidad {
+  min-width: 16px;
+  text-align: center;
+  font-weight: 800;
+  font-size: 15px;
+}
+
+.mp-input {
+  width: 100%;
+  padding: 13px 16px;
+  border: 1px solid var(--color-divider);
+  border-radius: 12px;
+  font-size: 14px;
+  font-family: var(--mp-fuente);
+  box-sizing: border-box;
+  background: var(--color-surface);
+  color: var(--color-text);
+}
+
+.mp-input::placeholder {
+  color: color-mix(in srgb, var(--color-text) 45%, transparent);
+}
+
+.mp-input:focus {
+  outline: none;
+  border-color: var(--color-accent);
+}
+
+.mp-error {
+  color: var(--color-accent-700);
+  font-size: 13px;
+  margin: 0;
+  text-align: center;
+}
+
+.mp-imagen-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-family: var(--mp-fuente);
+  font-weight: 800;
+  font-size: 22px;
+  letter-spacing: 1px;
+}
+
+/* ============================================================
+   HERO
+   ============================================================ */
+.mp-hero {
+  position: relative;
+  overflow: hidden;
+  height: 186px;
+  margin: 0 0 26px;
+  border-radius: 0 0 28px 28px;
+  display: flex;
+  align-items: flex-end;
+}
+
+.mp-hero__silueta {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  width: 84px;
+  height: 84px;
+}
+
+.mp-hero__overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, transparent 30%, rgba(32, 30, 29, .75) 100%);
+}
+
+.mp-hero__contenido {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
   gap: 12px;
+  padding: 0 18px 18px;
+}
+
+.mp-hero__icono-wrap {
+  width: 38px;
+  height: 38px;
+  flex-shrink: 0;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.18);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.mp-hero__icono {
+  width: 20px;
+  height: 20px;
+  color: white;
+}
+
+.mp-hero__nombre {
+  margin: 0 0 2px;
+  font-family: var(--mp-fuente);
+  font-weight: 800;
+  font-size: 30px;
+  line-height: 1.1;
+  color: white;
+}
+
+.mp-hero__tagline {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-accent-200);
+}
+
+/* ============================================================
+   SECCIONES / NOVEDADES
+   ============================================================ */
+.mp-seccion {
+  margin-bottom: 28px;
+}
+
+.mp-seccion__titulo {
+  margin: 0 0 14px;
+  font-family: var(--mp-fuente);
+  font-weight: 800;
+  font-size: 21px;
+}
+
+.mp-novedades-carrusel {
+  display: flex;
+  gap: 14px;
   overflow-x: auto;
   scroll-snap-type: x mandatory;
-  padding: 4px 2px 10px;
+  padding: 2px 2px 10px;
   margin: 0 -2px;
   -webkit-overflow-scrolling: touch;
 }
 
-.menu-novedad-card {
-  position: relative;
+.mp-novedad-card {
   scroll-snap-align: start;
-  flex: 0 0 148px;
+  flex: 0 0 172px;
+  background: var(--color-surface);
+  border-radius: 20px;
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  background: var(--menu-superficie);
-  padding: 10px;
-  border-radius: 8px;
-  border: 1px solid var(--menu-pino);
-  box-shadow: 0 2px 6px rgba(46, 60, 53, 0.1);
 }
 
-.menu-novedad-badge {
-  align-self: flex-start;
-  background: rgba(86, 107, 90, 0.14);
-  color: var(--menu-pino);
-  font-family: var(--menu-fuente-cuerpo);
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.6px;
-  text-transform: uppercase;
-  padding: 2px 8px;
-  border-radius: 4px;
-}
-
-.menu-novedad-imagen {
+.mp-novedad-card__foto {
+  position: relative;
   width: 100%;
   aspect-ratio: 4 / 3;
-  border-radius: 6px;
-  overflow: hidden;
-  background: var(--menu-pergamino);
 }
 
-.menu-novedad-imagen img {
+.mp-novedad-card__foto img {
   width: 100%;
   height: 100%;
   object-fit: cover;
   display: block;
 }
 
-.menu-novedad-card .menu-producto-nombre {
-  font-family: var(--menu-fuente-display);
-  color: var(--menu-tinta);
+.mp-novedad-card__badge {
+  position: absolute;
+  top: 10px;
+  left: 10px;
 }
 
-.menu-novedad-card .menu-producto-precio {
-  color: var(--menu-ambar);
+.mp-novedad-card__body {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 12px;
 }
 
-.menu-novedad-card .menu-producto-descripcion {
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
+.mp-novedad-card__nombre {
+  font-family: var(--mp-fuente);
+  font-weight: 800;
+  font-size: 16px;
+  line-height: 1.25;
 }
 
-.menu-novedad-card .menu-producto-stepper {
-  justify-content: center;
-  margin-top: 2px;
-}
-
-.menu-novedad-card .btn-stepper {
-  background: var(--menu-pino);
-}
-
-.menu-novedad-card .btn-stepper:hover:not(:disabled) {
-  background: #3f5347;
+.mp-novedad-card__precio {
+  font-family: var(--mp-fuente);
+  font-weight: 800;
+  font-size: 18px;
+  color: var(--color-accent-700);
 }
 
 /* ============================================================
-   CATEGORÍAS Y PRODUCTOS — clases base compartidas con
-   MenuPedidoConfirmacion.jsx, SIN TOCAR sus valores (colores/tipografía
-   quedan igual que antes de cualquier rediseño de MenuPublico).
+   CATEGORÍAS (acordeón, varias pueden estar abiertas a la vez)
    ============================================================ */
-.menu-categoria {
-  margin-bottom: 20px;
+.mp-categorias {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
 }
 
-.menu-categoria-titulo {
+.mp-categoria__header {
+  width: 100%;
   display: flex;
   align-items: center;
-  gap: 8px;
-  width: 100%;
-  background: none;
+  gap: 12px;
+  background: var(--color-surface);
   border: none;
-  margin: 0;
-  padding: 4px 0 10px;
+  border-radius: 16px;
+  padding: 12px 14px;
   cursor: pointer;
-  font-family: inherit;
-  font-size: 15px;
-  font-weight: 700;
-  color: #4299e1;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  border-bottom: 1px solid #e2e8f0;
+  font-family: var(--mp-fuente);
   text-align: left;
+  box-shadow: var(--shadow-sm);
 }
 
-.menu-categoria-flecha {
-  font-size: 12px;
-  width: 14px;
+.mp-categoria__icono {
+  width: 38px;
+  height: 38px;
   flex-shrink: 0;
+  border-radius: 999px;
+  background: var(--color-accent-100);
+  color: var(--color-accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
-.menu-categoria-nombre {
+.mp-categoria__icono svg {
+  width: 20px;
+  height: 20px;
+}
+
+.mp-categoria__nombre {
   flex: 1;
   min-width: 0;
+  font-weight: 800;
+  font-size: 19px;
+  color: var(--color-text);
 }
 
-.menu-categoria-badge {
-  background: #38a169;
-  color: white;
-  border-radius: 999px;
-  padding: 2px 9px;
-  font-size: 12px;
-  font-weight: 700;
-  text-transform: none;
-  letter-spacing: normal;
-  flex-shrink: 0;
-}
-
-.menu-categoria-productos {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+.mp-categoria__productos {
+  display: flex;
+  flex-direction: column;
   gap: 12px;
   margin-top: 12px;
 }
 
-.menu-producto-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
-  background: white;
-  padding: 12px 14px;
-  border-radius: 12px;
-  margin-bottom: 8px;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
-}
-
-.menu-producto-card {
+/* ============================================================
+   TARJETAS DE PRODUCTO (dentro de una categoría expandida)
+   ============================================================ */
+.mp-producto-card {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  background: white;
-  padding: 10px;
-  border-radius: 12px;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
-}
-
-.menu-producto-imagen {
-  width: 100%;
-  aspect-ratio: 4 / 3;
-  border-radius: 10px;
+  background: var(--color-surface);
+  border-radius: 20px;
   overflow: hidden;
-  background: #edf2f7;
+  box-shadow: var(--shadow-sm);
 }
 
-.menu-producto-imagen img {
+.mp-producto-card__foto {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+}
+
+.mp-producto-card__foto img {
   width: 100%;
   height: 100%;
   object-fit: cover;
   display: block;
 }
 
-.menu-producto-imagen-placeholder {
-  width: 100%;
-  height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: white;
-  font-weight: 700;
-  font-size: 24px;
-  letter-spacing: 1px;
-}
-
-.menu-producto-info {
+.mp-producto-card__body {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 6px;
+  padding: 12px 14px 14px;
+}
+
+.mp-producto-card__fila {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.mp-producto-card__nombre {
+  font-family: var(--mp-fuente);
+  font-weight: 800;
+  font-size: 16px;
   min-width: 0;
 }
 
-.menu-producto-nombre {
-  font-weight: 600;
-  font-size: 14px;
-  color: #2d3748;
-}
-
-.menu-producto-descripcion {
-  font-size: 12px;
-  color: #a0aec0;
-}
-
-/* Recortada a 2 líneas solo dentro de la tarjeta con foto: en
-   menu-producto-item (fila usada por MenuPedidoConfirmacion.jsx) se deja
-   sin recortar, como estaba. */
-.menu-producto-card .menu-producto-descripcion {
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
-.menu-producto-precio {
-  font-size: 14px;
-  color: #38a169;
-  font-weight: 700;
-  margin-top: 2px;
-}
-
-.menu-producto-stepper {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+.mp-producto-card__precio {
+  font-family: var(--mp-fuente);
+  font-weight: 800;
+  font-size: 18px;
+  color: var(--color-accent-700);
   flex-shrink: 0;
 }
 
-/* Centrado bajo la info solo dentro de la tarjeta con foto (layout en
-   columna); en menu-producto-item (fila) se queda alineado a la derecha
-   como antes. */
-.menu-producto-card .menu-producto-stepper {
-  justify-content: center;
+.mp-producto-card__descripcion {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 400;
+  color: color-mix(in srgb, var(--color-text) 55%, transparent);
+}
+
+.mp-producto-card__stepper-fila {
+  display: flex;
+  justify-content: flex-end;
   margin-top: 2px;
 }
 
-.btn-stepper {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  border: none;
-  background: #4299e1;
-  color: white;
-  font-size: 18px;
-  font-weight: 700;
-  cursor: pointer;
+/* ============================================================
+   BARRA DE CARRITO FLOTANTE (solo en la vista 'menu', con items)
+   ============================================================ */
+.mp-cartbar {
+  position: fixed;
+  left: 14px;
+  right: 14px;
+  bottom: 14px;
+  max-width: 572px; /* 600px de container - 2*14px de margen */
+  margin: 0 auto;
   display: flex;
   align-items: center;
-  justify-content: center;
-  transition: all 0.2s;
-}
-
-.btn-stepper:disabled {
-  background: #cbd5e0;
-  cursor: not-allowed;
-}
-
-.btn-stepper:hover:not(:disabled) {
-  background: #3182ce;
-  transform: scale(1.05);
-}
-
-.menu-producto-cantidad {
-  min-width: 20px;
-  text-align: center;
-  font-weight: 700;
-  font-size: 15px;
-  color: #2d3748;
-}
-
-/* Panel fijo del carrito, abajo de la pantalla */
-.menu-carrito-panel {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  background: white;
-  border-top: 2px solid #e2e8f0;
-  box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.1);
-  padding: 14px 16px calc(14px + env(safe-area-inset-bottom));
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  max-width: 600px;
-  margin: 0 auto;
-}
-
-.menu-carrito-resumen {
-  font-size: 16px;
-  font-weight: 700;
-  color: #2d3748;
-  text-align: center;
-  margin-bottom: 4px;
-}
-
-.menu-carrito-input {
-  width: 100%;
-  padding: 10px 14px;
-  border: 2px solid #e2e8f0;
-  border-radius: 10px;
-  font-size: 14px;
-  box-sizing: border-box;
-}
-
-.menu-carrito-input:focus {
-  outline: none;
-  border-color: #4299e1;
-}
-
-.menu-carrito-error {
-  color: #c53030;
-  font-size: 13px;
-  margin: 0;
-  text-align: center;
-}
-
-.btn-generar-pedido {
-  width: 100%;
-  padding: 14px;
-  background: linear-gradient(135deg, #48bb78 0%, #38a169 100%);
+  justify-content: space-between;
+  gap: 12px;
+  background: var(--color-accent);
   color: white;
   border: none;
-  border-radius: 10px;
-  font-size: 16px;
-  font-weight: 700;
+  border-radius: 999px;
+  padding: 14px 20px;
   cursor: pointer;
-  transition: all 0.2s;
+  box-shadow: var(--shadow-lg);
+  font-family: var(--mp-fuente);
 }
 
-.btn-generar-pedido:hover:not(:disabled) {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 16px rgba(56, 161, 105, 0.35);
+.mp-cartbar__resumen {
+  font-weight: 800;
+  font-size: 14px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
 }
 
-.btn-generar-pedido:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
+.mp-cartbar__cta {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 800;
+  font-size: 14px;
+}
+
+.mp-cartbar__icono {
+  width: 16px;
+  height: 16px;
 }
 
 /* ============================================================
-   APLICACIÓN DE LA PALETA — solo dentro de .menu-publico-container,
-   así MenuPedidoConfirmacion.jsx (que reutiliza las clases base de
-   arriba en su propio contenedor .menu-confirmacion-container) no
-   se ve afectado por ninguno de estos overrides.
+   CHECKOUT (segunda "pantalla" interna de MenuPublico.jsx)
    ============================================================ */
-
-/* Cada categoría, como una pequeña placa tallada: fondo superficie,
-   borde fino madera, tipografía display, flecha tipográfica rotada
-   (no un emoji) y separador ondulado sutil bajo cada sección. */
-.menu-publico-container .menu-categoria {
-  position: relative;
-  padding-bottom: 20px;
-  margin-bottom: 0;
-  border-bottom: none;
+.mp-checkout {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding-top: 20px;
 }
 
-.menu-publico-container .menu-categoria:not(:last-child)::after {
-  content: '';
-  position: absolute;
-  left: 8px;
-  right: 8px;
-  bottom: 0;
-  height: 11px;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='12' viewBox='0 0 120 12'%3E%3Cpath d='M0,6 C30,0 90,12 120,6' fill='none' stroke='%238C9A94' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");
-  background-size: 120px 12px;
-  background-repeat: repeat-x;
-  background-position: top left;
-  opacity: 0.6;
+.mp-volver {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  align-self: flex-start;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  font-family: var(--mp-fuente);
+  font-weight: 800;
+  font-size: 14px;
+  color: var(--color-text);
 }
 
-.menu-publico-container .menu-categoria-titulo {
-  /* Pegada arriba mientras se scrollea dentro de sus productos, así el
-     usuario puede cerrarla sin volver a subir hasta el tope del menú.
-     Fondo sólido (superficie) obligatorio para que las tarjetas de abajo
-     no se transparenten al pasar por detrás. Sombra siempre presente
-     mas muy sutil: no hay forma confiable en CSS puro de detectar
-     "¿está pegada ahora mismo?" sin JS (no hay soporte estable de
-     :stuck), así que se deja una sombra tenue constante — se nota más
-     cuando hay contenido pasando debajo y es casi imperceptible cuando
-     no, que es justo el efecto buscado.
-     z-index por encima de las tarjetas de producto (que no declaran
-     z-index, quedan en 0/auto) pero muy por debajo del panel del
-     carrito (position: fixed, z-index explícito más abajo) para que
-     nunca compitan. */
-  position: sticky;
-  top: 0;
-  z-index: 5;
-  background: var(--menu-superficie);
-  border: 1px solid var(--menu-madera);
-  border-radius: 8px;
-  padding: 12px 14px;
-  color: var(--menu-tinta);
-  font-family: var(--menu-fuente-display);
-  font-weight: 600;
+.mp-volver__icono {
+  width: 16px;
+  height: 16px;
+}
+
+.mp-checkout__titulo {
+  margin: 0;
+  font-family: var(--mp-fuente);
+  font-weight: 800;
+  font-size: 26px;
+}
+
+.mp-resumen {
+  display: flex;
+  flex-direction: column;
+}
+
+.mp-resumen__fila {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 0;
+  font-size: 14px;
+  border-bottom: 1px solid var(--color-divider);
+}
+
+.mp-resumen__total {
+  display: flex;
+  justify-content: space-between;
+  padding-top: 12px;
+  font-weight: 800;
   font-size: 16px;
-  text-transform: none;
-  letter-spacing: normal;
-  box-shadow: 0 2px 6px rgba(36, 26, 18, 0.15);
 }
 
-.menu-publico-container .menu-categoria-flecha {
-  font-family: var(--menu-fuente-cuerpo);
-  font-size: 18px;
-  font-weight: 600;
-  color: var(--menu-madera);
-  line-height: 1;
-  transition: transform 0.2s ease;
-  transform: rotate(0deg);
-}
-
-.menu-publico-container .menu-categoria-titulo[aria-expanded="true"] .menu-categoria-flecha {
-  transform: rotate(90deg);
-}
-
-.menu-publico-container .menu-categoria-badge {
-  background: var(--menu-ambar);
-  color: var(--menu-tinta);
-  font-family: var(--menu-fuente-cuerpo);
-}
-
-.menu-publico-container .menu-producto-nombre {
-  font-family: var(--menu-fuente-cuerpo);
-  font-weight: 600;
-  color: var(--menu-tinta);
-}
-
-.menu-publico-container .menu-producto-descripcion {
-  color: var(--menu-niebla);
-}
-
-.menu-publico-container .menu-producto-precio {
-  font-family: var(--menu-fuente-cuerpo);
-  color: var(--menu-ambar);
-  font-weight: 700;
-}
-
-.menu-publico-container .menu-producto-cantidad {
-  color: var(--menu-tinta);
-}
-
-.menu-publico-container .menu-producto-card {
-  background: var(--menu-superficie);
-  border: 1px solid rgba(140, 154, 148, 0.35);
-  box-shadow: 0 1px 3px rgba(36, 26, 18, 0.06);
-}
-
-.menu-publico-container .menu-producto-imagen {
-  background: var(--menu-pergamino);
-}
-
-.menu-publico-container .menu-producto-imagen-placeholder {
-  font-family: var(--menu-fuente-display);
-  color: var(--menu-superficie);
-}
-
-.menu-publico-container .btn-stepper {
-  background: var(--menu-madera);
-}
-
-.menu-publico-container .btn-stepper:disabled {
-  background: #cabfa9;
-}
-
-.menu-publico-container .btn-stepper:hover:not(:disabled) {
-  background: #573823;
-}
-
-.menu-publico-container .menu-carrito-panel {
-  background: var(--menu-madera);
-  border-top: none;
-  box-shadow: 0 -6px 20px rgba(36, 26, 18, 0.25);
-  /* Explícito y por encima del encabezado de categoría pegajoso
-     (z-index: 5): viven en extremos opuestos de la pantalla (fixed
-     abajo vs. sticky arriba) y no deberían solaparse nunca, pero se
-     deja sin ambigüedad para no depender del orden en el DOM. */
-  z-index: 10;
-}
-
-.menu-publico-container .menu-carrito-resumen {
-  font-family: var(--menu-fuente-display);
-  font-weight: 600;
-  color: var(--menu-pergamino);
-}
-
-.menu-publico-container .menu-carrito-total {
-  color: var(--menu-ambar);
-  font-weight: 700;
-}
-
-/* Los campos del carrito quedan claros (superficie) dentro del panel
-   oscuro de madera: mantiene la legibilidad y la afordancia de "esto
-   se puede escribir" sin perder la paleta cálida. */
-.menu-publico-container .menu-carrito-input {
-  font-family: var(--menu-fuente-cuerpo);
-  background: var(--menu-superficie);
-  color: var(--menu-tinta);
-  border-color: transparent;
-}
-
-.menu-publico-container .menu-carrito-input::placeholder {
-  color: var(--menu-niebla);
-}
-
-.menu-publico-container .menu-carrito-input:focus {
-  border-color: var(--menu-ambar);
-}
-
-.menu-publico-container .menu-carrito-error {
-  color: #e2a08a;
-}
-
-.menu-publico-container .btn-generar-pedido {
-  background: var(--menu-ambar);
-  color: var(--menu-tinta);
-  font-family: var(--menu-fuente-display);
-  font-weight: 700;
-  font-size: 17px;
-}
-
-.menu-publico-container .btn-generar-pedido:hover:not(:disabled) {
-  background: #c6913f;
-  box-shadow: 0 4px 16px rgba(217, 162, 76, 0.4);
+.mp-campos {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 
 @media (max-width: 480px) {
   .menu-publico-container {
-    padding: 0 12px 20px;
-    padding-bottom: 240px;
+    padding: 0 16px 28px;
   }
 
-  .menu-publico-header {
-    margin: 0 -12px 24px;
-  }
-
-  .menu-publico-header h1 {
-    font-size: 22px;
+  .mp-hero__nombre {
+    font-size: 25px;
   }
 }
