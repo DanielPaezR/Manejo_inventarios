@@ -38,6 +38,12 @@ const PedidosCliente = ({ user }) => {
   const [clienteIdCompletar, setClienteIdCompletar] = useState('');
   const [completando, setCompletando] = useState(false);
 
+  // Configuración del menú público (foto de portada del hero). Solo admin
+  // puede verla/editarla, igual que la gestión de Productos/Categorías.
+  const [fotoPortadaUrl, setFotoPortadaUrl] = useState('');
+  const [guardandoPortada, setGuardandoPortada] = useState(false);
+  const esAdmin = user?.rol === 'admin' || user?.rol === 'super_admin';
+
   const pollingRef = useRef(null);
 
   const cargarPedidos = useCallback(async ({ silencioso = false } = {}) => {
@@ -57,6 +63,13 @@ const PedidosCliente = ({ user }) => {
   useEffect(() => {
     cargarPedidos();
   }, [cargarPedidos]);
+
+  useEffect(() => {
+    if (!moduloActivo || !esAdmin) return;
+    api.get(`/modulos/${moduloActivo.id}`)
+      .then(response => setFotoPortadaUrl(response.data.foto_portada_url || ''))
+      .catch(error => console.error('Error cargando configuración del módulo:', error));
+  }, [moduloActivo, esAdmin]);
 
   // Refresco automático cada 30s, sin mostrar el spinner de carga inicial
   // ni pisar una edición en curso (perdería lo que el usuario está tecleando).
@@ -226,6 +239,20 @@ const PedidosCliente = ({ user }) => {
     }
   };
 
+  const guardarFotoPortada = async () => {
+    try {
+      setGuardandoPortada(true);
+      await api.put(`/modulos/${moduloActivo.id}/portada`, { foto_portada_url: fotoPortadaUrl.trim() });
+      setMensaje('✅ Foto de portada actualizada');
+    } catch (error) {
+      console.error('Error guardando foto de portada:', error);
+      setMensaje(`❌ ${error.response?.data?.error || 'Error al guardar la foto de portada'}`);
+    } finally {
+      setGuardandoPortada(false);
+      setTimeout(() => setMensaje(''), 4000);
+    }
+  };
+
   if (!moduloActivo) {
     return (
       <div className="pedidos-cliente-container">
@@ -247,6 +274,28 @@ const PedidosCliente = ({ user }) => {
         </div>
         <button onClick={() => cargarPedidos()} className="btn-refresh">🔄</button>
       </div>
+
+      {esAdmin && (
+        <div className="config-menu-card">
+          <h3>⚙️ Configuración del menú</h3>
+          <div className="config-menu-fila">
+            <input
+              type="text"
+              value={fotoPortadaUrl}
+              onChange={(e) => setFotoPortadaUrl(e.target.value)}
+              placeholder="URL de la foto de portada"
+              className="config-menu-input"
+            />
+            <button
+              onClick={guardarFotoPortada}
+              disabled={guardandoPortada}
+              className="btn-guardar config-menu-btn-guardar"
+            >
+              {guardandoPortada ? 'Guardando...' : '💾 Guardar'}
+            </button>
+          </div>
+        </div>
+      )}
 
       {mensaje && (
         <div className={`mensaje-flotante ${mensaje.includes('✅') ? 'exito' : mensaje.includes('❌') || mensaje.includes('⚠️') ? 'error' : 'info'}`}>

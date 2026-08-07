@@ -22,6 +22,44 @@
   margin-bottom: 20px;
 }
 
+.config-menu-card {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+  padding: 16px 18px;
+  margin-bottom: 16px;
+}
+
+.config-menu-card h3 {
+  margin: 0 0 12px;
+  font-size: 15px;
+  color: #2d3748;
+}
+
+.config-menu-fila {
+  display: flex;
+  gap: 10px;
+}
+
+.config-menu-input {
+  flex: 1;
+  padding: 10px 12px;
+  border: 2px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 14px;
+}
+
+.config-menu-input:focus {
+  outline: none;
+  border-color: #4299e1;
+}
+
+.config-menu-btn-guardar {
+  width: auto;
+  white-space: nowrap;
+  padding: 10px 18px;
+}
+
 .pedidos-cliente-lista {
   display: flex;
   flex-direction: column;
@@ -221,6 +259,14 @@
   }
 
   .pedido-cliente-acciones button {
+    width: 100%;
+  }
+
+  .config-menu-fila {
+    flex-direction: column;
+  }
+
+  .config-menu-btn-guardar {
     width: 100%;
   }
 }
