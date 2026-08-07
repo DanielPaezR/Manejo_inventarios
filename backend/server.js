@@ -233,15 +233,18 @@ app.get('/api/perfil', authenticateToken, async (req, res) => {
 // ==================== RUTAS DE NEGOCIOS ====================
 
 app.post('/api/negocios', authenticateToken, requireSuperAdmin, async (req, res) => {
-  const client = await pool.connect();
-  
+  // pool.connect() dentro del try: si la conexión falla, no debe quedar
+  // como una promesa rechazada sin atrapar que tumbe todo el proceso.
+  let client;
+
   try {
+    client = await pool.connect();
     await client.query('BEGIN');
-    
+
     const { nombre, direccion, telefono, email, ruc_nit, logo_url } = req.body;
 
     const negocioResult = await client.query(
-      `INSERT INTO negocios (nombre, direccion, telefono, email, ruc_nit, logo_url) 
+      `INSERT INTO negocios (nombre, direccion, telefono, email, ruc_nit, logo_url)
        VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
       [nombre, direccion, telefono, email, ruc_nit, logo_url]
     );
@@ -257,11 +260,13 @@ app.post('/api/negocios', authenticateToken, requireSuperAdmin, async (req, res)
     res.status(201).json(negocio);
 
   } catch (error) {
-    await client.query('ROLLBACK');
+    if (client) {
+      await client.query('ROLLBACK').catch(() => {});
+    }
     console.error('Error creando negocio:', error);
     res.status(500).json({ error: 'Error interno del servidor' });
   } finally {
-    client.release();
+    if (client) client.release();
   }
 });
 
@@ -786,11 +791,14 @@ app.delete('/api/categorias/:id', authenticateToken, checkAccess, requireAdmin, 
 // ==================== RUTAS DE VENTAS ====================
 
 app.post('/api/ventas', authenticateToken, checkAccess, async (req, res) => {
-  const client = await pool.connect();
-  
+  // pool.connect() dentro del try: si la conexión falla, no debe quedar
+  // como una promesa rechazada sin atrapar que tumbe todo el proceso.
+  let client;
+
   try {
+    client = await pool.connect();
     await client.query('BEGIN');
-    
+
     const { detalles, cliente_nombre, cliente_documento, cliente_direccion, cliente_telefono, metodo_pago, cliente_id } = req.body;
     const usuario_id = req.user.id;
     const moduloId = req.moduloId;
@@ -953,7 +961,9 @@ app.post('/api/ventas', authenticateToken, checkAccess, async (req, res) => {
     res.status(201).json(ventaCompleta.rows[0]);
 
   } catch (error) {
-    await client.query('ROLLBACK');
+    if (client) {
+      await client.query('ROLLBACK').catch(() => {});
+    }
     console.error('❌ ERROR registrando venta:', error);
     // error.code solo lo trae el driver de Postgres (errores internos, p.ej.
     // constraints); los `throw new Error(...)` propios de esta ruta (stock
@@ -962,7 +972,7 @@ app.post('/api/ventas', authenticateToken, checkAccess, async (req, res) => {
     const mensaje = error.code ? 'Error al procesar la venta' : error.message;
     res.status(400).json({ error: mensaje });
   } finally {
-    client.release();
+    if (client) client.release();
   }
 });
 
@@ -2139,9 +2149,12 @@ app.get('/api/proveedores/:id/productos-asociados', authenticateToken, checkAcce
 // que la ruta individual de abajo, pero en lote y dentro de una única
 // transacción: si algo falla, no queda la mitad asociada.
 app.post('/api/proveedores/:id/productos-bulk', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
-  const client = await pool.connect();
+  // pool.connect() dentro del try: si la conexión falla, no debe quedar
+  // como una promesa rechazada sin atrapar que tumbe todo el proceso.
+  let client;
 
   try {
+    client = await pool.connect();
     await client.query('BEGIN');
 
     const { id } = req.params;
@@ -2220,11 +2233,13 @@ app.post('/api/proveedores/:id/productos-bulk', authenticateToken, checkAccess, 
     await client.query('COMMIT');
     res.json({ asociados: productos.length });
   } catch (error) {
-    await client.query('ROLLBACK');
+    if (client) {
+      await client.query('ROLLBACK').catch(() => {});
+    }
     console.error('Error asociando productos en lote:', error);
     res.status(500).json({ error: 'Error interno del servidor' });
   } finally {
-    client.release();
+    if (client) client.release();
   }
 });
 
@@ -2341,11 +2356,14 @@ app.get('/api/productos/:productoId/proveedores', authenticateToken, checkAccess
 
 // Crear pedido a proveedor
 app.post('/api/pedidos', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
-  const client = await pool.connect();
-  
+  // pool.connect() dentro del try: si la conexión falla, no debe quedar
+  // como una promesa rechazada sin atrapar que tumbe todo el proceso.
+  let client;
+
   try {
+    client = await pool.connect();
     await client.query('BEGIN');
-    
+
     const { proveedor_id, detalles, observaciones } = req.body;
     const moduloId = req.moduloId;
     const negocioId = req.negocioId;
@@ -2440,11 +2458,13 @@ app.post('/api/pedidos', authenticateToken, checkAccess, requireAdmin, async (re
     res.status(201).json(pedidoCompleto.rows[0]);
 
   } catch (error) {
-    await client.query('ROLLBACK');
+    if (client) {
+      await client.query('ROLLBACK').catch(() => {});
+    }
     console.error('Error creando pedido:', error);
     res.status(500).json({ error: 'Error interno del servidor' });
   } finally {
-    client.release();
+    if (client) client.release();
   }
 });
 
@@ -3020,6 +3040,163 @@ app.get('/api/finanzas/resumen-periodo', authenticateToken, checkAccess, require
   }
 });
 
+// 'fechaStr' debe ser exactamente el lunes de su semana ISO (isoWeekday
+// 1 = lunes, independiente del locale de moment, que por defecto no
+// está configurado como 'es' en este proceso).
+const esLunesValido = (fechaStr) => {
+  if (typeof fechaStr !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(fechaStr)) return false;
+  const m = moment(fechaStr, 'YYYY-MM-DD', true);
+  return m.isValid() && m.isoWeekday() === 1;
+};
+
+// Registro semanal de Finanzas: ingresos por ventas, los 3 tipos de
+// gasto, utilidad bruta y la meta de reinversión (editable) de una
+// semana puntual (lunes a domingo). Todo a nivel de negocio (como el
+// resto de Finanzas), NO por módulo.
+app.get('/api/finanzas/reporte-semanal', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+  try {
+    const negocioId = req.negocioId;
+    const { semana_inicio } = req.query;
+
+    if (!negocioId) {
+      return res.status(400).json({ error: 'Negocio no identificado' });
+    }
+
+    let semanaInicioStr;
+    if (semana_inicio) {
+      if (!esLunesValido(semana_inicio)) {
+        return res.status(400).json({ error: 'semana_inicio debe ser una fecha YYYY-MM-DD que caiga en lunes' });
+      }
+      semanaInicioStr = semana_inicio;
+    } else {
+      // Mismo ajuste de zona horaria que el resto de la app: el proceso
+      // corre en UTC, pero el negocio opera en Colombia (UTC-5).
+      semanaInicioStr = ahoraColombia().startOf('isoWeek').format('YYYY-MM-DD');
+    }
+
+    const semanaFinStr = moment(semanaInicioStr, 'YYYY-MM-DD').add(6, 'days').format('YYYY-MM-DD');
+    // Igual que fecha_inicio/fecha_fin en /finanzas/resumen-periodo: se
+    // ancla explícitamente a -05:00 para que el rango sea el día completo
+    // en Colombia sin importar en qué zona horaria corra el proceso.
+    const startDate = moment(`${semanaInicioStr} 00:00:00-05:00`).toDate();
+    const endDate = moment(`${semanaFinStr} 23:59:59-05:00`).toDate();
+
+    const ingresosResult = await pool.query(
+      `SELECT COALESCE(SUM(monto), 0) as total
+       FROM movimientos_caja
+       WHERE negocio_id = $1 AND origen = 'venta' AND fecha BETWEEN $2 AND $3`,
+      [negocioId, startDate, endDate]
+    );
+
+    // "Inversión Mercancía" es una categoría de gasto que el negocio crea
+    // a mano (igual que "Gastos Fijos" más abajo) — si no existe con ese
+    // nombre exacto para este negocio, el IN (SELECT...) queda vacío y
+    // esta parte del total simplemente no suma nada (no es un error).
+    const mercanciaResult = await pool.query(
+      `SELECT COALESCE(SUM(monto), 0) as total
+       FROM movimientos_caja
+       WHERE negocio_id = $1 AND fecha BETWEEN $2 AND $3
+         AND (
+           origen = 'pedido'
+           OR (origen = 'manual' AND categoria_gasto_id IN (
+             SELECT id FROM categorias_gasto WHERE negocio_id = $1 AND LOWER(nombre) = LOWER('Inversión Mercancía')
+           ))
+         )`,
+      [negocioId, startDate, endDate]
+    );
+
+    // Mismo criterio que GET /api/estadisticas/consumo-propio (ventas con
+    // metodo_pago = 'consumo_propio'), pero acotado a esta semana y a
+    // nivel de negocio completo en vez de un módulo puntual — Finanzas ya
+    // opera así en el resto de sus rutas (balance, resumen-periodo), así
+    // que se hace el mismo join ventas -> modulos para llegar a
+    // negocio_id en vez de filtrar por modulo_id.
+    const propiosResult = await pool.query(
+      `SELECT COALESCE(SUM(v.total), 0) as total
+       FROM ventas v
+       JOIN modulos m ON v.modulo_id = m.id
+       WHERE m.negocio_id = $1 AND v.metodo_pago = 'consumo_propio' AND v.fecha_venta BETWEEN $2 AND $3`,
+      [negocioId, startDate, endDate]
+    );
+
+    const fijosResult = await pool.query(
+      `SELECT COALESCE(SUM(monto), 0) as total
+       FROM movimientos_caja
+       WHERE negocio_id = $1 AND origen = 'manual' AND fecha BETWEEN $2 AND $3
+         AND categoria_gasto_id IN (
+           SELECT id FROM categorias_gasto WHERE negocio_id = $1 AND LOWER(nombre) = LOWER('Gastos Fijos')
+         )`,
+      [negocioId, startDate, endDate]
+    );
+
+    // No se crea la fila si todavía no existe — solo al guardar (POST de
+    // abajo). Antes de eso, el registro semanal simplemente muestra 0.
+    const reinversionResult = await pool.query(
+      'SELECT monto, notas FROM metas_reinversion WHERE negocio_id = $1 AND semana_inicio = $2',
+      [negocioId, semanaInicioStr]
+    );
+
+    const ingresosVentas = Number(ingresosResult.rows[0].total);
+    const gastosMercancia = Number(mercanciaResult.rows[0].total);
+    const gastosPropios = Number(propiosResult.rows[0].total);
+    const gastosFijos = Number(fijosResult.rows[0].total);
+    const totalGastos = gastosMercancia + gastosPropios + gastosFijos;
+    const utilidadBruta = ingresosVentas - totalGastos;
+
+    res.json({
+      semana_inicio: semanaInicioStr,
+      semana_fin: semanaFinStr,
+      ingresos_ventas: ingresosVentas,
+      gastos_mercancia: gastosMercancia,
+      gastos_propios: gastosPropios,
+      gastos_fijos: gastosFijos,
+      total_gastos: totalGastos,
+      utilidad_bruta: utilidadBruta,
+      reinversion: {
+        monto: reinversionResult.rows.length > 0 ? Number(reinversionResult.rows[0].monto) : 0,
+        notas: reinversionResult.rows.length > 0 ? (reinversionResult.rows[0].notas || '') : ''
+      }
+    });
+  } catch (error) {
+    console.error('Error obteniendo reporte semanal de finanzas:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+app.post('/api/finanzas/reporte-semanal/reinversion', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+  try {
+    const negocioId = req.negocioId;
+    const { semana_inicio, monto, notas } = req.body;
+
+    if (!negocioId) {
+      return res.status(400).json({ error: 'Negocio no identificado' });
+    }
+
+    if (!esLunesValido(semana_inicio)) {
+      return res.status(400).json({ error: 'semana_inicio debe ser una fecha YYYY-MM-DD que caiga en lunes' });
+    }
+
+    const montoNum = Number(monto);
+    if (!Number.isFinite(montoNum) || montoNum < 0) {
+      return res.status(400).json({ error: 'El monto debe ser un número mayor o igual a cero' });
+    }
+
+    const result = await pool.query(
+      `INSERT INTO metas_reinversion (negocio_id, semana_inicio, monto, notas, fecha_registro)
+       VALUES ($1, $2, $3, $4, NOW())
+       ON CONFLICT (negocio_id, semana_inicio)
+       DO UPDATE SET monto = $3, notas = $4, fecha_registro = NOW()
+       RETURNING *`,
+      [negocioId, semana_inicio, montoNum, notas?.trim() || null]
+    );
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error guardando meta de reinversión:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
 // ==================== RUTAS DE ALERTAS MEJORADAS ====================
 
 // Obtener productos con stock bajo Y sus proveedores
@@ -3123,11 +3300,14 @@ app.get('/api/reportes', authenticateToken, checkAccess, requireAdmin, async (re
 // ==================== RUTAS DE GESTIÓN DE INVENTARIO ====================
 
 app.post('/api/inventario/agregar-stock', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
-  const client = await pool.connect();
-  
+  // pool.connect() dentro del try: si la conexión falla, no debe quedar
+  // como una promesa rechazada sin atrapar que tumbe todo el proceso.
+  let client;
+
   try {
+    client = await pool.connect();
     await client.query('BEGIN');
-    
+
     const { producto_id, cantidad, motivo } = req.body;
     const moduloId = req.moduloId;
 
@@ -3173,21 +3353,26 @@ app.post('/api/inventario/agregar-stock', authenticateToken, checkAccess, requir
     });
 
   } catch (error) {
-    await client.query('ROLLBACK');
+    if (client) {
+      await client.query('ROLLBACK').catch(() => {});
+    }
     console.error('Error agregando stock:', error);
     const mensaje = error.code ? 'Error al agregar stock' : error.message;
     res.status(400).json({ error: mensaje });
   } finally {
-    client.release();
+    if (client) client.release();
   }
 });
 
 app.post('/api/inventario/ajustar-stock', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
-  const client = await pool.connect();
-  
+  // pool.connect() dentro del try: si la conexión falla, no debe quedar
+  // como una promesa rechazada sin atrapar que tumbe todo el proceso.
+  let client;
+
   try {
+    client = await pool.connect();
     await client.query('BEGIN');
-    
+
     const { producto_id, nuevo_stock, motivo } = req.body;
     const moduloId = req.moduloId;
 
@@ -3233,12 +3418,14 @@ app.post('/api/inventario/ajustar-stock', authenticateToken, checkAccess, requir
     });
 
   } catch (error) {
-    await client.query('ROLLBACK');
+    if (client) {
+      await client.query('ROLLBACK').catch(() => {});
+    }
     console.error('Error ajustando stock:', error);
     const mensaje = error.code ? 'Error al ajustar stock' : error.message;
     res.status(400).json({ error: mensaje });
   } finally {
-    client.release();
+    if (client) client.release();
   }
 });
 
