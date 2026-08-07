@@ -385,6 +385,127 @@
 }
 
 /* ============================================================
+   REGISTRO SEMANAL
+   ============================================================ */
+.registro-semanal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.registro-semanal-header h3 {
+  margin: 0;
+}
+
+.registro-semanal-navegacion {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.registro-semanal-navegacion .btn-icono {
+  font-size: 16px;
+  font-weight: 700;
+  border: 1px solid #e2e8f0;
+}
+
+.registro-semanal-rango {
+  font-size: 14px;
+  font-weight: 600;
+  color: #2d3748;
+  white-space: nowrap;
+}
+
+.registro-semanal-tabla {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  transition: opacity 0.2s ease;
+}
+
+.registro-semanal-tabla--cargando {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.registro-semanal-fila {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr 1.2fr;
+  gap: 12px;
+  align-items: center;
+  padding: 10px 0;
+  border-bottom: 1px solid #f0f4f8;
+  font-size: 14px;
+  color: #4a5568;
+}
+
+.registro-semanal-fila--titulos {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: #a0aec0;
+  border-bottom: 2px solid #e2e8f0;
+}
+
+.registro-semanal-fila--subtotal {
+  font-weight: 700;
+  color: #2d3748;
+}
+
+.registro-semanal-fila--reinversion {
+  border-bottom: none;
+  padding-bottom: 4px;
+}
+
+.registro-semanal-monto {
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.registro-semanal-monto.positivo {
+  color: #2f855a;
+}
+
+.registro-semanal-monto.negativo {
+  color: #e53e3e;
+}
+
+/* Utilidad bruta negativa: total de gastos superó a los ingresos de la
+   semana — se resalta más fuerte que un simple "negativo" de fila para
+   que sea obvio de un vistazo. */
+.registro-semanal-monto--alerta {
+  color: #c53030;
+  background: #fff5f5;
+  padding: 2px 8px;
+  border-radius: 6px;
+}
+
+.registro-semanal-input-monto,
+.registro-semanal-input-notas {
+  padding: 8px 10px;
+  border: 2px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 14px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.registro-semanal-input-monto:focus,
+.registro-semanal-input-notas:focus {
+  outline: none;
+  border-color: #4299e1;
+  box-shadow: 0 0 0 4px rgba(66, 153, 225, 0.1);
+}
+
+.registro-semanal-btn-guardar {
+  margin-top: 14px;
+}
+
+/* ============================================================
    UTILIDADES
    ============================================================ */
 .loading {
@@ -443,5 +564,19 @@
 
   .categoria-gasto-form .btn-guardar {
     width: 100%;
+  }
+
+  .registro-semanal-fila {
+    grid-template-columns: 1fr 1fr;
+    row-gap: 6px;
+  }
+
+  .registro-semanal-fila--titulos span:last-child,
+  .registro-semanal-fila:not(.registro-semanal-fila--reinversion) span:last-child {
+    display: none;
+  }
+
+  .registro-semanal-fila--reinversion {
+    grid-template-columns: 1fr;
   }
 }

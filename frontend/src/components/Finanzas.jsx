@@ -1,6 +1,29 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import api from '../services/api';
 import './Finanzas.css';
+
+const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+
+// Aritmética de calendario pura en UTC (año/mes/día, sin horas): evita
+// que sumar/restar 7 días se corra un día por la zona horaria del
+// navegador del usuario, ya que semana_inicio es solo una fecha
+// (YYYY-MM-DD), no un instante.
+const sumarDias = (fechaStr, dias) => {
+  const [y, m, d] = fechaStr.split('-').map(Number);
+  const fecha = new Date(Date.UTC(y, m - 1, d));
+  fecha.setUTCDate(fecha.getUTCDate() + dias);
+  return fecha.toISOString().slice(0, 10);
+};
+
+const formatearRangoSemana = (inicioStr, finStr) => {
+  if (!inicioStr || !finStr) return '';
+  const [, mi, di] = inicioStr.split('-').map(Number);
+  const [, mf, df] = finStr.split('-').map(Number);
+  if (mi === mf) {
+    return `${di} - ${df} de ${MESES[mi - 1]}`;
+  }
+  return `${di} de ${MESES[mi - 1]} - ${df} de ${MESES[mf - 1]}`;
+};
 
 const Finanzas = ({ user }) => {
   const [balance, setBalance] = useState(null);
@@ -21,6 +44,20 @@ const Finanzas = ({ user }) => {
   const [guardandoCategoria, setGuardandoCategoria] = useState(false);
   const [categoriaEditandoId, setCategoriaEditandoId] = useState(null);
   const [categoriaEditandoNombre, setCategoriaEditandoNombre] = useState('');
+
+  // Registro semanal: independiente del resto de Finanzas (su propio
+  // loading/reporte), navegable con ← → sin recargar el resto de la página.
+  const [reporteSemanal, setReporteSemanal] = useState(null);
+  const [loadingSemanal, setLoadingSemanal] = useState(false);
+  const [montoReinversion, setMontoReinversion] = useState('');
+  const [notasReinversion, setNotasReinversion] = useState('');
+  const [guardandoReinversion, setGuardandoReinversion] = useState(false);
+  // Guarda qué semana es la más recientemente pedida: si el usuario hace
+  // clic rápido en ← → (o guarda) mientras una petición anterior sigue en
+  // vuelo, esa respuesta llega tarde y no debe pisar el estado de la
+  // semana que ya se está mostrando ahora (ni lo que el usuario ya haya
+  // escrito en el campo de reinversión mientras tanto).
+  const semanaSolicitadaRef = useRef(null);
 
   // Verificar permisos
   const puedeGestionar = user?.rol === 'admin' || user?.rol === 'super_admin';
@@ -51,6 +88,78 @@ const Finanzas = ({ user }) => {
       cargarDatos();
     }
   }, [puedeGestionar, cargarDatos]);
+
+  // Sin semanaInicio: el backend decide (lunes de la semana actual en
+  // hora de Colombia). Con semanaInicio: navegación ← → a una semana
+  // puntual ya conocida.
+  const cargarReporteSemanal = useCallback(async (semanaInicio) => {
+    const idSolicitud = semanaInicio || 'actual';
+    semanaSolicitadaRef.current = idSolicitud;
+
+    try {
+      setLoadingSemanal(true);
+      const response = await api.get('/finanzas/reporte-semanal', {
+        params: semanaInicio ? { semana_inicio: semanaInicio } : {}
+      });
+
+      // Si ya se pidió otra semana mientras esta petición estaba en
+      // vuelo, esta respuesta quedó obsoleta — descartarla.
+      if (semanaSolicitadaRef.current !== idSolicitud) return;
+
+      setReporteSemanal(response.data);
+      setMontoReinversion(String(response.data.reinversion.monto || ''));
+      setNotasReinversion(response.data.reinversion.notas || '');
+    } catch (error) {
+      if (semanaSolicitadaRef.current !== idSolicitud) return;
+      console.error('Error cargando reporte semanal:', error);
+      setMensaje('❌ Error al cargar el registro semanal');
+    } finally {
+      if (semanaSolicitadaRef.current === idSolicitud) setLoadingSemanal(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (puedeGestionar) {
+      cargarReporteSemanal();
+    }
+  }, [puedeGestionar, cargarReporteSemanal]);
+
+  const irSemanaAnterior = () => {
+    if (!reporteSemanal) return;
+    cargarReporteSemanal(sumarDias(reporteSemanal.semana_inicio, -7));
+  };
+
+  const irSemanaSiguiente = () => {
+    if (!reporteSemanal) return;
+    cargarReporteSemanal(sumarDias(reporteSemanal.semana_inicio, 7));
+  };
+
+  const handleGuardarReinversion = async () => {
+    if (!reporteSemanal) return;
+
+    const montoNum = Number(montoReinversion);
+    if (!Number.isFinite(montoNum) || montoNum < 0) {
+      setMensaje('⚠️ Ingresa un monto de reinversión válido');
+      return;
+    }
+
+    try {
+      setGuardandoReinversion(true);
+      await api.post('/finanzas/reporte-semanal/reinversion', {
+        semana_inicio: reporteSemanal.semana_inicio,
+        monto: montoNum,
+        notas: notasReinversion.trim()
+      });
+      setMensaje('✅ Reinversión guardada correctamente');
+      await cargarReporteSemanal(reporteSemanal.semana_inicio);
+      setTimeout(() => setMensaje(''), 3000);
+    } catch (error) {
+      console.error('Error guardando reinversión:', error);
+      setMensaje(error.response?.data?.error || '❌ Error al guardar la reinversión');
+    } finally {
+      setGuardandoReinversion(false);
+    }
+  };
 
   // El saldo inicial ya está registrado si la suma es mayor a 0 (el
   // constraint monto > 0 en la tabla garantiza que, si existe, es positivo).
@@ -410,6 +519,113 @@ const Finanzas = ({ user }) => {
                     </div>
                   );
                 })}
+              </div>
+            )}
+          </div>
+
+          <div className="card registro-semanal-card">
+            <div className="registro-semanal-header">
+              <h3>📋 Registro semanal</h3>
+              {reporteSemanal && (
+                <div className="registro-semanal-navegacion">
+                  <button
+                    type="button"
+                    onClick={irSemanaAnterior}
+                    disabled={loadingSemanal}
+                    className="btn-icono"
+                    title="Semana anterior"
+                  >
+                    ←
+                  </button>
+                  <span className="registro-semanal-rango">
+                    {formatearRangoSemana(reporteSemanal.semana_inicio, reporteSemanal.semana_fin)}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={irSemanaSiguiente}
+                    disabled={loadingSemanal}
+                    className="btn-icono"
+                    title="Semana siguiente"
+                  >
+                    →
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {loadingSemanal && !reporteSemanal ? (
+              <div className="loading">Cargando registro semanal...</div>
+            ) : reporteSemanal && (
+              <div className={`registro-semanal-tabla ${loadingSemanal ? 'registro-semanal-tabla--cargando' : ''}`}>
+                <div className="registro-semanal-fila registro-semanal-fila--titulos">
+                  <span>Concepto</span>
+                  <span>Monto</span>
+                  <span>Notas</span>
+                </div>
+
+                <div className="registro-semanal-fila">
+                  <span>Ingresos por ventas</span>
+                  <span className="registro-semanal-monto positivo">{formatearMoneda(reporteSemanal.ingresos_ventas)}</span>
+                  <span></span>
+                </div>
+                <div className="registro-semanal-fila">
+                  <span>Gastos en mercancía</span>
+                  <span className="registro-semanal-monto negativo">{formatearMoneda(reporteSemanal.gastos_mercancia)}</span>
+                  <span></span>
+                </div>
+                <div className="registro-semanal-fila">
+                  <span>Gastos propios</span>
+                  <span className="registro-semanal-monto negativo">{formatearMoneda(reporteSemanal.gastos_propios)}</span>
+                  <span></span>
+                </div>
+                <div className="registro-semanal-fila">
+                  <span>Gastos fijos</span>
+                  <span className="registro-semanal-monto negativo">{formatearMoneda(reporteSemanal.gastos_fijos)}</span>
+                  <span></span>
+                </div>
+                <div className="registro-semanal-fila registro-semanal-fila--subtotal">
+                  <span>Total de gastos</span>
+                  <span className="registro-semanal-monto negativo">{formatearMoneda(reporteSemanal.total_gastos)}</span>
+                  <span></span>
+                </div>
+                <div className="registro-semanal-fila registro-semanal-fila--subtotal">
+                  <span>Utilidad bruta</span>
+                  <span className={`registro-semanal-monto ${Number(reporteSemanal.utilidad_bruta) < 0 ? 'registro-semanal-monto--alerta' : 'positivo'}`}>
+                    {formatearMoneda(reporteSemanal.utilidad_bruta)}
+                  </span>
+                  <span></span>
+                </div>
+
+                <div className="registro-semanal-fila registro-semanal-fila--reinversion">
+                  <span>Reinversión</span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={montoReinversion}
+                    onChange={(e) => setMontoReinversion(e.target.value)}
+                    placeholder="0"
+                    disabled={loadingSemanal}
+                    className="registro-semanal-input-monto"
+                  />
+                  <input
+                    type="text"
+                    value={notasReinversion}
+                    onChange={(e) => setNotasReinversion(e.target.value)}
+                    placeholder="Notas (opcional)"
+                    disabled={loadingSemanal}
+                    className="registro-semanal-input-notas"
+                  />
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleGuardarReinversion}
+                  disabled={guardandoReinversion || loadingSemanal}
+                  className="btn-guardar registro-semanal-btn-guardar"
+                >
+                  {guardandoReinversion ? 'Guardando...' : '✅ Guardar reinversión'}
+                </button>
               </div>
             )}
           </div>
