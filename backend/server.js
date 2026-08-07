@@ -473,6 +473,66 @@ app.get('/api/modulos/:id/usuarios', authenticateToken, async (req, res) => {
   }
 });
 
+// Datos básicos de un módulo del propio negocio (usada hoy para prellenar
+// la configuración del menú público en PedidosCliente.jsx — la foto de
+// portada del hero). checkAccess ya valida sesión y resuelve negocioId.
+app.get('/api/modulos/:id', authenticateToken, checkAccess, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const negocioId = req.negocioId;
+
+    if (!negocioId) {
+      return res.status(400).json({ error: 'Negocio no identificado' });
+    }
+
+    const result = await pool.query(
+      'SELECT id, nombre, descripcion, activo, foto_portada_url FROM modulos WHERE id = $1 AND negocio_id = $2',
+      [id, negocioId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Módulo no encontrado' });
+    }
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error obteniendo módulo:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// Configurar la foto de portada del menú público (hero de MenuPublico.jsx).
+// Ruta dedicada en vez de un PUT /api/modulos/:id genérico porque hoy no
+// existe ninguna ruta general de edición de módulo, y este es el único
+// campo editable por ahora.
+app.put('/api/modulos/:id/portada', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const negocioId = req.negocioId;
+    const { foto_portada_url } = req.body;
+
+    if (!negocioId) {
+      return res.status(400).json({ error: 'Negocio no identificado' });
+    }
+
+    const result = await pool.query(
+      `UPDATE modulos SET foto_portada_url = $1
+       WHERE id = $2 AND negocio_id = $3
+       RETURNING id, nombre, descripcion, activo, foto_portada_url`,
+      [foto_portada_url?.trim() || null, id, negocioId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Módulo no encontrado' });
+    }
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error actualizando foto de portada del módulo:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
 // ==================== RUTAS DE PRODUCTOS ====================
 
 app.get('/api/productos', authenticateToken, checkAccess, async (req, res) => {
@@ -522,7 +582,9 @@ app.post('/api/productos', authenticateToken, checkAccess, requireAdmin, async (
       stock_actual,
       stock_minimo,
       categoria_id,
-      es_novedad
+      es_novedad,
+      foto_url,
+      ignora_stock
     } = req.body;
 
     const moduloId = req.moduloId;
@@ -536,10 +598,10 @@ app.post('/api/productos', authenticateToken, checkAccess, requireAdmin, async (
 
     const result = await pool.query(
       `INSERT INTO productos
-       (modulo_id, codigo_ean, nombre, descripcion, precio_compra, precio_venta, stock_actual, stock_minimo, categoria_id, es_novedad)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+       (modulo_id, codigo_ean, nombre, descripcion, precio_compra, precio_venta, stock_actual, stock_minimo, categoria_id, es_novedad, foto_url, ignora_stock)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
        RETURNING *`,
-      [moduloId, codigo_ean, nombre, descripcion, precio_compra, precio_venta, stock_actual, stock_minimo, categoriaIdValor, !!es_novedad]
+      [moduloId, codigo_ean, nombre, descripcion, precio_compra, precio_venta, stock_actual, stock_minimo, categoriaIdValor, !!es_novedad, foto_url?.trim() || null, !!ignora_stock]
     );
 
     res.status(201).json(result.rows[0]);
@@ -561,7 +623,9 @@ app.put('/api/productos/:id', authenticateToken, checkAccess, requireAdmin, asyn
       stock_actual,
       stock_minimo,
       categoria_id,
-      es_novedad
+      es_novedad,
+      foto_url,
+      ignora_stock
     } = req.body;
 
     const moduloId = req.moduloId;
@@ -586,10 +650,12 @@ app.put('/api/productos/:id', authenticateToken, checkAccess, requireAdmin, asyn
            stock_minimo = $7,
            categoria_id = $8,
            es_novedad = $9,
+           foto_url = $10,
+           ignora_stock = $11,
            fecha_actualizacion = NOW()
-       WHERE id = $10 AND modulo_id = $11
+       WHERE id = $12 AND modulo_id = $13
        RETURNING *`,
-      [codigo_ean, nombre, descripcion, precio_compra, precio_venta, stock_actual, stock_minimo, categoriaIdValor, !!es_novedad, id, moduloId]
+      [codigo_ean, nombre, descripcion, precio_compra, precio_venta, stock_actual, stock_minimo, categoriaIdValor, !!es_novedad, foto_url?.trim() || null, !!ignora_stock, id, moduloId]
     );
 
     if (result.rows.length === 0) {
@@ -837,6 +903,11 @@ app.post('/api/ventas', authenticateToken, checkAccess, async (req, res) => {
       throw new Error('La venta debe incluir al menos un producto');
     }
 
+    // Productos con ignora_stock = true (ej. categoría "Preparados": se
+    // cocinan al pedir, no representan stock físico) — se pueden vender
+    // sin importar stock_actual, y no lo descuentan al completarse.
+    const productosQueIgnoranStock = new Set();
+
     for (const detalle of detalles) {
       // Number.isFinite() NO coerce strings (a diferencia de isFinite()).
       // Postgres devuelve las columnas NUMERIC/DECIMAL como string a
@@ -860,7 +931,7 @@ app.post('/api/ventas', authenticateToken, checkAccess, async (req, res) => {
       // transacción: dos ventas concurrentes del mismo producto ya no
       // pueden leer el mismo stock antes de que ninguna confirme.
       const stockResult = await client.query(
-        'SELECT id, nombre, stock_actual FROM productos WHERE id = $1 AND modulo_id = $2 AND activo = true FOR UPDATE',
+        'SELECT id, nombre, stock_actual, ignora_stock FROM productos WHERE id = $1 AND modulo_id = $2 AND activo = true FOR UPDATE',
         [detalle.producto_id, moduloId]
       );
 
@@ -869,7 +940,9 @@ app.post('/api/ventas', authenticateToken, checkAccess, async (req, res) => {
       }
 
       const producto = stockResult.rows[0];
-      if (producto.stock_actual < detalle.cantidad) {
+      if (producto.ignora_stock) {
+        productosQueIgnoranStock.add(detalle.producto_id);
+      } else if (producto.stock_actual < detalle.cantidad) {
         throw new Error(`Stock insuficiente para "${producto.nombre}". Stock actual: ${producto.stock_actual}, solicitado: ${detalle.cantidad}`);
       }
     }
@@ -899,15 +972,17 @@ app.post('/api/ventas', authenticateToken, checkAccess, async (req, res) => {
     
     for (const detalle of detalles) {
       await client.query(
-        `INSERT INTO detalle_venta (venta_id, producto_id, cantidad, precio_unitario, subtotal) 
+        `INSERT INTO detalle_venta (venta_id, producto_id, cantidad, precio_unitario, subtotal)
          VALUES ($1, $2, $3, $4, $5)`,
         [venta.id, detalle.producto_id, detalle.cantidad, detalle.precio_unitario, detalle.cantidad * detalle.precio_unitario]
       );
-      
-      await client.query(
-        'UPDATE productos SET stock_actual = stock_actual - $1, fecha_actualizacion = NOW() WHERE id = $2 AND modulo_id = $3',
-        [detalle.cantidad, detalle.producto_id, moduloId]
-      );
+
+      if (!productosQueIgnoranStock.has(detalle.producto_id)) {
+        await client.query(
+          'UPDATE productos SET stock_actual = stock_actual - $1, fecha_actualizacion = NOW() WHERE id = $2 AND modulo_id = $3',
+          [detalle.cantidad, detalle.producto_id, moduloId]
+        );
+      }
     }
 
     // Registro automático en caja: si esto falla, hace throw y cae al
@@ -3689,7 +3764,7 @@ app.put('/api/pedidos-cliente/:id', authenticateToken, checkAccess, async (req, 
       }
 
       const productoResult = await client.query(
-        'SELECT id, nombre, precio_venta, stock_actual FROM productos WHERE id = $1 AND modulo_id = $2 AND activo = true',
+        'SELECT id, nombre, precio_venta, stock_actual, ignora_stock FROM productos WHERE id = $1 AND modulo_id = $2 AND activo = true',
         [item.producto_id, moduloId]
       );
 
@@ -3699,7 +3774,7 @@ app.put('/api/pedidos-cliente/:id', authenticateToken, checkAccess, async (req, 
       }
 
       const producto = productoResult.rows[0];
-      if (cantidad > producto.stock_actual) {
+      if (!producto.ignora_stock && cantidad > producto.stock_actual) {
         await client.query('ROLLBACK');
         return res.status(400).json({
           error: `No hay suficiente stock de "${producto.nombre}". Disponible: ${producto.stock_actual}`
@@ -3875,10 +3950,14 @@ app.put('/api/pedidos-cliente/:id/completar', authenticateToken, checkAccess, as
 
     // El stock pudo haber cambiado desde que se creó el pedido (otras
     // ventas, otros pedidos completados) — se revalida con FOR UPDATE
-    // antes de descontar, igual que POST /api/ventas.
+    // antes de descontar, igual que POST /api/ventas. Productos con
+    // ignora_stock = true (ej. "Preparados") se saltan la validación y no
+    // descuentan stock_actual más abajo.
+    const productosQueIgnoranStock = new Set();
+
     for (const detalle of detalles) {
       const stockResult = await client.query(
-        'SELECT id, nombre, stock_actual FROM productos WHERE id = $1 AND modulo_id = $2 AND activo = true FOR UPDATE',
+        'SELECT id, nombre, stock_actual, ignora_stock FROM productos WHERE id = $1 AND modulo_id = $2 AND activo = true FOR UPDATE',
         [detalle.producto_id, moduloId]
       );
 
@@ -3888,7 +3967,9 @@ app.put('/api/pedidos-cliente/:id/completar', authenticateToken, checkAccess, as
       }
 
       const producto = stockResult.rows[0];
-      if (producto.stock_actual < detalle.cantidad) {
+      if (producto.ignora_stock) {
+        productosQueIgnoranStock.add(detalle.producto_id);
+      } else if (producto.stock_actual < detalle.cantidad) {
         await client.query('ROLLBACK');
         return res.status(400).json({
           error: `Stock insuficiente para "${producto.nombre}". Stock actual: ${producto.stock_actual}, solicitado: ${detalle.cantidad}`
@@ -3915,10 +3996,12 @@ app.put('/api/pedidos-cliente/:id/completar', authenticateToken, checkAccess, as
         [venta.id, detalle.producto_id, detalle.cantidad, detalle.precio_unitario, detalle.subtotal]
       );
 
-      await client.query(
-        'UPDATE productos SET stock_actual = stock_actual - $1, fecha_actualizacion = NOW() WHERE id = $2 AND modulo_id = $3',
-        [detalle.cantidad, detalle.producto_id, moduloId]
-      );
+      if (!productosQueIgnoranStock.has(detalle.producto_id)) {
+        await client.query(
+          'UPDATE productos SET stock_actual = stock_actual - $1, fecha_actualizacion = NOW() WHERE id = $2 AND modulo_id = $3',
+          [detalle.cantidad, detalle.producto_id, moduloId]
+        );
+      }
     }
 
     // Mismo criterio que POST /api/ventas: crédito no es efectivo real
@@ -4011,7 +4094,7 @@ app.get('/api/menu/:moduloId', async (req, res) => {
     }
 
     const moduloResult = await pool.query(
-      `SELECT m.id, m.nombre, m.activo, n.nombre as negocio_nombre
+      `SELECT m.id, m.nombre, m.activo, m.foto_portada_url, n.nombre as negocio_nombre
        FROM modulos m
        JOIN negocios n ON m.negocio_id = n.id
        WHERE m.id = $1`,
@@ -4023,11 +4106,11 @@ app.get('/api/menu/:moduloId', async (req, res) => {
     }
 
     const productosResult = await pool.query(
-      `SELECT p.id, p.nombre, p.descripcion, p.precio_venta, p.stock_actual, p.foto_url, p.es_novedad,
+      `SELECT p.id, p.nombre, p.descripcion, p.precio_venta, p.stock_actual, p.foto_url, p.es_novedad, p.ignora_stock,
               c.nombre as categoria_nombre
        FROM productos p
        LEFT JOIN categorias c ON p.categoria_id = c.id
-       WHERE p.modulo_id = $1 AND p.activo = true AND p.stock_actual > 0
+       WHERE p.modulo_id = $1 AND p.activo = true AND (p.stock_actual > 0 OR p.ignora_stock = true)
        ORDER BY c.nombre NULLS LAST, p.nombre`,
       [moduloId]
     );
@@ -4036,7 +4119,8 @@ app.get('/api/menu/:moduloId', async (req, res) => {
       modulo: {
         id: moduloResult.rows[0].id,
         nombre: moduloResult.rows[0].nombre,
-        negocio_nombre: moduloResult.rows[0].negocio_nombre
+        negocio_nombre: moduloResult.rows[0].negocio_nombre,
+        foto_portada_url: moduloResult.rows[0].foto_portada_url
       },
       productos: productosResult.rows
     });
@@ -4110,7 +4194,7 @@ app.post('/api/menu/:moduloId/pedidos', async (req, res) => {
       // Snapshot del precio_venta ACTUAL: se guarda en el detalle para que
       // si el precio cambia después, este pedido ya hecho no se altere.
       const productoResult = await client.query(
-        'SELECT id, nombre, precio_venta, stock_actual FROM productos WHERE id = $1 AND modulo_id = $2 AND activo = true',
+        'SELECT id, nombre, precio_venta, stock_actual, ignora_stock FROM productos WHERE id = $1 AND modulo_id = $2 AND activo = true',
         [item.producto_id, moduloId]
       );
 
@@ -4120,7 +4204,7 @@ app.post('/api/menu/:moduloId/pedidos', async (req, res) => {
       }
 
       const producto = productoResult.rows[0];
-      if (cantidad > producto.stock_actual) {
+      if (!producto.ignora_stock && cantidad > producto.stock_actual) {
         await client.query('ROLLBACK');
         return res.status(400).json({
           error: `No hay suficiente stock de "${producto.nombre}". Disponible: ${producto.stock_actual}`
@@ -4273,7 +4357,7 @@ app.put('/api/menu/pedido/:token', async (req, res) => {
       }
 
       const productoResult = await client.query(
-        'SELECT id, nombre, precio_venta, stock_actual FROM productos WHERE id = $1 AND modulo_id = $2 AND activo = true',
+        'SELECT id, nombre, precio_venta, stock_actual, ignora_stock FROM productos WHERE id = $1 AND modulo_id = $2 AND activo = true',
         [item.producto_id, pedido.modulo_id]
       );
 
@@ -4283,7 +4367,7 @@ app.put('/api/menu/pedido/:token', async (req, res) => {
       }
 
       const producto = productoResult.rows[0];
-      if (cantidad > producto.stock_actual) {
+      if (!producto.ignora_stock && cantidad > producto.stock_actual) {
         await client.query('ROLLBACK');
         return res.status(400).json({
           error: `No hay suficiente stock de "${producto.nombre}". Disponible: ${producto.stock_actual}`

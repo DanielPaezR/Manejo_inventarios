@@ -20,7 +20,9 @@ const Productos = ({ user }) => {
     stock_actual: '',
     stock_minimo: '',
     categoria_id: '',
-    es_novedad: false
+    es_novedad: false,
+    foto_url: '',
+    ignora_stock: false
   });
   // Gestión de categorías (solo desde este modal, no hay página aparte)
   const [showCategoriasModal, setShowCategoriasModal] = useState(false);
@@ -158,7 +160,9 @@ const Productos = ({ user }) => {
         stock_actual: '',
         stock_minimo: '',
         categoria_id: '',
-        es_novedad: false
+        es_novedad: false,
+        foto_url: '',
+        ignora_stock: false
       });
       cargarProductos();
     } catch (error) {
@@ -191,7 +195,9 @@ const Productos = ({ user }) => {
       stock_actual: producto.stock_actual || '',
       stock_minimo: producto.stock_minimo || '',
       categoria_id: producto.categoria_id || '',
-      es_novedad: producto.es_novedad || false
+      es_novedad: producto.es_novedad || false,
+      foto_url: producto.foto_url || '',
+      ignora_stock: producto.ignora_stock || false
     });
     setShowModal(true);
   };
@@ -232,7 +238,7 @@ const Productos = ({ user }) => {
         </div>
         
         {puedeEditar && (
-          <button onClick={() => { setEditProducto(null); setFormData({ codigo_ean: '', nombre: '', descripcion: '', precio_compra: '', precio_venta: '', stock_actual: '', stock_minimo: '', categoria_id: '', es_novedad: false }); setShowModal(true); }} className="btn-agregar">
+          <button onClick={() => { setEditProducto(null); setFormData({ codigo_ean: '', nombre: '', descripcion: '', precio_compra: '', precio_venta: '', stock_actual: '', stock_minimo: '', categoria_id: '', es_novedad: false, foto_url: '', ignora_stock: false }); setShowModal(true); }} className="btn-agregar">
             + Nuevo Producto
           </button>
         )}
@@ -388,6 +394,16 @@ const Productos = ({ user }) => {
                 </select>
               </div>
 
+              <div className="form-group">
+                <label>URL de la foto del producto (opcional)</label>
+                <input
+                  type="text"
+                  value={formData.foto_url}
+                  onChange={(e) => setFormData({ ...formData, foto_url: e.target.value })}
+                  placeholder="https://..."
+                />
+              </div>
+
               <div className="form-group form-group-checkbox">
                 <label className="checkbox-label">
                   <input
@@ -396,6 +412,17 @@ const Productos = ({ user }) => {
                     onChange={(e) => setFormData({ ...formData, es_novedad: e.target.checked })}
                   />
                   ✨ Marcar como novedad (aparece destacado en el menú)
+                </label>
+              </div>
+
+              <div className="form-group form-group-checkbox">
+                <label className="checkbox-label">
+                  <input
+                    type="checkbox"
+                    checked={formData.ignora_stock}
+                    onChange={(e) => setFormData({ ...formData, ignora_stock: e.target.checked })}
+                  />
+                  🍳 Se prepara al pedir (no depende del stock)
                 </label>
               </div>
 

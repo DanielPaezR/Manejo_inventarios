@@ -6,6 +6,14 @@ import './Ventas.css';
 
 const clienteVacio = () => ({ nombre: '', documento: '', direccion: '', telefono: '' });
 
+// Productos con ignora_stock = true (se preparan al pedir, ej.
+// "Preparados") no dependen de stock_actual — se les da un tope fijo
+// razonable en vez de dejarlos sin límite por error. Recibe tanto un
+// producto del catálogo como un item ya agregado al carrito (ambos
+// tienen ignora_stock/stock_actual, sea el original o el snapshot).
+const TOPE_CANTIDAD_SIN_STOCK = 20;
+const obtenerTopeCantidad = (item) => (item.ignora_stock ? TOPE_CANTIDAD_SIN_STOCK : item.stock_actual);
+
 const crearCuentaVacia = (id, nombre) => ({
   id,
   nombre,
@@ -464,7 +472,7 @@ const Ventas = ({ user }) => {
   // para poder mantener deps [] igual que antes de las cuentas — así sigue
   // siendo seguro llamarla desde closures viejos como buscarPorEAN.
   const agregarAlCarrito = useCallback((producto) => {
-    if (producto.stock_actual <= 0) {
+    if (!producto.ignora_stock && producto.stock_actual <= 0) {
       setError(`❌ "${producto.nombre}" no tiene stock disponible`);
       if (navigator.vibrate) navigator.vibrate(200);
       return;
@@ -475,8 +483,10 @@ const Ventas = ({ user }) => {
 
       const existe = c.carrito.find(item => item.producto_id === producto.id);
       if (existe) {
-        if (existe.cantidad >= producto.stock_actual) {
-          setError(`⚠️ Stock insuficiente. Solo hay ${producto.stock_actual} unidades`);
+        if (existe.cantidad >= obtenerTopeCantidad(producto)) {
+          setError(producto.ignora_stock
+            ? `⚠️ Cantidad máxima alcanzada (${TOPE_CANTIDAD_SIN_STOCK} unidades)`
+            : `⚠️ Stock insuficiente. Solo hay ${producto.stock_actual} unidades`);
           return c;
         }
         return {
@@ -496,6 +506,7 @@ const Ventas = ({ user }) => {
           precio_unitario: producto.precio_venta,
           cantidad: 1,
           stock_actual: producto.stock_actual,
+          ignora_stock: producto.ignora_stock,
           codigo_ean: producto.codigo_ean
         }]
       };
@@ -525,8 +536,10 @@ const Ventas = ({ user }) => {
       if (c.id !== cuentaActivaIdRef.current) return c;
 
       const producto = c.carrito.find(item => item.producto_id === productoId);
-      if (producto && cantidad > producto.stock_actual) {
-        setError(`⚠️ Stock insuficiente. Solo hay ${producto.stock_actual} unidades`);
+      if (producto && cantidad > obtenerTopeCantidad(producto)) {
+        setError(producto.ignora_stock
+          ? `⚠️ Cantidad máxima alcanzada (${TOPE_CANTIDAD_SIN_STOCK} unidades)`
+          : `⚠️ Stock insuficiente. Solo hay ${producto.stock_actual} unidades`);
         return c;
       }
       return {
@@ -903,15 +916,15 @@ const Ventas = ({ user }) => {
               {productos.map(producto => (
                 <div
                   key={producto.id}
-                  className={`producto-card ${producto.stock_actual <= 0 ? 'agotado' : ''}`}
+                  className={`producto-card ${!producto.ignora_stock && producto.stock_actual <= 0 ? 'agotado' : ''}`}
                   onClick={() => agregarAlCarrito(producto)}
                 >
                   <div className="producto-info">
                     <h4>{producto.nombre}</h4>
                     <p className="producto-precio">${producto.precio_venta.toLocaleString()}</p>
-                    <p className={`producto-stock ${producto.stock_actual <= producto.stock_minimo ? 'bajo' : ''}`}>
-                      Stock: {producto.stock_actual}
-                      {producto.stock_actual <= 0 && ' ❌'}
+                    <p className={`producto-stock ${!producto.ignora_stock && producto.stock_actual <= producto.stock_minimo ? 'bajo' : ''}`}>
+                      {producto.ignora_stock ? 'Se prepara al pedir 🍳' : `Stock: ${producto.stock_actual}`}
+                      {!producto.ignora_stock && producto.stock_actual <= 0 && ' ❌'}
                     </p>
                     {producto.codigo_ean && (
                       <small className="producto-ean">📷 {producto.codigo_ean}</small>
@@ -919,9 +932,9 @@ const Ventas = ({ user }) => {
                   </div>
                   <button
                     className="btn-agregar-carrito-item"
-                    disabled={producto.stock_actual <= 0}
+                    disabled={!producto.ignora_stock && producto.stock_actual <= 0}
                   >
-                    {producto.stock_actual > 0 ? '+' : '🚫'}
+                    {producto.ignora_stock || producto.stock_actual > 0 ? '+' : '🚫'}
                   </button>
                 </div>
               ))}
@@ -1106,7 +1119,7 @@ const Ventas = ({ user }) => {
                     <button 
                       onClick={() => cambiarCantidad(item.producto_id, item.cantidad + 1)}
                       className="btn-cantidad"
-                      disabled={item.cantidad >= item.stock_actual}
+                      disabled={item.cantidad >= obtenerTopeCantidad(item)}
                     >
                       +
                     </button>

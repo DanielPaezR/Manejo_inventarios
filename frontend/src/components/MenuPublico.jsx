@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import apiPublico from '../services/apiPublico';
 import './MenuPublico.css';
@@ -79,6 +79,12 @@ const obtenerColorPlaceholder = (texto) => {
 const obtenerIniciales = (nombre) =>
   nombre.trim().split(/\s+/).slice(0, 2).map(palabra => palabra[0]).join('').toUpperCase();
 
+// Productos con ignora_stock = true (se preparan al pedir, ej.
+// "Preparados") no dependen de stock_actual — se les da un tope fijo
+// razonable en el stepper en vez de dejarlo sin límite por error.
+const TOPE_CANTIDAD_SIN_STOCK = 20;
+const obtenerTopeCantidad = (producto) => (producto.ignora_stock ? TOPE_CANTIDAD_SIN_STOCK : producto.stock_actual);
+
 // Compartido entre las tarjetas de categoría y las del carrusel de
 // Novedades: mismo criterio de placeholder (sin foto_url o si falla al
 // cargar) en los dos lugares.
@@ -123,6 +129,12 @@ const MenuPublico = () => {
   const [errorEnvio, setErrorEnvio] = useState('');
   const [categoriasAbiertas, setCategoriasAbiertas] = useState(new Set());
   const [imagenesConError, setImagenesConError] = useState(new Set());
+  const [heroImagenConError, setHeroImagenConError] = useState(false);
+  const [busqueda, setBusqueda] = useState('');
+  // Recuerda qué categorías estaban abiertas antes de buscar, para
+  // restaurarlas tal cual al borrar el texto (en vez de volver siempre al
+  // estado por defecto, todas cerradas).
+  const categoriasAntesDeBuscarRef = useRef(null);
   // Vista interna (NO una ruta nueva): 'menu' es la vitrina de productos,
   // 'checkout' es el resumen antes de generar el pedido. Tocar la barra
   // de carrito cambia esta vista; el carrito en sí no se pierde porque
@@ -164,10 +176,28 @@ const MenuPublico = () => {
     setImagenesConError(prev => new Set(prev).add(productoId));
   };
 
+  // Al empezar a buscar (primer caracter) se guarda una copia de qué
+  // categorías estaban abiertas, y se cierran todas (no importa mientras
+  // se muestra la lista plana de resultados). Al borrar el texto de
+  // búsqueda, se restauran tal cual estaban.
+  const handleBusquedaChange = (valor) => {
+    const empezabaVacia = busqueda.trim() === '';
+    const quedaVacia = valor.trim() === '';
+
+    if (empezabaVacia && !quedaVacia) {
+      categoriasAntesDeBuscarRef.current = categoriasAbiertas;
+    } else if (!empezabaVacia && quedaVacia && categoriasAntesDeBuscarRef.current) {
+      setCategoriasAbiertas(categoriasAntesDeBuscarRef.current);
+      categoriasAntesDeBuscarRef.current = null;
+    }
+
+    setBusqueda(valor);
+  };
+
   const cambiarCantidad = (producto, delta) => {
     setCarrito(prev => {
       const actual = prev[producto.id] || 0;
-      const nueva = Math.max(0, Math.min(producto.stock_actual, actual + delta));
+      const nueva = Math.max(0, Math.min(obtenerTopeCantidad(producto), actual + delta));
       if (nueva === 0) {
         const copia = { ...prev };
         delete copia[producto.id];
@@ -187,6 +217,17 @@ const MenuPublico = () => {
   // El carrusel es un destacado adicional: un producto marcado como novedad
   // sigue apareciendo también en su categoría normal más abajo.
   const productosNovedad = productos.filter(p => p.es_novedad);
+
+  // Búsqueda 100% en el cliente (ya se tienen todos los productos
+  // cargados) por nombre y, si tiene, descripción.
+  const busquedaNormalizada = busqueda.trim().toLowerCase();
+  const buscando = busquedaNormalizada.length > 0;
+  const productosFiltrados = buscando
+    ? productos.filter(p =>
+        p.nombre.toLowerCase().includes(busquedaNormalizada) ||
+        (p.descripcion && p.descripcion.toLowerCase().includes(busquedaNormalizada))
+      )
+    : [];
 
   const itemsCarrito = Object.entries(carrito).map(([productoId, cantidad]) => {
     const producto = productos.find(p => p.id === parseInt(productoId));
@@ -303,7 +344,18 @@ const MenuPublico = () => {
         </div>
       ) : (
         <>
-          <div className="mp-hero" style={{ background: obtenerColorPlaceholder(modulo?.negocio_nombre || '') }}>
+          <div
+            className="mp-hero"
+            style={(!modulo?.foto_portada_url || heroImagenConError) ? { background: obtenerColorPlaceholder(modulo?.negocio_nombre || '') } : undefined}
+          >
+            {modulo?.foto_portada_url && !heroImagenConError && (
+              <img
+                src={modulo.foto_portada_url}
+                alt=""
+                className="mp-hero__foto"
+                onError={() => setHeroImagenConError(true)}
+              />
+            )}
             <IconoMontana className="mp-hero__silueta" aria-hidden="true" stroke="rgba(255,255,255,.14)" strokeWidth="1.4" />
             <div className="mp-hero__overlay" />
             <div className="mp-hero__contenido">
@@ -317,108 +369,164 @@ const MenuPublico = () => {
             </div>
           </div>
 
-          {productosNovedad.length > 0 && (
-            <div className="mp-seccion">
-              <h2 className="mp-seccion__titulo">Prueba lo nuevo</h2>
-              <div className="mp-novedades-carrusel">
-                {productosNovedad.map(producto => {
+          <div className="mp-busqueda">
+            <input
+              type="text"
+              value={busqueda}
+              onChange={(e) => handleBusquedaChange(e.target.value)}
+              placeholder="Buscar en el menú..."
+              className="mp-busqueda__input"
+            />
+          </div>
+
+          {buscando ? (
+            productosFiltrados.length === 0 ? (
+              <p className="menu-publico-sin-productos">No encontramos productos con ese nombre</p>
+            ) : (
+              <div className="mp-seccion mp-resultados-busqueda">
+                {productosFiltrados.map(producto => {
                   const cantidad = carrito[producto.id] || 0;
+
                   return (
-                    <div key={producto.id} className="mp-novedad-card">
-                      <div className="mp-novedad-card__foto">
+                    <div key={producto.id} className="mp-producto-card mp-producto-card--busqueda">
+                      <div className="mp-producto-card__foto">
                         <ImagenProducto
                           producto={producto}
                           conError={imagenesConError.has(producto.id)}
                           onError={() => marcarImagenConError(producto.id)}
                         />
-                        <span className="mp-pill mp-pill--accent mp-novedad-card__badge">NUEVO</span>
                       </div>
-                      <div className="mp-novedad-card__body">
-                        <span className="mp-novedad-card__nombre">{producto.nombre}</span>
-                        <span className="mp-novedad-card__precio">{formatearMoneda(producto.precio_venta)}</span>
-                        <Stepper
-                          cantidad={cantidad}
-                          onRestar={() => cambiarCantidad(producto, -1)}
-                          onSumar={() => cambiarCantidad(producto, 1)}
-                          disabledSumar={cantidad >= producto.stock_actual}
-                        />
+                      <div className="mp-producto-card__body">
+                        {producto.categoria_nombre && (
+                          <span className="mp-pill mp-pill--neutral mp-resultado-categoria">{producto.categoria_nombre}</span>
+                        )}
+                        <div className="mp-producto-card__fila">
+                          <span className="mp-producto-card__nombre">{producto.nombre}</span>
+                          <span className="mp-producto-card__precio">{formatearMoneda(producto.precio_venta)}</span>
+                        </div>
+                        {producto.descripcion && (
+                          <p className="mp-producto-card__descripcion">{producto.descripcion}</p>
+                        )}
+                        <div className="mp-producto-card__stepper-fila">
+                          <Stepper
+                            cantidad={cantidad}
+                            onRestar={() => cambiarCantidad(producto, -1)}
+                            onSumar={() => cambiarCantidad(producto, 1)}
+                            disabledSumar={cantidad >= obtenerTopeCantidad(producto)}
+                          />
+                        </div>
                       </div>
                     </div>
                   );
                 })}
               </div>
-            </div>
-          )}
-
-          {productos.length === 0 ? (
-            <p className="menu-publico-sin-productos">No hay productos disponibles en este momento</p>
+            )
           ) : (
-            <div className="mp-seccion mp-categorias">
-              {Object.entries(productosPorCategoria).map(([categoria, items]) => {
-                const abierta = categoriasAbiertas.has(categoria);
-                const cantidadCategoria = items.reduce((sum, p) => sum + (carrito[p.id] || 0), 0);
-                const IconoCategoria = obtenerIconoCategoria(categoria);
-
-                return (
-                  <div key={categoria} className="mp-categoria">
-                    <button
-                      type="button"
-                      className="mp-categoria__header"
-                      onClick={() => toggleCategoria(categoria)}
-                      aria-expanded={abierta}
-                    >
-                      <span className="mp-categoria__icono">
-                        <IconoCategoria />
-                      </span>
-                      <span className="mp-categoria__nombre">{categoria}</span>
-                      {cantidadCategoria > 0 && (
-                        <span className="mp-pill mp-pill--accent">{cantidadCategoria}</span>
-                      )}
-                      <span className={`mp-chevron ${abierta ? 'mp-chevron--open' : ''}`}>
-                        <IconoChevronAbajo />
-                      </span>
-                    </button>
-
-                    {abierta && (
-                      <div className="mp-categoria__productos">
-                        {items.map(producto => {
-                          const cantidad = carrito[producto.id] || 0;
-
-                          return (
-                            <div key={producto.id} className="mp-producto-card">
-                              <div className="mp-producto-card__foto">
-                                <ImagenProducto
-                                  producto={producto}
-                                  conError={imagenesConError.has(producto.id)}
-                                  onError={() => marcarImagenConError(producto.id)}
-                                />
-                              </div>
-                              <div className="mp-producto-card__body">
-                                <div className="mp-producto-card__fila">
-                                  <span className="mp-producto-card__nombre">{producto.nombre}</span>
-                                  <span className="mp-producto-card__precio">{formatearMoneda(producto.precio_venta)}</span>
-                                </div>
-                                {producto.descripcion && (
-                                  <p className="mp-producto-card__descripcion">{producto.descripcion}</p>
-                                )}
-                                <div className="mp-producto-card__stepper-fila">
-                                  <Stepper
-                                    cantidad={cantidad}
-                                    onRestar={() => cambiarCantidad(producto, -1)}
-                                    onSumar={() => cambiarCantidad(producto, 1)}
-                                    disabledSumar={cantidad >= producto.stock_actual}
-                                  />
-                                </div>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
+            <>
+              {productosNovedad.length > 0 && (
+                <div className="mp-seccion">
+                  <h2 className="mp-seccion__titulo">Prueba lo nuevo</h2>
+                  <div className="mp-novedades-carrusel">
+                    {productosNovedad.map(producto => {
+                      const cantidad = carrito[producto.id] || 0;
+                      return (
+                        <div key={producto.id} className="mp-novedad-card">
+                          <div className="mp-novedad-card__foto">
+                            <ImagenProducto
+                              producto={producto}
+                              conError={imagenesConError.has(producto.id)}
+                              onError={() => marcarImagenConError(producto.id)}
+                            />
+                            <span className="mp-pill mp-pill--accent mp-novedad-card__badge">NUEVO</span>
+                          </div>
+                          <div className="mp-novedad-card__body">
+                            <span className="mp-novedad-card__nombre">{producto.nombre}</span>
+                            <span className="mp-novedad-card__precio">{formatearMoneda(producto.precio_venta)}</span>
+                            <Stepper
+                              cantidad={cantidad}
+                              onRestar={() => cambiarCantidad(producto, -1)}
+                              onSumar={() => cambiarCantidad(producto, 1)}
+                              disabledSumar={cantidad >= obtenerTopeCantidad(producto)}
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
-                );
-              })}
-            </div>
+                </div>
+              )}
+
+              {productos.length === 0 ? (
+                <p className="menu-publico-sin-productos">No hay productos disponibles en este momento</p>
+              ) : (
+                <div className="mp-seccion mp-categorias">
+                  {Object.entries(productosPorCategoria).map(([categoria, items]) => {
+                    const abierta = categoriasAbiertas.has(categoria);
+                    const cantidadCategoria = items.reduce((sum, p) => sum + (carrito[p.id] || 0), 0);
+                    const IconoCategoria = obtenerIconoCategoria(categoria);
+
+                    return (
+                      <div key={categoria} className="mp-categoria">
+                        <button
+                          type="button"
+                          className="mp-categoria__header"
+                          onClick={() => toggleCategoria(categoria)}
+                          aria-expanded={abierta}
+                        >
+                          <span className="mp-categoria__icono">
+                            <IconoCategoria />
+                          </span>
+                          <span className="mp-categoria__nombre">{categoria}</span>
+                          {cantidadCategoria > 0 && (
+                            <span className="mp-pill mp-pill--accent">{cantidadCategoria}</span>
+                          )}
+                          <span className={`mp-chevron ${abierta ? 'mp-chevron--open' : ''}`}>
+                            <IconoChevronAbajo />
+                          </span>
+                        </button>
+
+                        {abierta && (
+                          <div className="mp-categoria__productos">
+                            {items.map(producto => {
+                              const cantidad = carrito[producto.id] || 0;
+
+                              return (
+                                <div key={producto.id} className="mp-producto-card">
+                                  <div className="mp-producto-card__foto">
+                                    <ImagenProducto
+                                      producto={producto}
+                                      conError={imagenesConError.has(producto.id)}
+                                      onError={() => marcarImagenConError(producto.id)}
+                                    />
+                                  </div>
+                                  <div className="mp-producto-card__body">
+                                    <div className="mp-producto-card__fila">
+                                      <span className="mp-producto-card__nombre">{producto.nombre}</span>
+                                      <span className="mp-producto-card__precio">{formatearMoneda(producto.precio_venta)}</span>
+                                    </div>
+                                    {producto.descripcion && (
+                                      <p className="mp-producto-card__descripcion">{producto.descripcion}</p>
+                                    )}
+                                    <div className="mp-producto-card__stepper-fila">
+                                      <Stepper
+                                        cantidad={cantidad}
+                                        onRestar={() => cambiarCantidad(producto, -1)}
+                                        onSumar={() => cambiarCantidad(producto, 1)}
+                                        disabledSumar={cantidad >= obtenerTopeCantidad(producto)}
+                                      />
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </>
           )}
 
           {hayItemsEnCarrito && (
