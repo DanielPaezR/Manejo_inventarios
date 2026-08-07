@@ -27,6 +27,7 @@ const Pedidos = ({ user }) => {
   const [sugerenciaPedido, setSugerenciaPedido] = useState([]);
   const [sugerenciaConsultada, setSugerenciaConsultada] = useState(false);
   const [cargandoSugerencia, setCargandoSugerencia] = useState(false);
+  const [enviandoSugerencia, setEnviandoSugerencia] = useState(false);
   const sugerenciaPedidoRef = useRef(null);
 
   // Verificar permisos
@@ -159,32 +160,65 @@ const Pedidos = ({ user }) => {
     ));
   };
 
-  // Reutiliza enviarPedidoMultipleWhatsApp adaptando el formato de items
-  // ({ producto, cantidadSugerida }) a partir de la sugerencia editable.
-  const enviarSugerenciaPorWhatsApp = () => {
+  // Antes de abrir WhatsApp, crea el pedido real (POST /api/pedidos, la
+  // misma ruta del formulario "Nuevo Pedido" manual) para que quede en el
+  // historial de Pedidos y se pueda vincular después a un egreso en
+  // Finanzas. Mismo patrón que MenuPedidoConfirmacion.jsx: confirmar
+  // primero, abrir WhatsApp solo si la creación tuvo éxito.
+  const enviarSugerenciaPorWhatsApp = async () => {
     const proveedor = proveedores.find(p => p.id === parseInt(proveedorSugerenciaId));
     if (!proveedor) {
       setMensaje('⚠️ Selecciona un proveedor válido');
       return;
     }
 
-    const itemsIncluidos = sugerenciaPedido
-      .filter(item => item.incluido && parseInt(item.cantidadEditada) > 0)
-      .map(item => ({
-        producto: {
-          nombre: item.nombre,
-          codigo_ean: item.codigo_ean,
-          stock_actual: item.stock_actual
-        },
-        cantidadSugerida: parseInt(item.cantidadEditada) || 0
-      }));
+    // Se filtra una sola vez y se reusa tanto para el body del pedido
+    // como para el mensaje de WhatsApp, así ambos reflejan exactamente
+    // los mismos productos/cantidades (la cantidad editada, no la
+    // cantidadSugerida original si el usuario la cambió).
+    const itemsSeleccionados = sugerenciaPedido.filter(
+      item => item.incluido && parseInt(item.cantidadEditada) > 0
+    );
 
-    if (itemsIncluidos.length === 0) {
+    if (itemsSeleccionados.length === 0) {
       setMensaje('⚠️ Selecciona al menos un producto con cantidad mayor a 0');
       return;
     }
 
-    enviarPedidoMultipleWhatsApp(itemsIncluidos, proveedor);
+    try {
+      setEnviandoSugerencia(true);
+      await api.post('/pedidos', {
+        proveedor_id: proveedor.id,
+        detalles: itemsSeleccionados.map(item => ({
+          producto_id: item.producto_id,
+          cantidad: parseInt(item.cantidadEditada) || 0
+        })),
+        observaciones: 'Generado desde sugerencia automática de pedido'
+      });
+    } catch (error) {
+      console.error('Error creando pedido desde sugerencia:', error);
+      setMensaje(error.response?.data?.error || '❌ Error al crear el pedido');
+      return;
+    } finally {
+      setEnviandoSugerencia(false);
+    }
+
+    const itemsParaWhatsApp = itemsSeleccionados.map(item => ({
+      producto: {
+        nombre: item.nombre,
+        codigo_ean: item.codigo_ean,
+        stock_actual: item.stock_actual
+      },
+      cantidadSugerida: parseInt(item.cantidadEditada) || 0
+    }));
+    enviarPedidoMultipleWhatsApp(itemsParaWhatsApp, proveedor);
+
+    // El pedido ya quedó creado y registrado: se limpia la sugerencia (ya
+    // cumplió su propósito) y se refresca la tabla de abajo para que
+    // aparezca de inmediato.
+    setSugerenciaPedido([]);
+    setSugerenciaConsultada(false);
+    cargarPedidos();
   };
 
   const verDetalle = async (id) => {
@@ -448,8 +482,8 @@ const Pedidos = ({ user }) => {
                   ))}
                 </tbody>
               </table>
-              <button onClick={enviarSugerenciaPorWhatsApp} className="btn-pedir-todo">
-                📤 Enviar por WhatsApp
+              <button onClick={enviarSugerenciaPorWhatsApp} className="btn-pedir-todo" disabled={enviandoSugerencia}>
+                {enviandoSugerencia ? '⏳ Creando pedido...' : '📤 Enviar por WhatsApp'}
               </button>
             </>
           )

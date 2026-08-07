@@ -213,9 +213,14 @@
   transition: all 0.3s ease;
 }
 
-.btn-pedir-todo:hover {
+.btn-pedir-todo:hover:not(:disabled) {
   transform: translateY(-1px);
   box-shadow: 0 4px 12px rgba(56, 161, 105, 0.3);
+}
+
+.btn-pedir-todo:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 /* ============================================================
