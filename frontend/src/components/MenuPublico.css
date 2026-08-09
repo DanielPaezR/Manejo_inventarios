@@ -475,6 +475,9 @@
   font-family: var(--mp-fuente);
   text-align: left;
   box-shadow: var(--shadow-sm);
+  position: sticky;
+  top: 0;
+  z-index: 5;
 }
 
 .mp-categoria__icono {
