@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import api from '../services/api';
 import { useModulo } from '../hooks/useModulo';
+import SubidaImagen from './SubidaImagen';
 import './Productos.css';
 
 const Productos = ({ user }) => {
@@ -395,12 +396,11 @@ const Productos = ({ user }) => {
               </div>
 
               <div className="form-group">
-                <label>URL de la foto del producto (opcional)</label>
-                <input
-                  type="text"
-                  value={formData.foto_url}
-                  onChange={(e) => setFormData({ ...formData, foto_url: e.target.value })}
-                  placeholder="https://..."
+                <label>Foto del producto (opcional)</label>
+                <SubidaImagen
+                  valor={formData.foto_url}
+                  onCambiar={(url) => setFormData({ ...formData, foto_url: url })}
+                  botonTexto="📷 Subir foto"
                 />
               </div>
 

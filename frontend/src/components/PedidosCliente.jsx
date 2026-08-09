@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import api from '../services/api';
 import { useModulo } from '../hooks/useModulo';
+import SubidaImagen from './SubidaImagen';
 import './PedidosCliente.css';
 
 const ESTADO_INFO = {
@@ -279,12 +280,10 @@ const PedidosCliente = ({ user }) => {
         <div className="config-menu-card">
           <h3>⚙️ Configuración del menú</h3>
           <div className="config-menu-fila">
-            <input
-              type="text"
-              value={fotoPortadaUrl}
-              onChange={(e) => setFotoPortadaUrl(e.target.value)}
-              placeholder="URL de la foto de portada"
-              className="config-menu-input"
+            <SubidaImagen
+              valor={fotoPortadaUrl}
+              onCambiar={setFotoPortadaUrl}
+              botonTexto="📷 Subir foto de portada"
             />
             <button
               onClick={guardarFotoPortada}

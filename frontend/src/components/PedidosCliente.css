@@ -38,20 +38,9 @@
 
 .config-menu-fila {
   display: flex;
+  align-items: flex-start;
+  flex-wrap: wrap;
   gap: 10px;
-}
-
-.config-menu-input {
-  flex: 1;
-  padding: 10px 12px;
-  border: 2px solid #e2e8f0;
-  border-radius: 8px;
-  font-size: 14px;
-}
-
-.config-menu-input:focus {
-  outline: none;
-  border-color: #4299e1;
 }
 
 .config-menu-btn-guardar {
