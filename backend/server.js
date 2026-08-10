@@ -6,6 +6,7 @@ const { Pool } = require('pg');
 const moment = require('moment');
 const path = require('path');
 const crypto = require('crypto');
+const webpush = require('web-push');
 require('dotenv').config();
 
 // El servidor corre en UTC (confirmado con SHOW timezone en Postgres), pero
@@ -49,6 +50,18 @@ const pool = new Pool({
 });
 
 console.log('🔍 Conexión BD configurada con DATABASE_URL:', !!process.env.DATABASE_URL);
+
+// CONFIGURACIÓN DE WEB PUSH (notificaciones de pedidos nuevos)
+const VAPID_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY;
+const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY;
+const VAPID_SUBJECT = process.env.VAPID_SUBJECT;
+
+if (VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY && VAPID_SUBJECT) {
+  webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
+  console.log('🔔 Web Push configurado');
+} else {
+  console.warn('⚠️ VAPID_PUBLIC_KEY/VAPID_PRIVATE_KEY/VAPID_SUBJECT no configuradas — las notificaciones push no se enviarán.');
+}
 
 // Log de rutas
 app.use((req, res, next) => {
@@ -4076,6 +4089,122 @@ app.put('/api/pedidos-cliente/:id/cancelar', authenticateToken, checkAccess, asy
   }
 });
 
+// Borra de una sola vez todos los pedidos 'cancelado' del módulo activo,
+// para limpiar de golpe en vez de uno por uno. Registrada ANTES de
+// DELETE /:id para que Express no confunda "cancelados" con un :id.
+app.delete('/api/pedidos-cliente/cancelados', authenticateToken, checkAccess, async (req, res) => {
+  try {
+    const moduloId = req.moduloId;
+
+    if (!moduloId) {
+      return res.status(400).json({ error: 'Se requiere un módulo' });
+    }
+
+    const resultado = await pool.query(
+      `DELETE FROM pedidos_cliente WHERE modulo_id = $1 AND estado = 'cancelado' RETURNING id`,
+      [moduloId]
+    );
+
+    res.json({ eliminados: resultado.rowCount });
+  } catch (error) {
+    console.error('Error eliminando pedidos cancelados:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// Borra un pedido individual. Solo 'pendiente'/'cancelado': un pedido
+// 'confirmado'/'completado' es parte del historial real del negocio (el
+// segundo, además, ya generó una venta) y no debe poder desaparecer.
+app.delete('/api/pedidos-cliente/:id', authenticateToken, checkAccess, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const moduloId = req.moduloId;
+
+    if (!moduloId) {
+      return res.status(400).json({ error: 'Se requiere un módulo' });
+    }
+
+    const pedidoResult = await pool.query(
+      'SELECT * FROM pedidos_cliente WHERE id = $1 AND modulo_id = $2',
+      [id, moduloId]
+    );
+
+    if (pedidoResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Pedido no encontrado' });
+    }
+
+    const pedido = pedidoResult.rows[0];
+
+    if (!['pendiente', 'cancelado'].includes(pedido.estado)) {
+      return res.status(400).json({
+        error: 'No se puede eliminar un pedido confirmado o completado — son parte del historial real del negocio'
+      });
+    }
+
+    // pedidos_cliente_detalle se borra solo por el ON DELETE CASCADE.
+    await pool.query('DELETE FROM pedidos_cliente WHERE id = $1', [pedido.id]);
+
+    res.json({ ok: true });
+  } catch (error) {
+    console.error('Error eliminando pedido de cliente:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// ==================== RUTAS DE NOTIFICACIONES PUSH ====================
+// Suscripción/desuscripción del navegador de cada admin/trabajador a
+// notificaciones push de pedidos nuevos del menú QR. Con authenticateToken
+// + checkAccess pero SIN requireAdmin, igual que el resto del panel de
+// pedidos de cliente: tanto admin como trabajador deben poder activarlas.
+
+// Guarda (o actualiza, si el endpoint ya existía) la suscripción del
+// navegador actual. El shape { endpoint, keys: { p256dh, auth } } es
+// exactamente el que devuelve PushSubscription.toJSON() en el navegador.
+app.post('/api/push/suscribir', authenticateToken, checkAccess, async (req, res) => {
+  try {
+    const { endpoint, keys } = req.body;
+
+    if (!endpoint || !keys?.p256dh || !keys?.auth) {
+      return res.status(400).json({ error: 'Suscripción inválida' });
+    }
+
+    await pool.query(
+      `INSERT INTO push_suscripciones (usuario_id, negocio_id, endpoint, p256dh, auth)
+       VALUES ($1, $2, $3, $4, $5)
+       ON CONFLICT (endpoint) DO UPDATE
+         SET usuario_id = EXCLUDED.usuario_id,
+             negocio_id = EXCLUDED.negocio_id,
+             p256dh = EXCLUDED.p256dh,
+             auth = EXCLUDED.auth`,
+      [req.user.id, req.negocioId, endpoint, keys.p256dh, keys.auth]
+    );
+
+    res.status(201).json({ ok: true });
+  } catch (error) {
+    console.error('Error guardando suscripción push:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// Borra la suscripción del navegador actual (el usuario apagó las
+// notificaciones, o el navegador la invalidó y el frontend limpia su lado).
+app.delete('/api/push/suscribir', authenticateToken, checkAccess, async (req, res) => {
+  try {
+    const { endpoint } = req.body;
+
+    if (!endpoint) {
+      return res.status(400).json({ error: 'Se requiere el endpoint de la suscripción' });
+    }
+
+    await pool.query('DELETE FROM push_suscripciones WHERE endpoint = $1', [endpoint]);
+
+    res.json({ ok: true });
+  } catch (error) {
+    console.error('Error borrando suscripción push:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
 // ==================== RUTAS DE MENÚ PÚBLICO (SIN AUTENTICACIÓN) ====================
 // A propósito SIN authenticateToken/checkAccess: son para clientes sin
 // cuenta que escanean un QR. Usan el moduloId de la URL, nunca req.moduloId
@@ -4132,6 +4261,58 @@ app.get('/api/menu/:moduloId', async (req, res) => {
 
 // Crear pedido de cliente. NO descuenta stock todavía (eso pasa en la
 // Tanda 3, cuando el negocio lo completa) — solo valida que alcance.
+// Envía un push a cada admin/trabajador del negocio suscrito, avisando de
+// un pedido nuevo. Se llama SIN await después del COMMIT de la creación
+// del pedido (fire-and-forget): un fallo aquí (VAPID mal configurado, el
+// servicio push caído, etc.) nunca debe poder tumbar la respuesta al
+// cliente ni la creación del pedido, que ya quedó confirmada en la BD.
+async function enviarNotificacionesPedidoNuevo(moduloId, pedido) {
+  try {
+    const moduloResult = await pool.query(
+      'SELECT negocio_id FROM modulos WHERE id = $1',
+      [moduloId]
+    );
+    if (moduloResult.rows.length === 0) return;
+    const negocioId = moduloResult.rows[0].negocio_id;
+
+    const suscripcionesResult = await pool.query(
+      'SELECT id, endpoint, p256dh, auth FROM push_suscripciones WHERE negocio_id = $1',
+      [negocioId]
+    );
+    if (suscripcionesResult.rows.length === 0) return;
+
+    const payload = JSON.stringify({
+      title: '🧾 Nuevo pedido',
+      body: `${pedido.mesa_nombre} · $${Number(pedido.total).toLocaleString('es-CO')}`,
+      url: '/pedidos-cliente'
+    });
+
+    const resultados = await Promise.allSettled(
+      suscripcionesResult.rows.map(sub =>
+        webpush
+          .sendNotification({ endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } }, payload)
+          .catch(err => {
+            err.suscripcionId = sub.id;
+            throw err;
+          })
+      )
+    );
+
+    for (const resultado of resultados) {
+      if (resultado.status !== 'rejected') continue;
+      const error = resultado.reason;
+      if (error.statusCode === 410) {
+        // 410 Gone: el navegador revocó esta suscripción, ya no sirve.
+        await pool.query('DELETE FROM push_suscripciones WHERE id = $1', [error.suscripcionId]).catch(() => {});
+      } else {
+        console.error('Error enviando notificación push:', error.body || error.message);
+      }
+    }
+  } catch (error) {
+    console.error('Error enviando notificaciones de pedido nuevo:', error);
+  }
+}
+
 app.post('/api/menu/:moduloId/pedidos', async (req, res) => {
   // client se declara afuera y pool.connect() va DENTRO del try: en una
   // ruta pública sin autenticación, si pool.connect() llega a rechazar
@@ -4246,6 +4427,10 @@ app.post('/api/menu/:moduloId/pedidos', async (req, res) => {
     }
 
     await client.query('COMMIT');
+
+    enviarNotificacionesPedidoNuevo(moduloId, pedido).catch(err =>
+      console.error('Error inesperado enviando notificaciones push:', err)
+    );
 
     res.status(201).json({ ...pedido, detalles: detallesValidados });
   } catch (error) {

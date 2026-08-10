@@ -13,6 +13,19 @@ const ESTADO_INFO = {
 
 const formatearMoneda = (valor) => `$${Number(valor || 0).toLocaleString('es-CO')}`;
 
+// Conversión estándar de la llave pública VAPID (base64 URL-safe) al
+// Uint8Array que pide pushManager.subscribe(applicationServerKey: ...).
+function urlBase64ToUint8Array(base64String) {
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const rawData = window.atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+  for (let i = 0; i < rawData.length; i++) {
+    outputArray[i] = rawData.charCodeAt(i);
+  }
+  return outputArray;
+}
+
 // Polling simple (no websockets) para que los pedidos nuevos del menú QR
 // aparezcan sin que el usuario tenga que recargar la página a mano.
 const INTERVALO_POLLING_MS = 30000;
@@ -32,6 +45,7 @@ const PedidosCliente = ({ user }) => {
   const [guardandoEdicion, setGuardandoEdicion] = useState(false);
 
   const [accionEnCurso, setAccionEnCurso] = useState(null); // `${id}-${accion}`
+  const [eliminandoCancelados, setEliminandoCancelados] = useState(false);
 
   const [modalCompletar, setModalCompletar] = useState(null); // { pedidoId }
   const [metodoPagoCompletar, setMetodoPagoCompletar] = useState('efectivo');
@@ -44,6 +58,16 @@ const PedidosCliente = ({ user }) => {
   const [fotoPortadaUrl, setFotoPortadaUrl] = useState('');
   const [guardandoPortada, setGuardandoPortada] = useState(false);
   const esAdmin = user?.rol === 'admin' || user?.rol === 'super_admin';
+
+  // Notificaciones push de pedidos nuevos. Disponible para admin y
+  // trabajador por igual (no depende de esAdmin) — cualquiera que atienda
+  // el negocio puede querer enterarse de un pedido nuevo sin la app abierta.
+  const [permisoNotificaciones, setPermisoNotificaciones] = useState(
+    typeof Notification !== 'undefined' ? Notification.permission : 'default'
+  );
+  const [suscripcionActiva, setSuscripcionActiva] = useState(false);
+  const [cargandoNotificaciones, setCargandoNotificaciones] = useState(false);
+  const [mensajeNotificaciones, setMensajeNotificaciones] = useState('');
 
   const pollingRef = useRef(null);
 
@@ -71,6 +95,17 @@ const PedidosCliente = ({ user }) => {
       .then(response => setFotoPortadaUrl(response.data.foto_portada_url || ''))
       .catch(error => console.error('Error cargando configuración del módulo:', error));
   }, [moduloActivo, esAdmin]);
+
+  // Al cargar, revisa si este dispositivo ya tiene una suscripción push
+  // activa (independiente del permiso del navegador, que puede estar en
+  // 'granted' sin que exista una suscripción guardada todavía).
+  useEffect(() => {
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+    navigator.serviceWorker.ready
+      .then(registration => registration.pushManager.getSubscription())
+      .then(subscription => setSuscripcionActiva(!!subscription))
+      .catch(error => console.error('Error verificando suscripción push:', error));
+  }, []);
 
   // Refresco automático cada 30s, sin mostrar el spinner de carga inicial
   // ni pisar una edición en curso (perdería lo que el usuario está tecleando).
@@ -209,6 +244,39 @@ const PedidosCliente = ({ user }) => {
     }
   };
 
+  const eliminarPedido = async (id) => {
+    if (!confirm('¿Eliminar este pedido? Esta acción no se puede deshacer.')) return;
+    try {
+      setAccionEnCurso(`${id}-eliminar`);
+      await api.delete(`/pedidos-cliente/${id}`);
+      setMensaje('✅ Pedido eliminado');
+      cargarPedidos();
+    } catch (error) {
+      console.error('Error eliminando pedido:', error);
+      setMensaje(`❌ ${error.response?.data?.error || 'Error al eliminar el pedido'}`);
+    } finally {
+      setAccionEnCurso(null);
+      setTimeout(() => setMensaje(''), 4000);
+    }
+  };
+
+  const eliminarTodosCancelados = async () => {
+    const cantidadCancelados = pedidos.filter(p => p.estado === 'cancelado').length;
+    if (!confirm(`¿Eliminar los ${cantidadCancelados} pedidos cancelados? Esta acción no se puede deshacer.`)) return;
+    try {
+      setEliminandoCancelados(true);
+      const response = await api.delete('/pedidos-cliente/cancelados');
+      setMensaje(`✅ ${response.data.eliminados} pedido(s) cancelado(s) eliminado(s)`);
+      cargarPedidos();
+    } catch (error) {
+      console.error('Error eliminando pedidos cancelados:', error);
+      setMensaje(`❌ ${error.response?.data?.error || 'Error al eliminar los pedidos cancelados'}`);
+    } finally {
+      setEliminandoCancelados(false);
+      setTimeout(() => setMensaje(''), 4000);
+    }
+  };
+
   const abrirModalCompletar = (id) => {
     setModalCompletar({ pedidoId: id });
     setMetodoPagoCompletar('efectivo');
@@ -254,6 +322,69 @@ const PedidosCliente = ({ user }) => {
     }
   };
 
+  const activarNotificaciones = async () => {
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+      setMensajeNotificaciones('⚠️ Este navegador no soporta notificaciones push');
+      setTimeout(() => setMensajeNotificaciones(''), 4000);
+      return;
+    }
+
+    try {
+      setCargandoNotificaciones(true);
+      const permiso = await Notification.requestPermission();
+      setPermisoNotificaciones(permiso);
+
+      if (permiso !== 'granted') {
+        setMensajeNotificaciones('⚠️ No activaste el permiso. Puedes hacerlo después desde la configuración de notificaciones del navegador para este sitio.');
+        return;
+      }
+
+      const vapidPublicKey = import.meta.env.VITE_VAPID_PUBLIC_KEY;
+      if (!vapidPublicKey) {
+        setMensajeNotificaciones('⚠️ Falta configurar la llave pública de notificaciones');
+        return;
+      }
+
+      const registration = await navigator.serviceWorker.ready;
+      const subscription = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(vapidPublicKey)
+      });
+
+      await api.post('/push/suscribir', subscription.toJSON());
+      setSuscripcionActiva(true);
+      setMensajeNotificaciones('✅ Notificaciones activadas');
+    } catch (error) {
+      console.error('Error activando notificaciones push:', error);
+      setMensajeNotificaciones('❌ No se pudieron activar las notificaciones');
+    } finally {
+      setCargandoNotificaciones(false);
+      setTimeout(() => setMensajeNotificaciones(''), 4000);
+    }
+  };
+
+  const desactivarNotificaciones = async () => {
+    try {
+      setCargandoNotificaciones(true);
+      const registration = await navigator.serviceWorker.ready;
+      const subscription = await registration.pushManager.getSubscription();
+
+      if (subscription) {
+        await api.delete('/push/suscribir', { data: { endpoint: subscription.endpoint } });
+        await subscription.unsubscribe();
+      }
+
+      setSuscripcionActiva(false);
+      setMensajeNotificaciones('✅ Notificaciones desactivadas');
+    } catch (error) {
+      console.error('Error desactivando notificaciones push:', error);
+      setMensajeNotificaciones('❌ No se pudieron desactivar las notificaciones');
+    } finally {
+      setCargandoNotificaciones(false);
+      setTimeout(() => setMensajeNotificaciones(''), 4000);
+    }
+  };
+
   if (!moduloActivo) {
     return (
       <div className="pedidos-cliente-container">
@@ -273,7 +404,18 @@ const PedidosCliente = ({ user }) => {
             <span className="badge">📁 {moduloActivo.nombre}</span>
           </div>
         </div>
-        <button onClick={() => cargarPedidos()} className="btn-refresh">🔄</button>
+        <div className="pedidos-cliente-header-acciones">
+          {pedidos.some(p => p.estado === 'cancelado') && (
+            <button
+              onClick={eliminarTodosCancelados}
+              disabled={eliminandoCancelados}
+              className="btn-eliminar-cancelados"
+            >
+              {eliminandoCancelados ? 'Eliminando...' : '🗑️ Eliminar todos los cancelados'}
+            </button>
+          )}
+          <button onClick={() => cargarPedidos()} className="btn-refresh">🔄</button>
+        </div>
       </div>
 
       {esAdmin && (
@@ -295,6 +437,37 @@ const PedidosCliente = ({ user }) => {
           </div>
         </div>
       )}
+
+      <div className="config-menu-card">
+        <h3>🔔 Notificaciones de pedidos nuevos</h3>
+        {permisoNotificaciones === 'denied' ? (
+          <p className="notificaciones-estado">
+            🚫 Bloqueadas en este navegador. Actívalas desde la configuración de notificaciones del sitio para recibir avisos de pedidos nuevos.
+          </p>
+        ) : suscripcionActiva ? (
+          <div className="config-menu-fila">
+            <span className="notificaciones-estado">✅ Activadas en este dispositivo</span>
+            <button
+              onClick={desactivarNotificaciones}
+              disabled={cargandoNotificaciones}
+              className="btn-cancelar"
+            >
+              {cargandoNotificaciones ? 'Desactivando...' : 'Desactivar'}
+            </button>
+          </div>
+        ) : (
+          <div className="config-menu-fila">
+            <button
+              onClick={activarNotificaciones}
+              disabled={cargandoNotificaciones}
+              className="btn-guardar"
+            >
+              {cargandoNotificaciones ? 'Activando...' : '🔔 Activar notificaciones de pedidos nuevos'}
+            </button>
+          </div>
+        )}
+        {mensajeNotificaciones && <p className="notificaciones-mensaje">{mensajeNotificaciones}</p>}
+      </div>
 
       {mensaje && (
         <div className={`mensaje-flotante ${mensaje.includes('✅') ? 'exito' : mensaje.includes('❌') || mensaje.includes('⚠️') ? 'error' : 'info'}`}>
@@ -450,7 +623,7 @@ const PedidosCliente = ({ user }) => {
                           <p className="pedido-cliente-monto-recibido">💵 El cliente indicó que paga con: {formatearMoneda(pedido.monto_recibido)}</p>
                         )}
 
-                        {(pedido.estado === 'pendiente' || pedido.estado === 'confirmado') && (
+                        {(pedido.estado === 'pendiente' || pedido.estado === 'confirmado' || pedido.estado === 'cancelado') && (
                           <div className="pedido-cliente-acciones">
                             {pedido.estado === 'pendiente' && (
                               <button
@@ -461,13 +634,15 @@ const PedidosCliente = ({ user }) => {
                                 {accionEnCurso === `${pedido.id}-confirmar` ? 'Confirmando...' : '👀 Confirmar'}
                               </button>
                             )}
-                            <button
-                              onClick={() => iniciarEdicion(pedido)}
-                              disabled={enAccion}
-                              className="btn-editar-pedido-cliente"
-                            >
-                              ✏️ Editar
-                            </button>
+                            {pedido.estado !== 'cancelado' && (
+                              <button
+                                onClick={() => iniciarEdicion(pedido)}
+                                disabled={enAccion}
+                                className="btn-editar-pedido-cliente"
+                              >
+                                ✏️ Editar
+                              </button>
+                            )}
                             {pedido.estado === 'confirmado' && (
                               <button
                                 onClick={() => abrirModalCompletar(pedido.id)}
@@ -477,13 +652,24 @@ const PedidosCliente = ({ user }) => {
                                 ✅ Completar
                               </button>
                             )}
-                            <button
-                              onClick={() => cancelarPedido(pedido.id)}
-                              disabled={enAccion}
-                              className="btn-cancelar-pedido-cliente-panel"
-                            >
-                              {accionEnCurso === `${pedido.id}-cancelar` ? 'Cancelando...' : '❌ Cancelar'}
-                            </button>
+                            {pedido.estado !== 'cancelado' && (
+                              <button
+                                onClick={() => cancelarPedido(pedido.id)}
+                                disabled={enAccion}
+                                className="btn-cancelar-pedido-cliente-panel"
+                              >
+                                {accionEnCurso === `${pedido.id}-cancelar` ? 'Cancelando...' : '❌ Cancelar'}
+                              </button>
+                            )}
+                            {(pedido.estado === 'pendiente' || pedido.estado === 'cancelado') && (
+                              <button
+                                onClick={() => eliminarPedido(pedido.id)}
+                                disabled={enAccion}
+                                className="btn-eliminar-pedido-cliente"
+                              >
+                                {accionEnCurso === `${pedido.id}-eliminar` ? 'Eliminando...' : '🗑️ Eliminar'}
+                              </button>
+                            )}
                           </div>
                         )}
                       </>

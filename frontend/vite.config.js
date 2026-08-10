@@ -7,10 +7,16 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      workbox: {
-        cleanupOutdatedCaches: true,
-        clientsClaim: true,
-        skipWaiting: true
+      // injectManifest (en vez de generateSW): sw.js es nuestro, con código
+      // propio para push notifications. Vite lo compila y le inyecta
+      // self.__WB_MANIFEST con la lista de assets a precachear — el
+      // comentario de abajo sobre no cachear /api/* sigue aplicando, solo
+      // que ahora es automático porque sw.js no define ningún
+      // runtimeCaching para esas rutas.
+      strategies: 'injectManifest',
+      srcDir: 'src',
+      filename: 'sw.js',
+      injectManifest: {
         // IMPORTANTE: no agregar runtimeCaching para rutas /api/*. Este POS
         // depende de datos en vivo (stock, precios, ventas) — el service
         // worker solo debe cachear los assets estáticos del build, nunca

@@ -22,6 +22,34 @@
   margin-bottom: 20px;
 }
 
+.pedidos-cliente-header-acciones {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.btn-eliminar-cancelados {
+  background: #fff5f5;
+  color: #c53030;
+  border: none;
+  padding: 8px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.btn-eliminar-cancelados:hover:not(:disabled) {
+  background: #fed7d7;
+}
+
+.btn-eliminar-cancelados:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 .config-menu-card {
   background: white;
   border-radius: 12px;
@@ -47,6 +75,18 @@
   width: auto;
   white-space: nowrap;
   padding: 10px 18px;
+}
+
+.notificaciones-estado {
+  margin: 0;
+  font-size: 13px;
+  color: #4a5568;
+}
+
+.notificaciones-mensaje {
+  margin: 10px 0 0;
+  font-size: 13px;
+  color: #4a5568;
 }
 
 .pedidos-cliente-lista {
@@ -196,6 +236,15 @@
 
 .btn-cancelar-pedido-cliente-panel:hover:not(:disabled) {
   background: #fed7d7;
+}
+
+.btn-eliminar-pedido-cliente {
+  background: #c53030;
+  color: white;
+}
+
+.btn-eliminar-pedido-cliente:hover:not(:disabled) {
+  background: #9b2c2c;
 }
 
 .pedido-cliente-edicion {
