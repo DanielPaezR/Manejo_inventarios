@@ -586,6 +586,7 @@
   left: 14px;
   right: 14px;
   bottom: 14px;
+  z-index: 10;
   max-width: 572px; /* 600px de container - 2*14px de margen */
   margin: 0 auto;
   display: flex;
