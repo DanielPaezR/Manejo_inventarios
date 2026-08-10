@@ -42,6 +42,16 @@
   gap: 10px;
 }
 
+.mp-aviso-envio {
+  background: var(--color-accent-100);
+  color: var(--color-text);
+  border-radius: 14px;
+  padding: 10px 14px;
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
 /* Encabezado de categoría no interactivo (modo edición: siempre
    expandido, no es un acordeón) — mismo look que el botón de
    MenuPublico.jsx pero sin cursor de click ni afordancia de toggle. */

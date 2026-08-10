@@ -307,18 +307,23 @@ const MenuPedidoConfirmacion = () => {
           {errorAccion && <p className="mp-error">{errorAccion}</p>}
 
           {pedido.estado === 'pendiente' && (
-            <div className="mp-acciones-apiladas">
-              <button onClick={iniciarEdicion} disabled={cancelando || confirmando} className="mp-btn mp-btn--secondary mp-btn--full">
-                Editar pedido
-              </button>
-              <button onClick={handleCancelar} disabled={cancelando || confirmando} className="mp-btn mp-btn--secondary mp-btn--danger-text mp-btn--full">
-                {cancelando ? 'Cancelando...' : 'Cancelar pedido'}
-              </button>
-              <button onClick={handleConfirmarWhatsApp} disabled={cancelando || confirmando} className="mp-btn mp-btn--primary mp-btn--full">
-                <IconoHoja className="mp-btn__icono" />
-                {confirmando ? 'Confirmando...' : 'Confirmar y enviar'}
-              </button>
-            </div>
+            <>
+              <p className="mp-aviso-envio">
+                ℹ️ Si no envías el mensaje por WhatsApp, el pedido no será llevado a cabo.
+              </p>
+              <div className="mp-acciones-apiladas">
+                <button onClick={iniciarEdicion} disabled={cancelando || confirmando} className="mp-btn mp-btn--secondary mp-btn--full">
+                  Editar pedido
+                </button>
+                <button onClick={handleCancelar} disabled={cancelando || confirmando} className="mp-btn mp-btn--secondary mp-btn--danger-text mp-btn--full">
+                  {cancelando ? 'Cancelando...' : 'Cancelar pedido'}
+                </button>
+                <button onClick={handleConfirmarWhatsApp} disabled={cancelando || confirmando} className="mp-btn mp-btn--primary mp-btn--full">
+                  <IconoHoja className="mp-btn__icono" />
+                  {confirmando ? 'Confirmando...' : 'Confirmar y enviar'}
+                </button>
+              </div>
+            </>
           )}
         </div>
       ) : (
