@@ -1671,6 +1671,17 @@ app.get('/api/estadisticas', authenticateToken, checkAccess, requireAdmin, async
       [moduloId]
     );
 
+    // Valor de la mercancía en existencia, a precio de venta (no de compra,
+    // porque no todos los productos tienen precio_compra cargado de forma
+    // confiable).
+    const valorMercancia = await pool.query(
+      `SELECT COALESCE(SUM(stock_actual * precio_venta), 0) as total
+       FROM productos
+       WHERE activo = true
+       AND modulo_id = $1`,
+      [moduloId]
+    );
+
     const metodoPagoPopular = await pool.query(
       `SELECT
           metodo_pago,
@@ -1736,6 +1747,7 @@ app.get('/api/estadisticas', authenticateToken, checkAccess, requireAdmin, async
       ventasPorHora: ventasPorHora.rows,
       ventasPorDiaSemana: ventasPorDiaSemana.rows,
       totalProductos: totalProductos.rows[0]?.total || 0,
+      valor_mercancia: Number(valorMercancia.rows[0]?.total || 0),
       metodoPagoPopular: metodoPagoPopular.rows[0] || null,
       comparacionPeriodoAnterior: {
         monto: ventasPeriodoAnterior.rows[0]?.monto || 0,
@@ -2138,7 +2150,8 @@ app.get('/api/proveedores/:id/sugerencia-pedido', authenticateToken, checkAccess
     const productosResult = await pool.query(
       `SELECT
           p.id, p.nombre, p.codigo_ean, p.stock_actual, p.stock_minimo,
-          pp.tiempo_entrega_dias, pp.cantidad_minima_pedido, pp.precio_compra
+          pp.tiempo_entrega_dias, pp.cantidad_minima_pedido, pp.precio_compra,
+          pp.unidades_por_paquete
        FROM productos p
        JOIN producto_proveedor pp ON pp.producto_id = p.id
        WHERE pp.proveedor_id = $1
@@ -2162,9 +2175,10 @@ app.get('/api/proveedores/:id/sugerencia-pedido', authenticateToken, checkAccess
       );
 
       const totalVendido = Number(ventasResult.rows[0]?.total_vendido || 0);
-      const promedioDiario = totalVendido / diasHistorial;
+      const ventasPorSemana = totalVendido / (diasHistorial / 7);
       const tiempoEntrega = producto.tiempo_entrega_dias || proveedor.dias_entrega || 3;
-      const consumoEsperado = promedioDiario * tiempoEntrega;
+      const tiempoEntregaSemanas = tiempoEntrega / 7;
+      const consumoEsperado = ventasPorSemana * tiempoEntregaSemanas;
       let cantidadSugerida = Math.ceil(
         Math.max(0, consumoEsperado + producto.stock_minimo - producto.stock_actual)
       );
@@ -2174,19 +2188,24 @@ app.get('/api/proveedores/:id/sugerencia-pedido', authenticateToken, checkAccess
         cantidadSugerida = producto.cantidad_minima_pedido;
       }
 
+      const unidadesPorPaquete = producto.unidades_por_paquete || 1;
+      const cantidadSugeridaPaquetes = Math.ceil(cantidadSugerida / unidadesPorPaquete);
+
       sugerencias.push({
         producto_id: producto.id,
         nombre: producto.nombre,
         codigo_ean: producto.codigo_ean,
         stock_actual: producto.stock_actual,
         stock_minimo: producto.stock_minimo,
-        promedioDiario,
+        ventas_por_semana: Math.round(ventasPorSemana * 10) / 10,
         tiempoEntrega,
-        cantidadSugerida
+        cantidad_sugerida: cantidadSugerida,
+        cantidad_sugerida_paquetes: cantidadSugeridaPaquetes,
+        unidades_por_paquete: unidadesPorPaquete
       });
     }
 
-    sugerencias.sort((a, b) => b.cantidadSugerida - a.cantidadSugerida);
+    sugerencias.sort((a, b) => b.cantidad_sugerida - a.cantidad_sugerida);
 
     res.json(sugerencias);
   } catch (error) {
@@ -2218,7 +2237,8 @@ app.get('/api/proveedores/:id/productos-asociados', authenticateToken, checkAcce
 
     const result = await pool.query(
       `SELECT p.id, p.nombre, p.codigo_ean, p.precio_compra as precio_compra_producto,
-              pp.precio_compra, pp.tiempo_entrega_dias, pp.cantidad_minima_pedido
+              pp.precio_compra, pp.tiempo_entrega_dias, pp.cantidad_minima_pedido,
+              pp.unidades_por_paquete
        FROM producto_proveedor pp
        JOIN productos p ON pp.producto_id = p.id
        WHERE pp.proveedor_id = $1 AND pp.activo = true AND p.modulo_id = $2
@@ -2309,12 +2329,17 @@ app.post('/api/proveedores/:id/productos-bulk', authenticateToken, checkAccess, 
         cantidadMinimaPedido = 1;
       }
 
+      let unidadesPorPaquete = parseInt(item.unidades_por_paquete, 10);
+      if (!Number.isFinite(unidadesPorPaquete) || unidadesPorPaquete <= 0) {
+        unidadesPorPaquete = 1;
+      }
+
       await client.query(
-        `INSERT INTO producto_proveedor (producto_id, proveedor_id, precio_compra, tiempo_entrega_dias, cantidad_minima_pedido)
-         VALUES ($1, $2, $3, $4, $5)
+        `INSERT INTO producto_proveedor (producto_id, proveedor_id, precio_compra, tiempo_entrega_dias, cantidad_minima_pedido, unidades_por_paquete)
+         VALUES ($1, $2, $3, $4, $5, $6)
          ON CONFLICT (producto_id, proveedor_id)
-         DO UPDATE SET precio_compra = $3, tiempo_entrega_dias = $4, cantidad_minima_pedido = $5, activo = true`,
-        [producto_id, id, precioCompra, tiempoEntregaDias, cantidadMinimaPedido]
+         DO UPDATE SET precio_compra = $3, tiempo_entrega_dias = $4, cantidad_minima_pedido = $5, unidades_por_paquete = $6, activo = true`,
+        [producto_id, id, precioCompra, tiempoEntregaDias, cantidadMinimaPedido, unidadesPorPaquete]
       );
     }
 
@@ -2337,7 +2362,7 @@ app.post('/api/proveedores/:id/productos-bulk', authenticateToken, checkAccess, 
 app.post('/api/productos/:productoId/proveedores/:proveedorId', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
   try {
     const { productoId, proveedorId } = req.params;
-    const { precio_compra, tiempo_entrega_dias, cantidad_minima_pedido } = req.body;
+    const { precio_compra, tiempo_entrega_dias, cantidad_minima_pedido, unidades_por_paquete } = req.body;
     const moduloId = req.moduloId;
     const negocioId = req.negocioId;
 
@@ -2362,13 +2387,15 @@ app.post('/api/productos/:productoId/proveedores/:proveedorId', authenticateToke
       return res.status(404).json({ error: 'Proveedor no encontrado' });
     }
 
+    const unidadesPorPaquete = parseInt(unidades_por_paquete, 10) || 1;
+
     const result = await pool.query(
-      `INSERT INTO producto_proveedor (producto_id, proveedor_id, precio_compra, tiempo_entrega_dias, cantidad_minima_pedido) 
-       VALUES ($1, $2, $3, $4, $5) 
-       ON CONFLICT (producto_id, proveedor_id) 
-       DO UPDATE SET precio_compra = $3, tiempo_entrega_dias = $4, cantidad_minima_pedido = $5, activo = true
+      `INSERT INTO producto_proveedor (producto_id, proveedor_id, precio_compra, tiempo_entrega_dias, cantidad_minima_pedido, unidades_por_paquete)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       ON CONFLICT (producto_id, proveedor_id)
+       DO UPDATE SET precio_compra = $3, tiempo_entrega_dias = $4, cantidad_minima_pedido = $5, unidades_por_paquete = $6, activo = true
        RETURNING *`,
-      [productoId, proveedorId, precio_compra, tiempo_entrega_dias, cantidad_minima_pedido]
+      [productoId, proveedorId, precio_compra, tiempo_entrega_dias, cantidad_minima_pedido, unidadesPorPaquete]
     );
 
     res.status(201).json(result.rows[0]);

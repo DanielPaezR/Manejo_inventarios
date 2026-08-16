@@ -299,6 +299,18 @@
   color: #e53e3e;
 }
 
+.metrica-nota {
+  font-size: 12px;
+  color: #a0aec0;
+  font-style: italic;
+  margin-top: 2px;
+}
+
+.valor-mercancia-card {
+  display: flex;
+  align-items: center;
+}
+
 /* ============================================================
    GRÁFICO DE VENTAS POR DÍA
    ============================================================ */

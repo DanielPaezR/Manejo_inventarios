@@ -143,7 +143,8 @@ const Proveedores = ({ user }) => {
         ediciones[p.id] = {
           precio_compra: p.precio_compra ?? '',
           tiempo_entrega_dias: p.tiempo_entrega_dias ?? '',
-          cantidad_minima_pedido: p.cantidad_minima_pedido ?? ''
+          cantidad_minima_pedido: p.cantidad_minima_pedido ?? '',
+          unidades_por_paquete: p.unidades_por_paquete ?? ''
         };
       });
       setEdicionesAsociados(ediciones);
@@ -171,7 +172,8 @@ const Proveedores = ({ user }) => {
       return (
         String(edicion.precio_compra) !== String(p.precio_compra ?? '') ||
         String(edicion.tiempo_entrega_dias) !== String(p.tiempo_entrega_dias ?? '') ||
-        String(edicion.cantidad_minima_pedido) !== String(p.cantidad_minima_pedido ?? '')
+        String(edicion.cantidad_minima_pedido) !== String(p.cantidad_minima_pedido ?? '') ||
+        String(edicion.unidades_por_paquete) !== String(p.unidades_por_paquete ?? '')
       );
     });
 
@@ -187,7 +189,8 @@ const Proveedores = ({ user }) => {
         return api.post(`/productos/${p.id}/proveedores/${proveedorSeleccionado.id}`, {
           precio_compra: parseFloat(edicion.precio_compra) || 0,
           tiempo_entrega_dias: parseInt(edicion.tiempo_entrega_dias, 10) || 3,
-          cantidad_minima_pedido: parseInt(edicion.cantidad_minima_pedido, 10) || 1
+          cantidad_minima_pedido: parseInt(edicion.cantidad_minima_pedido, 10) || 1,
+          unidades_por_paquete: parseInt(edicion.unidades_por_paquete, 10) || 1
         });
       }));
 
@@ -230,7 +233,8 @@ const Proveedores = ({ user }) => {
         copia[producto.id] = {
           precio_compra: producto.precio_compra ?? '',
           tiempo_entrega_dias: proveedorSeleccionado?.dias_entrega || 3,
-          cantidad_minima_pedido: 1
+          cantidad_minima_pedido: 1,
+          unidades_por_paquete: 1
         };
       }
       return copia;
@@ -257,7 +261,8 @@ const Proveedores = ({ user }) => {
         producto_id: id,
         precio_compra: parseFloat(seleccionados[id].precio_compra) || 0,
         tiempo_entrega_dias: parseInt(seleccionados[id].tiempo_entrega_dias, 10) || 3,
-        cantidad_minima_pedido: parseInt(seleccionados[id].cantidad_minima_pedido, 10) || 1
+        cantidad_minima_pedido: parseInt(seleccionados[id].cantidad_minima_pedido, 10) || 1,
+        unidades_por_paquete: parseInt(seleccionados[id].unidades_por_paquete, 10) || 1
       }));
 
       await api.post(`/proveedores/${proveedorSeleccionado.id}/productos-bulk`, {
@@ -505,6 +510,7 @@ const Proveedores = ({ user }) => {
                           <th>Precio compra</th>
                           <th>Días entrega</th>
                           <th>Cant. mínima</th>
+                          <th>Unid. por paquete</th>
                           <th></th>
                         </tr>
                       </thead>
@@ -534,6 +540,14 @@ const Proveedores = ({ user }) => {
                                 min="1"
                                 value={edicionesAsociados[p.id]?.cantidad_minima_pedido ?? ''}
                                 onChange={(e) => handleCambioEdicionAsociado(p.id, 'cantidad_minima_pedido', e.target.value)}
+                              />
+                            </td>
+                            <td>
+                              <input
+                                type="number"
+                                min="1"
+                                value={edicionesAsociados[p.id]?.unidades_por_paquete ?? ''}
+                                onChange={(e) => handleCambioEdicionAsociado(p.id, 'unidades_por_paquete', e.target.value)}
                               />
                             </td>
                             <td>
@@ -615,6 +629,15 @@ const Proveedores = ({ user }) => {
                                 min="1"
                                 value={seleccionados[producto.id].cantidad_minima_pedido}
                                 onChange={(e) => handleCambioSeleccion(producto.id, 'cantidad_minima_pedido', e.target.value)}
+                              />
+                            </div>
+                            <div className="form-group">
+                              <label>Unid. por paquete</label>
+                              <input
+                                type="number"
+                                min="1"
+                                value={seleccionados[producto.id].unidades_por_paquete}
+                                onChange={(e) => handleCambioSeleccion(producto.id, 'unidades_por_paquete', e.target.value)}
                               />
                             </div>
                           </div>

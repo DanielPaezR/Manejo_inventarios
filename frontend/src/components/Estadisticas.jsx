@@ -315,6 +315,18 @@ const Estadisticas = ({ user }) => {
                 </div>
               </div>
 
+              {/* Valor en mercancía */}
+              <div className="card valor-mercancia-card">
+                <div className="metrica-item">
+                  <div className="metrica-icono">💰</div>
+                  <div className="metrica-info">
+                    <span className="metrica-valor">{formatearMoneda(estadisticas.valor_mercancia)}</span>
+                    <span className="metrica-label">Valor en mercancía</span>
+                    <span className="metrica-nota">A precio de venta</span>
+                  </div>
+                </div>
+              </div>
+
               {/* Gráfico de ventas por día */}
               <div className="card grafico-ventas-dia">
                 <h3>📈 Ventas por día</h3>

@@ -73,7 +73,11 @@ const Pedidos = ({ user }) => {
     }
   };
 
-  // Enviar pedido múltiple (varios productos al mismo proveedor) por WhatsApp
+  // Enviar pedido múltiple (varios productos al mismo proveedor) por WhatsApp.
+  // Cada item.cantidad viene en la unidad que el proveedor maneja: paquetes
+  // si unidades_por_paquete > 1, o unidades sueltas si el proveedor no vende
+  // por paquete (unidades_por_paquete === 1) — así el mensaje le pide al
+  // proveedor la cantidad tal como él la entiende.
   const enviarPedidoMultipleWhatsApp = (productosDelProveedor, proveedor) => {
     const telefono = proveedor.telefono?.replace(/\D/g, '');
     if (!telefono) {
@@ -88,8 +92,9 @@ const Pedidos = ({ user }) => {
     mensajeTexto += `-------------------\n`;
 
     productosDelProveedor.forEach((item, index) => {
+      const unidad = item.unidadesPorPaquete > 1 ? 'paquetes' : 'unidades';
       mensajeTexto += `${index + 1}. *${item.producto.nombre}*\n`;
-      mensajeTexto += `   Cantidad: ${item.cantidadSugerida} unidades\n\n`;
+      mensajeTexto += `   Cantidad: ${item.cantidad} ${unidad}\n\n`;
     });
 
     mensajeTexto += `-------------------\n`;
@@ -118,11 +123,14 @@ const Pedidos = ({ user }) => {
       const response = await api.get(`/proveedores/${idProveedor}/sugerencia-pedido`, {
         params: { dias_historial: diasHistorial || 30 }
       });
+      // cantidadEditada está en PAQUETES (o unidades, si el proveedor no
+      // vende por paquete), no en unidades sueltas: es lo que se muestra y
+      // edita en la tabla, y lo que el proveedor espera recibir.
       setSugerenciaPedido(
         response.data.map(item => ({
           ...item,
-          cantidadEditada: item.cantidadSugerida,
-          incluido: item.cantidadSugerida > 0
+          cantidadEditada: item.cantidad_sugerida_paquetes,
+          incluido: item.cantidad_sugerida_paquetes > 0
         }))
       );
       setSugerenciaConsultada(true);
@@ -175,7 +183,7 @@ const Pedidos = ({ user }) => {
     // Se filtra una sola vez y se reusa tanto para el body del pedido
     // como para el mensaje de WhatsApp, así ambos reflejan exactamente
     // los mismos productos/cantidades (la cantidad editada, no la
-    // cantidadSugerida original si el usuario la cambió).
+    // cantidad_sugerida_paquetes original si el usuario la cambió).
     const itemsSeleccionados = sugerenciaPedido.filter(
       item => item.incluido && parseInt(item.cantidadEditada) > 0
     );
@@ -185,13 +193,18 @@ const Pedidos = ({ user }) => {
       return;
     }
 
+    // pedido_detalle.cantidad siempre se guarda en UNIDADES REALES (no en
+    // paquetes): al marcar un pedido como "recibido", el backend suma esa
+    // cantidad directo a stock_actual (que también está en unidades), así
+    // que si aquí se guardaran paquetes el stock quedaría mal. Los paquetes
+    // son solo la unidad que se le muestra y pide al proveedor.
     try {
       setEnviandoSugerencia(true);
       await api.post('/pedidos', {
         proveedor_id: proveedor.id,
         detalles: itemsSeleccionados.map(item => ({
           producto_id: item.producto_id,
-          cantidad: parseInt(item.cantidadEditada) || 0
+          cantidad: (parseInt(item.cantidadEditada) || 0) * (item.unidades_por_paquete || 1)
         })),
         observaciones: 'Generado desde sugerencia automática de pedido'
       });
@@ -209,7 +222,8 @@ const Pedidos = ({ user }) => {
         codigo_ean: item.codigo_ean,
         stock_actual: item.stock_actual
       },
-      cantidadSugerida: parseInt(item.cantidadEditada) || 0
+      cantidad: parseInt(item.cantidadEditada) || 0,
+      unidadesPorPaquete: item.unidades_por_paquete || 1
     }));
     enviarPedidoMultipleWhatsApp(itemsParaWhatsApp, proveedor);
 
@@ -452,34 +466,43 @@ const Pedidos = ({ user }) => {
                     <th></th>
                     <th>Producto</th>
                     <th>Stock actual</th>
-                    <th>Promedio diario</th>
-                    <th>Cantidad sugerida</th>
+                    <th>Ventas por semana</th>
+                    <th>Cantidad a pedir</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {sugerenciaPedido.map(item => (
-                    <tr key={item.producto_id}>
-                      <td>
-                        <input
-                          type="checkbox"
-                          checked={item.incluido}
-                          onChange={() => toggleIncluidoSugerencia(item.producto_id)}
-                        />
-                      </td>
-                      <td>{item.nombre}</td>
-                      <td>{item.stock_actual}</td>
-                      <td>{item.promedioDiario.toFixed(1)} uds/día</td>
-                      <td>
-                        <input
-                          type="number"
-                          min="0"
-                          value={item.cantidadEditada}
-                          onChange={(e) => actualizarCantidadSugerencia(item.producto_id, e.target.value)}
-                          className="input-cantidad-sugerida"
-                        />
-                      </td>
-                    </tr>
-                  ))}
+                  {sugerenciaPedido.map(item => {
+                    const unidadesPorPaquete = item.unidades_por_paquete || 1;
+                    const cantidadPaquetes = parseInt(item.cantidadEditada) || 0;
+                    return (
+                      <tr key={item.producto_id}>
+                        <td>
+                          <input
+                            type="checkbox"
+                            checked={item.incluido}
+                            onChange={() => toggleIncluidoSugerencia(item.producto_id)}
+                          />
+                        </td>
+                        <td>{item.nombre}</td>
+                        <td>{item.stock_actual}</td>
+                        <td>{item.ventas_por_semana.toFixed(1)} uds/sem</td>
+                        <td>
+                          <input
+                            type="number"
+                            min="0"
+                            value={item.cantidadEditada}
+                            onChange={(e) => actualizarCantidadSugerencia(item.producto_id, e.target.value)}
+                            className="input-cantidad-sugerida"
+                          />
+                          <span className="input-cantidad-nota">
+                            {unidadesPorPaquete > 1
+                              ? `${cantidadPaquetes} paquete(s) = ${cantidadPaquetes * unidadesPorPaquete} unidades (${unidadesPorPaquete} por paquete)`
+                              : `= ${cantidadPaquetes} unidades`}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
               <button onClick={enviarSugerenciaPorWhatsApp} className="btn-pedir-todo" disabled={enviandoSugerencia}>
