@@ -1611,9 +1611,16 @@ app.get('/api/estadisticas', authenticateToken, checkAccess, requireAdmin, async
       [moduloId, startDate, endDate]
     );
 
+    // Mismo ajuste UTC -> America/Bogota que ventasPorHora/ventasPorDiaSemana
+    // (ver comentario debajo): sin esto, DATE(fecha_venta) trunca sobre el
+    // día calendario UTC, no el de Colombia, y las ventas entre las 7pm y
+    // medianoche en Bogotá (que en UTC ya caen en el día siguiente) se
+    // contaban en el bucket del día equivocado. 'fecha' se devuelve como
+    // texto 'YYYY-MM-DD' (no como date de Postgres) para que el frontend no
+    // tenga que volver a interpretar una zona horaria al parsearla.
     const ventasPorDia = await pool.query(
       `SELECT
-          DATE(fecha_venta) as fecha,
+          to_char(fecha_venta AT TIME ZONE 'UTC' AT TIME ZONE 'America/Bogota', 'YYYY-MM-DD') as fecha,
           COUNT(*) as cantidad,
           SUM(total) as total
        FROM ventas
@@ -1621,7 +1628,7 @@ app.get('/api/estadisticas', authenticateToken, checkAccess, requireAdmin, async
        AND fecha_venta BETWEEN $2 AND $3
        AND es_ajuste_manual = false
        AND metodo_pago != 'consumo_propio'
-       GROUP BY DATE(fecha_venta)
+       GROUP BY 1
        ORDER BY fecha ASC`,
       [moduloId, startDate, endDate]
     );

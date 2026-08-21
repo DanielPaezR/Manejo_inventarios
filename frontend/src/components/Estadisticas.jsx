@@ -390,17 +390,24 @@ const Estadisticas = ({ user }) => {
                       {estadisticas.ventasPorDia.map((dia, index) => {
                         const maxValor = Math.max(...estadisticas.ventasPorDia.map(d => d.total));
                         const altura = maxValor > 0 ? (dia.total / maxValor) * 100 : 0;
+                        // dia.fecha llega como texto 'YYYY-MM-DD' (día ya
+                        // calculado en hora Colombia por el backend). Se
+                        // ancla a mediodía UTC antes de formatear para que
+                        // ningún navegador, en ninguna zona horaria, le
+                        // reste/sume un día por accidente al aplicar la
+                        // zona horaria local del dispositivo.
+                        const fechaSegura = new Date(`${dia.fecha}T12:00:00Z`);
                         return (
                           <div key={index} className="barra-container">
-                            <div 
-                              className="barra" 
+                            <div
+                              className="barra"
                               style={{ height: `${Math.max(5, altura)}%` }}
-                              title={`${new Date(dia.fecha).toLocaleDateString()}: ${formatearMoneda(dia.total)}`}
+                              title={`${fechaSegura.toLocaleDateString('es-CO', { timeZone: 'UTC' })}: ${formatearMoneda(dia.total)}`}
                             >
                               <span className="barra-valor">{formatearMoneda(dia.total)}</span>
                             </div>
                             <span className="barra-fecha">
-                              {new Date(dia.fecha).toLocaleDateString('es-CO', { weekday: 'short', day: 'numeric' })}
+                              {fechaSegura.toLocaleDateString('es-CO', { weekday: 'short', day: 'numeric', timeZone: 'UTC' })}
                             </span>
                           </div>
                         );
