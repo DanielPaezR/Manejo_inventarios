@@ -164,6 +164,40 @@
   box-shadow: 0 4px 12px rgba(56, 161, 105, 0.3);
 }
 
+.periodo-navegacion {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.btn-icono {
+  background: none;
+  border: 1px solid #e2e8f0;
+  cursor: pointer;
+  font-size: 16px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 6px;
+  color: #4a5568;
+  transition: background 0.2s;
+}
+
+.btn-icono:hover:not(:disabled) {
+  background: #f7fafc;
+}
+
+.btn-icono:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.periodo-navegacion-rango {
+  font-size: 13px;
+  font-weight: 600;
+  color: #2d3748;
+  white-space: nowrap;
+}
+
 /* ============================================================
    LOADING
    ============================================================ */

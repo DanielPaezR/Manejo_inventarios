@@ -1,8 +1,28 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import api from '../services/api';
 import { useModulo } from '../hooks/useModulo';
 import GraficoLineas from './GraficoLineas';
 import './Estadisticas.css';
+
+// Aritmética de calendario pura en UTC (año/mes/día, sin horas): evita que
+// sumar/restar días se corra un día por la zona horaria del navegador.
+// Mismo criterio que sumarDias en Finanzas.jsx.
+const sumarDiasUTC = (fechaStr, dias) => {
+  const [y, m, d] = fechaStr.split('-').map(Number);
+  const fecha = new Date(Date.UTC(y, m - 1, d));
+  fecha.setUTCDate(fecha.getUTCDate() + dias);
+  return fecha.toISOString().slice(0, 10);
+};
+
+const MESES_CORTOS = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+
+const formatearRangoFechas = (inicioStr, finStr) => {
+  if (!inicioStr || !finStr) return '';
+  const [, mi, di] = inicioStr.split('-').map(Number);
+  const [, mf, df] = finStr.split('-').map(Number);
+  if (mi === mf) return `${di} - ${df} ${MESES_CORTOS[mi - 1]}`;
+  return `${di} ${MESES_CORTOS[mi - 1]} - ${df} ${MESES_CORTOS[mf - 1]}`;
+};
 
 const Estadisticas = ({ user }) => {
   const { moduloActivo } = useModulo();
@@ -15,57 +35,88 @@ const Estadisticas = ({ user }) => {
   const [finanzasResumen, setFinanzasResumen] = useState(null);
   const [loadingFinanzas, setLoadingFinanzas] = useState(false);
 
+  // Navegación ← → a bloques anteriores/siguientes cuando periodo es
+  // 'semana' o 'mes' (rolling por defecto). periodoOffset 0 = el bloque
+  // "actual" que ya devuelve el backend; -1 = el bloque inmediatamente
+  // anterior, del mismo ancho, y así sucesivamente. periodoAnchorRef
+  // guarda fecha_inicio/fecha_fin/dias del bloque en offset 0 la primera
+  // vez que se carga (viene del backend, ya en hora Colombia), para poder
+  // calcular los bloques anteriores con aritmética de fechas pura, sin
+  // depender de la fecha del navegador. Es un ref (no state) para no
+  // tener que incluirlo en las dependencias de los callbacks de carga.
+  const [periodoOffset, setPeriodoOffset] = useState(0);
+  const periodoAnchorRef = useRef(null);
+
+  const cambiarPeriodo = (nuevoPeriodo) => {
+    setPeriodo(nuevoPeriodo);
+    setPeriodoOffset(0);
+    periodoAnchorRef.current = null;
+  };
+
+  // Arma los params de periodo para /estadisticas y /finanzas/resumen-periodo.
+  // Devuelve null si periodo='personalizado' y todavía faltan fechas.
+  const construirParamsPeriodo = () => {
+    if (periodo === 'personalizado') {
+      if (!fechas.inicio || !fechas.fin) return null;
+      return { periodo: 'personalizado', fecha_inicio: fechas.inicio, fecha_fin: fechas.fin };
+    }
+    if ((periodo === 'semana' || periodo === 'mes') && periodoOffset !== 0 && periodoAnchorRef.current) {
+      const anchor = periodoAnchorRef.current;
+      const fin = sumarDiasUTC(anchor.fin, periodoOffset * anchor.dias);
+      const inicio = sumarDiasUTC(fin, -(anchor.dias - 1));
+      return { periodo: 'personalizado', fecha_inicio: inicio, fecha_fin: fin };
+    }
+    return { periodo };
+  };
+
   // Cargar estadísticas
   const cargarEstadisticas = useCallback(async () => {
+    const params = construirParamsPeriodo();
+    if (!params) {
+      alert('Selecciona ambas fechas');
+      return;
+    }
+
     try {
       setLoading(true);
-      
-      let params = { periodo };
-      
-      if (periodo === 'personalizado') {
-        if (!fechas.inicio || !fechas.fin) {
-          alert('Selecciona ambas fechas');
-          setLoading(false);
-          return;
-        }
-        params.fecha_inicio = fechas.inicio;
-        params.fecha_fin = fechas.fin;
-      }
-
       const response = await api.get('/estadisticas', { params });
       setEstadisticas(response.data);
+
+      // Ancla el bloque "actual" (offset 0) la primera vez que se carga,
+      // para poder navegar a bloques anteriores más adelante.
+      if ((periodo === 'semana' || periodo === 'mes') && periodoOffset === 0) {
+        periodoAnchorRef.current = {
+          inicio: response.data.periodoInfo.fecha_inicio,
+          fin: response.data.periodoInfo.fecha_fin,
+          dias: response.data.periodoInfo.dias
+        };
+      }
     } catch (error) {
       console.error('Error cargando estadísticas:', error);
     } finally {
       setLoading(false);
     }
-  }, [periodo, fechas]);
+  }, [periodo, fechas, periodoOffset]);
 
   useEffect(() => {
     if (moduloActivo) {
       cargarEstadisticas();
     }
-  }, [moduloActivo, periodo, cargarEstadisticas]);
+  }, [moduloActivo, periodo, periodoOffset, cargarEstadisticas]);
 
   // movimientos_caja es del negocio completo, no por módulo, pero se
   // gatea igual por moduloActivo para ser consistente con el resto de la
-  // página. Reutiliza el mismo estado de periodo/fechas, se carga solo al
-  // entrar a la pestaña Finanzas (no en cada cambio de periodo si no está
-  // activa).
+  // página. Reutiliza el mismo estado de periodo/fechas/navegación, se
+  // carga solo al entrar a la pestaña Finanzas (no en cada cambio de
+  // periodo si no está activa).
   const cargarFinanzasResumen = useCallback(async () => {
+    const params = construirParamsPeriodo();
+    if (!params) {
+      return;
+    }
+
     try {
       setLoadingFinanzas(true);
-
-      let params = { periodo };
-      if (periodo === 'personalizado') {
-        if (!fechas.inicio || !fechas.fin) {
-          setLoadingFinanzas(false);
-          return;
-        }
-        params.fecha_inicio = fechas.inicio;
-        params.fecha_fin = fechas.fin;
-      }
-
       const response = await api.get('/finanzas/resumen-periodo', { params });
       setFinanzasResumen(response.data);
     } catch (error) {
@@ -73,13 +124,13 @@ const Estadisticas = ({ user }) => {
     } finally {
       setLoadingFinanzas(false);
     }
-  }, [periodo, fechas]);
+  }, [periodo, fechas, periodoOffset]);
 
   useEffect(() => {
     if (moduloActivo && vistaActiva === 'finanzas') {
       cargarFinanzasResumen();
     }
-  }, [moduloActivo, vistaActiva, periodo, cargarFinanzasResumen]);
+  }, [moduloActivo, vistaActiva, periodo, periodoOffset, cargarFinanzasResumen]);
 
   // Consumo propio: card independiente dentro de la vista 'ventas', con su
   // propio selector de periodo (no el general de la página) porque acá sí
@@ -113,45 +164,91 @@ const Estadisticas = ({ user }) => {
   // pestaña independiente, con su propio selector de granularidad y de
   // rango — no reutiliza el periodo/fechas general de arriba porque acá
   // "todo el historial" (sin fecha_inicio/fecha_fin) es el default, no
-  // "hoy". Cuando se usa rango personalizado, la carga solo se dispara
-  // con el botón "Aplicar" (evita pegarle a la API con fechas a medio
-  // escribir, a diferencia del selector general de arriba).
+  // "hoy".
+  //
+  // Modo 'ventana': navegación ← → por bloques de N buckets (ver
+  // VENTANA_BUCKETS), del mismo ancho, hacia atrás/adelante — para
+  // comparar un bloque de semanas/meses contra el anterior sin tener que
+  // escribir fechas a mano. evolucionAnchor guarda la fecha del bucket
+  // más reciente (la calcula el backend, ya en hora Colombia) la primera
+  // vez que carga sin rango (modo 'todo', o la primera carga de
+  // 'ventana' antes de tener ancla), para poder calcular los bloques
+  // anteriores con aritmética de fechas pura, sin depender de la fecha
+  // del navegador. Es state (no ref) a propósito: al capturarla por
+  // primera vez en modo 'ventana' con offset 0, el cambio de estado
+  // dispara un segundo fetch que ya sí llega con el rango calculado —
+  // si fuera un ref, el primer fetch en 'ventana' se quedaría mostrando
+  // todo el historial hasta el próximo clic en ← o →.
+  const VENTANA_BUCKETS = { dia: 14, semana: 8, mes: 6 };
+  const DIAS_POR_BUCKET = { dia: 1, semana: 7, mes: 30 };
+
   const [evolucionGranularidad, setEvolucionGranularidad] = useState('semana');
-  const [evolucionRangoPersonalizado, setEvolucionRangoPersonalizado] = useState(false);
+  const [evolucionModoRango, setEvolucionModoRango] = useState('todo'); // 'todo' | 'ventana' | 'personalizado'
+  const [evolucionOffset, setEvolucionOffset] = useState(0);
+  const [evolucionAnchor, setEvolucionAnchor] = useState(null);
   const [evolucionFechas, setEvolucionFechas] = useState({ inicio: '', fin: '' });
   const [evolucionBalance, setEvolucionBalance] = useState(null);
   const [evolucionEgresos, setEvolucionEgresos] = useState(null);
   const [loadingEvolucion, setLoadingEvolucion] = useState(false);
 
+  const cambiarEvolucionGranularidad = (nuevaGranularidad) => {
+    setEvolucionGranularidad(nuevaGranularidad);
+    setEvolucionOffset(0);
+    setEvolucionAnchor(null);
+  };
+
+  const cambiarEvolucionModoRango = (nuevoModo) => {
+    setEvolucionModoRango(nuevoModo);
+    setEvolucionOffset(0);
+  };
+
   const cargarEvolucion = useCallback(async () => {
-    if (evolucionRangoPersonalizado && (!evolucionFechas.inicio || !evolucionFechas.fin)) {
+    if (evolucionModoRango === 'personalizado' && (!evolucionFechas.inicio || !evolucionFechas.fin)) {
       return;
     }
+
+    const params = { granularidad: evolucionGranularidad };
+    if (evolucionModoRango === 'personalizado') {
+      params.fecha_inicio = evolucionFechas.inicio;
+      params.fecha_fin = evolucionFechas.fin;
+    } else if (evolucionModoRango === 'ventana' && evolucionAnchor) {
+      const diasVentana = VENTANA_BUCKETS[evolucionGranularidad] * DIAS_POR_BUCKET[evolucionGranularidad];
+      const fin = sumarDiasUTC(evolucionAnchor, evolucionOffset * diasVentana);
+      const inicio = sumarDiasUTC(fin, -(diasVentana - 1));
+      params.fecha_inicio = inicio;
+      params.fecha_fin = fin;
+    }
+    // Si el modo es 'ventana' pero todavía no hay ancla (primera carga de
+    // la pestaña), se pide sin fechas — igual que 'todo' — y de esa
+    // respuesta se toma el ancla para las siguientes navegaciones.
+
     try {
       setLoadingEvolucion(true);
-      const params = { granularidad: evolucionGranularidad };
-      if (evolucionRangoPersonalizado) {
-        params.fecha_inicio = evolucionFechas.inicio;
-        params.fecha_fin = evolucionFechas.fin;
-      }
       const [balanceRes, egresosRes] = await Promise.all([
         api.get('/finanzas/evolucion-balance', { params }),
         api.get('/finanzas/evolucion-egresos', { params })
       ]);
       setEvolucionBalance(balanceRes.data);
       setEvolucionEgresos(egresosRes.data);
+
+      if (!evolucionAnchor) {
+        const puntos = balanceRes.data.puntos;
+        if (puntos.length > 0) {
+          setEvolucionAnchor(puntos[puntos.length - 1].fecha);
+        }
+      }
     } catch (error) {
       console.error('Error cargando evolución financiera:', error);
     } finally {
       setLoadingEvolucion(false);
     }
-  }, [evolucionGranularidad, evolucionRangoPersonalizado, evolucionFechas]);
+  }, [evolucionGranularidad, evolucionModoRango, evolucionOffset, evolucionFechas, evolucionAnchor]);
 
   useEffect(() => {
-    if (moduloActivo && vistaActiva === 'evolucion' && !evolucionRangoPersonalizado) {
+    if (moduloActivo && vistaActiva === 'evolucion' && evolucionModoRango !== 'personalizado') {
       cargarEvolucion();
     }
-  }, [moduloActivo, vistaActiva, evolucionGranularidad, evolucionRangoPersonalizado, cargarEvolucion]);
+  }, [moduloActivo, vistaActiva, evolucionGranularidad, evolucionModoRango, evolucionOffset, cargarEvolucion]);
 
   // Calcular métricas adicionales
   const metricasAvanzadas = useMemo(() => {
@@ -265,30 +362,61 @@ const Estadisticas = ({ user }) => {
         <div className="periodo-selector">
           <button
             className={`btn-periodo ${periodo === 'hoy' ? 'active' : ''}`}
-            onClick={() => setPeriodo('hoy')}
+            onClick={() => cambiarPeriodo('hoy')}
           >
             Hoy
           </button>
-          <button 
+          <button
             className={`btn-periodo ${periodo === 'semana' ? 'active' : ''}`}
-            onClick={() => setPeriodo('semana')}
+            onClick={() => cambiarPeriodo('semana')}
           >
             Semana
           </button>
-          <button 
+          <button
             className={`btn-periodo ${periodo === 'mes' ? 'active' : ''}`}
-            onClick={() => setPeriodo('mes')}
+            onClick={() => cambiarPeriodo('mes')}
           >
             Mes
           </button>
-          <button 
+          <button
             className={`btn-periodo ${periodo === 'personalizado' ? 'active' : ''}`}
-            onClick={() => setPeriodo('personalizado')}
+            onClick={() => cambiarPeriodo('personalizado')}
           >
             Personalizado
           </button>
         </div>
-        
+
+        {/* Navegar a la semana/mes anterior o siguiente, del mismo ancho
+            que el bloque "actual" — útil para comparar contra períodos
+            pasados sin tener que escribir fechas a mano. */}
+        {(periodo === 'semana' || periodo === 'mes') && (
+          <div className="periodo-navegacion">
+            <button
+              type="button"
+              onClick={() => setPeriodoOffset(o => o - 1)}
+              disabled={loading}
+              className="btn-icono"
+              title={periodo === 'semana' ? 'Semana anterior' : 'Mes anterior'}
+            >
+              ←
+            </button>
+            {periodoOffset !== 0 && (
+              <span className="periodo-navegacion-rango">
+                {formatearRangoFechas(estadisticas?.periodoInfo?.fecha_inicio, estadisticas?.periodoInfo?.fecha_fin)}
+              </span>
+            )}
+            <button
+              type="button"
+              onClick={() => setPeriodoOffset(o => Math.min(0, o + 1))}
+              disabled={loading || periodoOffset === 0}
+              className="btn-icono"
+              title={periodo === 'semana' ? 'Semana siguiente' : 'Mes siguiente'}
+            >
+              →
+            </button>
+          </div>
+        )}
+
         {periodo === 'personalizado' && (
           <div className="fechas-personalizadas">
             <input
@@ -848,38 +976,79 @@ const Estadisticas = ({ user }) => {
                 <div className="periodo-selector">
                   <button
                     className={`btn-periodo ${evolucionGranularidad === 'dia' ? 'active' : ''}`}
-                    onClick={() => setEvolucionGranularidad('dia')}
+                    onClick={() => cambiarEvolucionGranularidad('dia')}
                   >
                     Día
                   </button>
                   <button
                     className={`btn-periodo ${evolucionGranularidad === 'semana' ? 'active' : ''}`}
-                    onClick={() => setEvolucionGranularidad('semana')}
+                    onClick={() => cambiarEvolucionGranularidad('semana')}
                   >
                     Semana
                   </button>
                   <button
                     className={`btn-periodo ${evolucionGranularidad === 'mes' ? 'active' : ''}`}
-                    onClick={() => setEvolucionGranularidad('mes')}
+                    onClick={() => cambiarEvolucionGranularidad('mes')}
                   >
                     Mes
                   </button>
                 </div>
                 <div className="periodo-selector">
                   <button
-                    className={`btn-periodo ${!evolucionRangoPersonalizado ? 'active' : ''}`}
-                    onClick={() => setEvolucionRangoPersonalizado(false)}
+                    className={`btn-periodo ${evolucionModoRango === 'todo' ? 'active' : ''}`}
+                    onClick={() => cambiarEvolucionModoRango('todo')}
                   >
                     Todo el historial
                   </button>
                   <button
-                    className={`btn-periodo ${evolucionRangoPersonalizado ? 'active' : ''}`}
-                    onClick={() => setEvolucionRangoPersonalizado(true)}
+                    className={`btn-periodo ${evolucionModoRango === 'ventana' ? 'active' : ''}`}
+                    onClick={() => cambiarEvolucionModoRango('ventana')}
+                  >
+                    Navegar por bloques
+                  </button>
+                  <button
+                    className={`btn-periodo ${evolucionModoRango === 'personalizado' ? 'active' : ''}`}
+                    onClick={() => cambiarEvolucionModoRango('personalizado')}
                   >
                     Rango personalizado
                   </button>
                 </div>
-                {evolucionRangoPersonalizado && (
+
+                {/* Navegar al bloque anterior/siguiente de N periodos (ver
+                    VENTANA_BUCKETS) — útil para comparar, por ejemplo, este
+                    bloque de 8 semanas contra el anterior. */}
+                {evolucionModoRango === 'ventana' && (
+                  <div className="periodo-navegacion">
+                    <button
+                      type="button"
+                      onClick={() => setEvolucionOffset(o => o - 1)}
+                      disabled={loadingEvolucion}
+                      className="btn-icono"
+                      title="Bloque anterior"
+                    >
+                      ←
+                    </button>
+                    {evolucionBalance?.puntos?.length > 0 && (
+                      <span className="periodo-navegacion-rango">
+                        {formatearRangoFechas(
+                          evolucionBalance.puntos[0].fecha,
+                          evolucionBalance.puntos[evolucionBalance.puntos.length - 1].fecha
+                        )}
+                      </span>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setEvolucionOffset(o => Math.min(0, o + 1))}
+                      disabled={loadingEvolucion || evolucionOffset === 0}
+                      className="btn-icono"
+                      title="Bloque siguiente"
+                    >
+                      →
+                    </button>
+                  </div>
+                )}
+
+                {evolucionModoRango === 'personalizado' && (
                   <div className="fechas-personalizadas">
                     <input
                       type="date"
