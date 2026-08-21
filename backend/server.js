@@ -3312,6 +3312,221 @@ app.post('/api/finanzas/reporte-semanal/reinversion', authenticateToken, checkAc
   }
 });
 
+// Convierte una fecha (Date/timestamp de movimientos_caja.fecha o
+// ventas.fecha_venta, ambas "timestamp without time zone" guardadas en
+// UTC) a la clave de bucket correspondiente en hora Colombia, según
+// granularidad. Mismo ajuste utcOffset(-300) que ahoraColombia().
+const claveBucketColombia = (fecha, granularidad) => {
+  const m = moment(fecha).utcOffset(-300);
+  if (granularidad === 'dia') return m.startOf('day').format('YYYY-MM-DD');
+  if (granularidad === 'mes') return m.startOf('month').format('YYYY-MM-DD');
+  // 'semana': isoWeek para que la semana empiece en lunes, igual que
+  // /api/finanzas/reporte-semanal.
+  return m.startOf('isoWeek').format('YYYY-MM-DD');
+};
+
+// Genera la lista completa y ordenada de claves de bucket entre dos
+// fechas (inclusive), sin huecos, para que los gráficos de evolución
+// muestren una línea continua incluso en periodos sin movimientos.
+const generarClavesBucket = (inicio, fin, granularidad) => {
+  const unidad = granularidad === 'dia' ? 'day' : granularidad === 'mes' ? 'month' : 'week';
+  const finClave = claveBucketColombia(fin, granularidad);
+  let cursor = moment(claveBucketColombia(inicio, granularidad), 'YYYY-MM-DD');
+  const claves = [];
+  let clave = cursor.format('YYYY-MM-DD');
+  while (clave <= finClave) {
+    claves.push(clave);
+    cursor = cursor.add(1, unidad);
+    clave = cursor.format('YYYY-MM-DD');
+  }
+  return claves;
+};
+
+// Evolución del balance general acumulado (saldo_inicial + ingresos -
+// egresos, corrido bucket a bucket) desde el movimiento_caja más antiguo
+// del negocio hasta hoy, navegable por día/semana/mes.
+app.get('/api/finanzas/evolucion-balance', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+  try {
+    const negocioId = req.negocioId;
+    const { granularidad = 'semana', fecha_inicio, fecha_fin } = req.query;
+
+    if (!negocioId) {
+      return res.status(400).json({ error: 'Negocio no identificado' });
+    }
+
+    if (!['dia', 'semana', 'mes'].includes(granularidad)) {
+      return res.status(400).json({ error: "granularidad debe ser 'dia', 'semana' o 'mes'" });
+    }
+
+    if ((fecha_inicio && !fecha_fin) || (!fecha_inicio && fecha_fin)) {
+      return res.status(400).json({ error: 'fecha_inicio y fecha_fin deben venir juntas' });
+    }
+
+    // Se trae TODA la historia de movimientos_caja, sin importar el rango
+    // pedido para mostrar: el balance acumulado tiene que partir de la
+    // historia completa, no reiniciar en 0 si el usuario filtra para ver
+    // solo un recorte reciente (si no, el gráfico mentiría).
+    const movimientosResult = await pool.query(
+      `SELECT fecha, monto, tipo
+       FROM movimientos_caja
+       WHERE negocio_id = $1
+       ORDER BY fecha ASC`,
+      [negocioId]
+    );
+    const movimientos = movimientosResult.rows;
+
+    if (movimientos.length === 0) {
+      return res.json({ puntos: [], balance_al_inicio_del_rango: 0, balance_actual: 0 });
+    }
+
+    const netoPorBucket = new Map();
+    for (const mov of movimientos) {
+      const clave = claveBucketColombia(mov.fecha, granularidad);
+      // saldo_inicial e ingreso suman, egreso resta (mismo criterio que
+      // balance_actual en GET /api/finanzas/balance).
+      const signo = mov.tipo === 'egreso' ? -1 : 1;
+      netoPorBucket.set(clave, (netoPorBucket.get(clave) || 0) + signo * Number(mov.monto));
+    }
+
+    const hoy = ahoraColombia().toDate();
+    const claves = generarClavesBucket(movimientos[0].fecha, hoy, granularidad);
+
+    let acumulado = 0;
+    const serieCompleta = claves.map(clave => {
+      acumulado += netoPorBucket.get(clave) || 0;
+      return { fecha: clave, balance: acumulado };
+    });
+
+    let puntos = serieCompleta;
+    let balanceAlInicioDelRango = 0;
+    if (fecha_inicio && fecha_fin) {
+      const idxInicio = serieCompleta.findIndex(p => p.fecha >= fecha_inicio);
+      const antesDelRango = idxInicio > 0 ? serieCompleta[idxInicio - 1] : null;
+      balanceAlInicioDelRango = antesDelRango ? antesDelRango.balance : 0;
+      puntos = serieCompleta.filter(p => p.fecha >= fecha_inicio && p.fecha <= fecha_fin);
+    }
+
+    res.json({
+      puntos,
+      balance_al_inicio_del_rango: balanceAlInicioDelRango,
+      balance_actual: serieCompleta[serieCompleta.length - 1].balance
+    });
+  } catch (error) {
+    console.error('Error obteniendo evolución de balance:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// Evolución de egresos por categoría (mercancía / gastos fijos / gastos
+// propios / otros) período a período, SIN acumular — cada punto es lo
+// gastado en ese bucket. A diferencia de evolución-balance, no necesita
+// traer historia previa al rango mostrado porque no hay acumulación.
+app.get('/api/finanzas/evolucion-egresos', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+  try {
+    const negocioId = req.negocioId;
+    const { granularidad = 'semana', fecha_inicio, fecha_fin } = req.query;
+
+    if (!negocioId) {
+      return res.status(400).json({ error: 'Negocio no identificado' });
+    }
+
+    if (!['dia', 'semana', 'mes'].includes(granularidad)) {
+      return res.status(400).json({ error: "granularidad debe ser 'dia', 'semana' o 'mes'" });
+    }
+
+    if ((fecha_inicio && !fecha_fin) || (!fecha_inicio && fecha_fin)) {
+      return res.status(400).json({ error: 'fecha_inicio y fecha_fin deben venir juntas' });
+    }
+
+    let startDate, endDate;
+    if (fecha_inicio && fecha_fin) {
+      // Mismo anclaje explícito a -05:00 que el resto de Finanzas/Estadísticas.
+      startDate = moment(`${fecha_inicio} 00:00:00-05:00`).toDate();
+      endDate = moment(`${fecha_fin} 23:59:59-05:00`).toDate();
+    } else {
+      // Por defecto, "desde que tengo el negocio": el movimiento_caja más
+      // antiguo (mismo criterio que evolución-balance) hasta hoy.
+      const minResult = await pool.query(
+        'SELECT MIN(fecha) as min_fecha FROM movimientos_caja WHERE negocio_id = $1',
+        [negocioId]
+      );
+      const minFecha = minResult.rows[0]?.min_fecha;
+      if (!minFecha) {
+        return res.json({ puntos: [] });
+      }
+      startDate = minFecha;
+      endDate = ahoraColombia().endOf('day').toDate();
+    }
+
+    // Igual que en /api/finanzas/reporte-semanal: coincidencia por nombre
+    // exacto (insensible a mayúsculas) contra las categorías de gasto que
+    // el negocio ya haya creado con esos nombres. Si no existen, quedan
+    // en null y ningún egreso cae en esas categorías (no es un error).
+    const categoriasResult = await pool.query(
+      'SELECT id, LOWER(nombre) as nombre_lower FROM categorias_gasto WHERE negocio_id = $1',
+      [negocioId]
+    );
+    const catMercanciaId = categoriasResult.rows.find(c => c.nombre_lower === 'inversión mercancía')?.id ?? null;
+    const catFijosId = categoriasResult.rows.find(c => c.nombre_lower === 'gastos fijos')?.id ?? null;
+
+    const egresosResult = await pool.query(
+      `SELECT fecha, monto, origen, categoria_gasto_id
+       FROM movimientos_caja
+       WHERE negocio_id = $1 AND tipo = 'egreso' AND fecha BETWEEN $2 AND $3`,
+      [negocioId, startDate, endDate]
+    );
+
+    // Mismo criterio que GET /api/estadisticas/consumo-propio (ventas con
+    // metodo_pago = 'consumo_propio'), a nivel de negocio completo (join
+    // con modulos), igual que ya hace /api/finanzas/reporte-semanal.
+    const propiosResult = await pool.query(
+      `SELECT v.fecha_venta as fecha, v.total as monto
+       FROM ventas v
+       JOIN modulos m ON v.modulo_id = m.id
+       WHERE m.negocio_id = $1 AND v.metodo_pago = 'consumo_propio' AND v.fecha_venta BETWEEN $2 AND $3`,
+      [negocioId, startDate, endDate]
+    );
+
+    const buckets = new Map();
+    const sumar = (clave, campo, monto) => {
+      if (!buckets.has(clave)) {
+        buckets.set(clave, { mercancia: 0, gastos_fijos: 0, gastos_propios: 0, otros: 0 });
+      }
+      buckets.get(clave)[campo] += monto;
+    };
+
+    for (const mov of egresosResult.rows) {
+      const clave = claveBucketColombia(mov.fecha, granularidad);
+      const monto = Number(mov.monto);
+      // catMercanciaId/catFijosId pueden ser null si el negocio no ha
+      // creado esa categoría todavía — comparar categoria_gasto_id (que
+      // también puede ser null) contra null daría un falso positivo, por
+      // eso el chequeo explícito de "!== null" antes de comparar.
+      const esMercancia = mov.origen === 'pedido' || (catMercanciaId !== null && mov.categoria_gasto_id === catMercanciaId);
+      const esFijos = !esMercancia && catFijosId !== null && mov.categoria_gasto_id === catFijosId;
+      if (esMercancia) sumar(clave, 'mercancia', monto);
+      else if (esFijos) sumar(clave, 'gastos_fijos', monto);
+      else sumar(clave, 'otros', monto);
+    }
+
+    for (const venta of propiosResult.rows) {
+      const clave = claveBucketColombia(venta.fecha, granularidad);
+      sumar(clave, 'gastos_propios', Number(venta.monto));
+    }
+
+    const claves = generarClavesBucket(startDate, endDate, granularidad);
+    const puntos = claves.map(clave => ({
+      fecha: clave,
+      ...(buckets.get(clave) || { mercancia: 0, gastos_fijos: 0, gastos_propios: 0, otros: 0 })
+    }));
+
+    res.json({ puntos });
+  } catch (error) {
+    console.error('Error obteniendo evolución de egresos:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
 // ==================== RUTAS DE ALERTAS MEJORADAS ====================
 
 // Obtener productos con stock bajo Y sus proveedores

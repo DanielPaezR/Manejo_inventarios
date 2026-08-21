@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import api from '../services/api';
 import { useModulo } from '../hooks/useModulo';
+import GraficoLineas from './GraficoLineas';
 import './Estadisticas.css';
 
 const Estadisticas = ({ user }) => {
@@ -9,7 +10,7 @@ const Estadisticas = ({ user }) => {
   const [loading, setLoading] = useState(false);
   const [periodo, setPeriodo] = useState('hoy');
   const [fechas, setFechas] = useState({ inicio: '', fin: '' });
-  const [vistaActiva, setVistaActiva] = useState('general'); // 'general', 'productos', 'ventas', 'finanzas'
+  const [vistaActiva, setVistaActiva] = useState('general'); // 'general', 'productos', 'ventas', 'finanzas', 'evolucion'
   const [hoveredProducto, setHoveredProducto] = useState(null);
   const [finanzasResumen, setFinanzasResumen] = useState(null);
   const [loadingFinanzas, setLoadingFinanzas] = useState(false);
@@ -108,6 +109,50 @@ const Estadisticas = ({ user }) => {
     }
   }, [moduloActivo, vistaActiva, consumoPropioPeriodo, cargarConsumoPropio]);
 
+  // Evolución en el tiempo (balance acumulado + egresos por categoría):
+  // pestaña independiente, con su propio selector de granularidad y de
+  // rango — no reutiliza el periodo/fechas general de arriba porque acá
+  // "todo el historial" (sin fecha_inicio/fecha_fin) es el default, no
+  // "hoy". Cuando se usa rango personalizado, la carga solo se dispara
+  // con el botón "Aplicar" (evita pegarle a la API con fechas a medio
+  // escribir, a diferencia del selector general de arriba).
+  const [evolucionGranularidad, setEvolucionGranularidad] = useState('semana');
+  const [evolucionRangoPersonalizado, setEvolucionRangoPersonalizado] = useState(false);
+  const [evolucionFechas, setEvolucionFechas] = useState({ inicio: '', fin: '' });
+  const [evolucionBalance, setEvolucionBalance] = useState(null);
+  const [evolucionEgresos, setEvolucionEgresos] = useState(null);
+  const [loadingEvolucion, setLoadingEvolucion] = useState(false);
+
+  const cargarEvolucion = useCallback(async () => {
+    if (evolucionRangoPersonalizado && (!evolucionFechas.inicio || !evolucionFechas.fin)) {
+      return;
+    }
+    try {
+      setLoadingEvolucion(true);
+      const params = { granularidad: evolucionGranularidad };
+      if (evolucionRangoPersonalizado) {
+        params.fecha_inicio = evolucionFechas.inicio;
+        params.fecha_fin = evolucionFechas.fin;
+      }
+      const [balanceRes, egresosRes] = await Promise.all([
+        api.get('/finanzas/evolucion-balance', { params }),
+        api.get('/finanzas/evolucion-egresos', { params })
+      ]);
+      setEvolucionBalance(balanceRes.data);
+      setEvolucionEgresos(egresosRes.data);
+    } catch (error) {
+      console.error('Error cargando evolución financiera:', error);
+    } finally {
+      setLoadingEvolucion(false);
+    }
+  }, [evolucionGranularidad, evolucionRangoPersonalizado, evolucionFechas]);
+
+  useEffect(() => {
+    if (moduloActivo && vistaActiva === 'evolucion' && !evolucionRangoPersonalizado) {
+      cargarEvolucion();
+    }
+  }, [moduloActivo, vistaActiva, evolucionGranularidad, evolucionRangoPersonalizado, cargarEvolucion]);
+
   // Calcular métricas adicionales
   const metricasAvanzadas = useMemo(() => {
     if (!estadisticas) return null;
@@ -204,13 +249,21 @@ const Estadisticas = ({ user }) => {
           >
             💰 Ingresos y Egresos
           </button>
+          <button
+            className={`btn-vista ${vistaActiva === 'evolucion' ? 'active' : ''}`}
+            onClick={() => setVistaActiva('evolucion')}
+          >
+            📈 Evolución
+          </button>
         </div>
       </div>
 
-      {/* Filtros de período */}
+      {/* Filtros de período: no aplican a la pestaña "Evolución", que tiene
+          su propio selector de granularidad/rango más abajo. */}
+      {vistaActiva !== 'evolucion' && (
       <div className="filtros-periodo">
         <div className="periodo-selector">
-          <button 
+          <button
             className={`btn-periodo ${periodo === 'hoy' ? 'active' : ''}`}
             onClick={() => setPeriodo('hoy')}
           >
@@ -263,6 +316,7 @@ const Estadisticas = ({ user }) => {
           </div>
         )}
       </div>
+      )}
 
       {loading ? (
         <div className="loading-container">
@@ -769,6 +823,113 @@ const Estadisticas = ({ user }) => {
                           </div>
                         ))}
                       </div>
+                    ) : (
+                      <p className="sin-datos">No hay datos en este período</p>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
+          {/* ============================================================
+              VISTA DE EVOLUCIÓN (balance acumulado + egresos en el tiempo)
+              ============================================================ */}
+          {vistaActiva === 'evolucion' && (
+            <div className="estadisticas-grid">
+              <div className="card evolucion-controles-card">
+                <div className="periodo-selector">
+                  <button
+                    className={`btn-periodo ${evolucionGranularidad === 'dia' ? 'active' : ''}`}
+                    onClick={() => setEvolucionGranularidad('dia')}
+                  >
+                    Día
+                  </button>
+                  <button
+                    className={`btn-periodo ${evolucionGranularidad === 'semana' ? 'active' : ''}`}
+                    onClick={() => setEvolucionGranularidad('semana')}
+                  >
+                    Semana
+                  </button>
+                  <button
+                    className={`btn-periodo ${evolucionGranularidad === 'mes' ? 'active' : ''}`}
+                    onClick={() => setEvolucionGranularidad('mes')}
+                  >
+                    Mes
+                  </button>
+                </div>
+                <div className="periodo-selector">
+                  <button
+                    className={`btn-periodo ${!evolucionRangoPersonalizado ? 'active' : ''}`}
+                    onClick={() => setEvolucionRangoPersonalizado(false)}
+                  >
+                    Todo el historial
+                  </button>
+                  <button
+                    className={`btn-periodo ${evolucionRangoPersonalizado ? 'active' : ''}`}
+                    onClick={() => setEvolucionRangoPersonalizado(true)}
+                  >
+                    Rango personalizado
+                  </button>
+                </div>
+                {evolucionRangoPersonalizado && (
+                  <div className="fechas-personalizadas">
+                    <input
+                      type="date"
+                      value={evolucionFechas.inicio}
+                      onChange={(e) => setEvolucionFechas({ ...evolucionFechas, inicio: e.target.value })}
+                      className="input-fecha"
+                    />
+                    <span className="fecha-separador">→</span>
+                    <input
+                      type="date"
+                      value={evolucionFechas.fin}
+                      onChange={(e) => setEvolucionFechas({ ...evolucionFechas, fin: e.target.value })}
+                      className="input-fecha"
+                    />
+                    <button onClick={cargarEvolucion} className="btn-aplicar">
+                      ✅ Aplicar
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {loadingEvolucion && !evolucionBalance ? (
+                <div className="loading-container">
+                  <div className="spinner"></div>
+                  <p>Cargando evolución financiera...</p>
+                </div>
+              ) : (
+                <>
+                  <div className="card grafico-evolucion-card">
+                    <h3>📈 Balance general en el tiempo</h3>
+                    {evolucionBalance?.puntos?.length > 0 ? (
+                      <GraficoLineas
+                        altura={240}
+                        series={[{
+                          nombre: 'Balance',
+                          color: evolucionBalance.balance_actual >= 0 ? '#48bb78' : '#fc8181',
+                          datos: evolucionBalance.puntos.map(p => ({ fecha: p.fecha, valor: p.balance })),
+                          total: evolucionBalance.balance_actual
+                        }]}
+                      />
+                    ) : (
+                      <p className="sin-datos">No hay datos en este período</p>
+                    )}
+                  </div>
+
+                  <div className="card grafico-evolucion-card">
+                    <h3>📉 Egresos por categoría en el tiempo</h3>
+                    {evolucionEgresos?.puntos?.length > 0 ? (
+                      <GraficoLineas
+                        altura={240}
+                        series={[
+                          { nombre: 'Mercancía', color: '#4299e1', datos: evolucionEgresos.puntos.map(p => ({ fecha: p.fecha, valor: p.mercancia })) },
+                          { nombre: 'Gastos fijos', color: '#ed8936', datos: evolucionEgresos.puntos.map(p => ({ fecha: p.fecha, valor: p.gastos_fijos })) },
+                          { nombre: 'Gastos propios', color: '#9f7aea', datos: evolucionEgresos.puntos.map(p => ({ fecha: p.fecha, valor: p.gastos_propios })) },
+                          { nombre: 'Otros', color: '#a0aec0', datos: evolucionEgresos.puntos.map(p => ({ fecha: p.fecha, valor: p.otros })) }
+                        ]}
+                      />
                     ) : (
                       <p className="sin-datos">No hay datos en este período</p>
                     )}

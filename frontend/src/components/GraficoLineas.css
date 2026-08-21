@@ -1,0 +1,70 @@
+.grafico-lineas {
+  width: 100%;
+}
+
+.grafico-lineas-svg {
+  width: 100%;
+  display: block;
+}
+
+.grafico-lineas-guia line {
+  stroke: #e2e8f0;
+  stroke-width: 1;
+}
+
+.grafico-lineas-guia text {
+  fill: #a0aec0;
+  font-size: 11px;
+}
+
+.grafico-lineas-base-cero {
+  stroke: #cbd5e0;
+  stroke-width: 1.5;
+  stroke-dasharray: 6 6;
+}
+
+.grafico-lineas-linea {
+  fill: none;
+  stroke-width: 3;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.grafico-lineas-etiqueta-x {
+  fill: #718096;
+  font-size: 11px;
+  text-anchor: middle;
+}
+
+.grafico-lineas-leyenda {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid #edf2f7;
+}
+
+.grafico-lineas-leyenda-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+}
+
+.grafico-lineas-leyenda-color {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.grafico-lineas-leyenda-nombre {
+  color: #4a5568;
+  font-weight: 500;
+}
+
+.grafico-lineas-leyenda-total {
+  color: #2d3748;
+  font-weight: 700;
+}

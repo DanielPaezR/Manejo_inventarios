@@ -827,6 +827,21 @@
 }
 
 /* ============================================================
+   VISTA DE EVOLUCIÓN
+   ============================================================ */
+.evolucion-controles-card {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px;
+}
+
+.grafico-evolucion-card {
+  grid-column: 1 / -1;
+}
+
+/* ============================================================
    UTILIDADES
    ============================================================ */
 .sin-datos {
