@@ -35,6 +35,19 @@
   border-left: 4px solid #3498db;
   display: flex;
   flex-direction: column;
+  transition: opacity 0.2s;
+}
+
+.negocio-card.negocio-inactivo {
+  opacity: 0.6;
+  border-left-color: #e74c3c;
+}
+
+.negocio-motivo-desactivacion {
+  color: #c0392b;
+  background: #fdf2f0;
+  padding: 0.5rem 0.75rem;
+  border-radius: 5px;
 }
 
 .negocio-header {
@@ -111,6 +124,83 @@
 
 .btn-estadisticas:hover {
   background: #8e44ad;
+}
+
+.btn-ver-modulos {
+  flex: 1;
+  padding: 0.75rem;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: background 0.3s;
+  min-width: 120px;
+  background: #f39c12;
+  color: white;
+}
+
+.btn-ver-modulos:hover {
+  background: #d68910;
+}
+
+.btn-desactivar,
+.btn-reactivar {
+  flex: 1;
+  padding: 0.75rem;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: background 0.3s;
+  min-width: 120px;
+}
+
+.btn-desactivar {
+  background: #e74c3c;
+  color: white;
+}
+
+.btn-desactivar:hover {
+  background: #c0392b;
+}
+
+.btn-reactivar {
+  background: #27ae60;
+  color: white;
+}
+
+.btn-reactivar:hover {
+  background: #229954;
+}
+
+/* MODAL VER MÓDULOS */
+.modulos-ver-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 1rem;
+}
+
+.modulo-ver-card {
+  background: #f8f9fa;
+  border-radius: 8px;
+  padding: 1rem;
+}
+
+.modulo-ver-card h4 {
+  margin: 0 0 0.5rem 0;
+  color: #2c3e50;
+}
+
+.modulo-ver-desc {
+  margin: 0 0 0.5rem 0;
+  font-size: 0.85rem;
+  color: #7f8c8d;
+}
+
+.modulo-ver-meta {
+  margin: 0.25rem 0;
+  font-size: 0.85rem;
+  color: #555;
 }
 
 .empty-state {
@@ -255,8 +345,52 @@
   border-radius: 8px;
   padding: 1rem;
   display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.usuario-card-top {
+  display: flex;
   justify-content: space-between;
   align-items: flex-start;
+  gap: 0.5rem;
+}
+
+.usuario-modulos-checklist {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  padding-top: 0.6rem;
+  border-top: 1px solid #f0f0f0;
+}
+
+.usuario-modulos-label {
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: #2c3e50;
+}
+
+.usuario-modulo-check {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.85rem;
+  color: #555;
+  cursor: pointer;
+}
+
+.usuario-modulo-check input {
+  cursor: pointer;
+}
+
+.usuario-modulos-nota {
+  margin: 0;
+  padding-top: 0.6rem;
+  border-top: 1px solid #f0f0f0;
+  font-size: 0.8rem;
+  font-style: italic;
+  color: #7f8c8d;
 }
 
 .usuario-info h4 {

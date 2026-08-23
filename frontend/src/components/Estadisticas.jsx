@@ -189,6 +189,7 @@ const Estadisticas = ({ user }) => {
   const [evolucionFechas, setEvolucionFechas] = useState({ inicio: '', fin: '' });
   const [evolucionBalance, setEvolucionBalance] = useState(null);
   const [evolucionEgresos, setEvolucionEgresos] = useState(null);
+  const [evolucionVentas, setEvolucionVentas] = useState(null);
   const [loadingEvolucion, setLoadingEvolucion] = useState(false);
 
   const cambiarEvolucionGranularidad = (nuevaGranularidad) => {
@@ -224,12 +225,14 @@ const Estadisticas = ({ user }) => {
 
     try {
       setLoadingEvolucion(true);
-      const [balanceRes, egresosRes] = await Promise.all([
+      const [balanceRes, egresosRes, ventasRes] = await Promise.all([
         api.get('/finanzas/evolucion-balance', { params }),
-        api.get('/finanzas/evolucion-egresos', { params })
+        api.get('/finanzas/evolucion-egresos', { params }),
+        api.get('/estadisticas/evolucion-ventas', { params })
       ]);
       setEvolucionBalance(balanceRes.data);
       setEvolucionEgresos(egresosRes.data);
+      setEvolucionVentas(ventasRes.data);
 
       if (!evolucionAnchor) {
         const puntos = balanceRes.data.puntos;
@@ -1105,6 +1108,22 @@ const Estadisticas = ({ user }) => {
                           { nombre: 'Gastos propios', color: '#9f7aea', datos: evolucionEgresos.puntos.map(p => ({ fecha: p.fecha, valor: p.gastos_propios })) },
                           { nombre: 'Otros', color: '#a0aec0', datos: evolucionEgresos.puntos.map(p => ({ fecha: p.fecha, valor: p.otros })) }
                         ]}
+                      />
+                    ) : (
+                      <p className="sin-datos">No hay datos en este período</p>
+                    )}
+                  </div>
+
+                  <div className="card grafico-evolucion-card">
+                    <h3>💵 Ventas en el tiempo</h3>
+                    {evolucionVentas?.puntos?.length > 0 ? (
+                      <GraficoLineas
+                        altura={240}
+                        series={[{
+                          nombre: 'Ventas',
+                          color: '#4299e1',
+                          datos: evolucionVentas.puntos.map(p => ({ fecha: p.fecha, valor: p.monto }))
+                        }]}
                       />
                     ) : (
                       <p className="sin-datos">No hay datos en este período</p>

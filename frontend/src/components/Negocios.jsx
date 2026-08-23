@@ -7,8 +7,13 @@ const Negocios = ({ user }) => {
   const [showForm, setShowForm] = useState(false);
   const [showGestionUsuarios, setShowGestionUsuarios] = useState(false);
   const [showEstadisticas, setShowEstadisticas] = useState(false);
+  const [showVerModulos, setShowVerModulos] = useState(false);
   const [negocioSeleccionado, setNegocioSeleccionado] = useState(null);
   const [usuarios, setUsuarios] = useState([]);
+  // Módulos del negocio seleccionado — se usa tanto en el modal "Ver
+  // módulos" como en el checklist de acceso dentro de "Gestión de
+  // Usuarios", así que se carga junto con `usuarios` en ambos casos.
+  const [modulosDelNegocio, setModulosDelNegocio] = useState([]);
   const [estadisticas, setEstadisticas] = useState(null);
   const [loading, setLoading] = useState(false);
   const [mensaje, setMensaje] = useState('');
@@ -50,6 +55,16 @@ const Negocios = ({ user }) => {
     } catch (error) {
       console.error('Error cargando usuarios:', error);
       setMensaje('❌ Error al cargar usuarios');
+    }
+  };
+
+  const cargarModulosNegocio = async (negocioId) => {
+    try {
+      const response = await api.get(`/negocios/${negocioId}/modulos`);
+      setModulosDelNegocio(response.data);
+    } catch (error) {
+      console.error('Error cargando módulos:', error);
+      setMensaje('❌ Error al cargar los módulos');
     }
   };
 
@@ -152,13 +167,84 @@ const Negocios = ({ user }) => {
   const abrirGestionUsuarios = async (negocio) => {
     setNegocioSeleccionado(negocio);
     setShowGestionUsuarios(true);
-    await cargarUsuariosNegocio(negocio.id);
+    await Promise.all([cargarUsuariosNegocio(negocio.id), cargarModulosNegocio(negocio.id)]);
   };
 
   const abrirEstadisticas = async (negocio) => {
     setNegocioSeleccionado(negocio);
     setShowEstadisticas(true);
     await cargarEstadisticasNegocio(negocio.id);
+  };
+
+  // Para el conteo de "usuarios con acceso" reutiliza los mismos datos que
+  // el checklist de Gestión de Usuarios (usuarios + modulos_asignados) en
+  // vez de llamar a GET /api/modulos/:id/usuarios una vez por módulo.
+  const abrirVerModulos = async (negocio) => {
+    setNegocioSeleccionado(negocio);
+    setShowVerModulos(true);
+    await Promise.all([cargarModulosNegocio(negocio.id), cargarUsuariosNegocio(negocio.id)]);
+  };
+
+  // Los admin ven TODOS los módulos activos de su negocio al iniciar
+  // sesión (no pasan por usuario_modulos, ver POST /api/login) — así que
+  // para el conteo real de acceso cuentan como que tienen acceso a todos,
+  // aunque no tengan una fila en usuario_modulos.
+  const contarUsuariosConAcceso = (moduloId) => {
+    return usuarios.filter(
+      u => u.rol === 'admin' || u.modulos_asignados?.some(m => m.id === moduloId)
+    ).length;
+  };
+
+  const toggleAccesoModulo = async (usuarioId, moduloId, tieneAcceso) => {
+    try {
+      if (tieneAcceso) {
+        await api.delete(`/usuarios/${usuarioId}/modulos/${moduloId}`);
+      } else {
+        await api.post(`/usuarios/${usuarioId}/modulos/${moduloId}`);
+      }
+      await cargarUsuariosNegocio(negocioSeleccionado.id);
+    } catch (error) {
+      console.error('Error cambiando acceso a módulo:', error);
+      setMensaje(error.response?.data?.error || '❌ Error al cambiar el acceso al módulo');
+      setTimeout(() => setMensaje(''), 4000);
+    }
+  };
+
+  // Desactivar bloquea el login de los usuarios del negocio (POST
+  // /api/login filtra WHERE activo = true) de forma reversible — no hay
+  // borrado real. El prompt hace de confirmación y de captura del motivo
+  // (opcional) en un solo paso; cancelar el prompt cancela la acción.
+  const cambiarEstadoNegocio = async (negocio) => {
+    if (negocio.activo) {
+      const motivo = window.prompt(
+        `¿Desactivar "${negocio.nombre}"? Esto bloqueará el inicio de sesión de sus usuarios.\n\nMotivo (opcional):`
+      );
+      if (motivo === null) return;
+
+      try {
+        await api.put(`/negocios/${negocio.id}/estado`, { activo: false, motivo: motivo || null });
+        setMensaje(`✅ "${negocio.nombre}" desactivado`);
+        cargarNegocios();
+      } catch (error) {
+        console.error('Error desactivando negocio:', error);
+        setMensaje('❌ Error al desactivar el negocio');
+      } finally {
+        setTimeout(() => setMensaje(''), 4000);
+      }
+    } else {
+      if (!window.confirm(`¿Reactivar "${negocio.nombre}"?`)) return;
+
+      try {
+        await api.put(`/negocios/${negocio.id}/estado`, { activo: true });
+        setMensaje(`✅ "${negocio.nombre}" reactivado`);
+        cargarNegocios();
+      } catch (error) {
+        console.error('Error reactivando negocio:', error);
+        setMensaje('❌ Error al reactivar el negocio');
+      } finally {
+        setTimeout(() => setMensaje(''), 4000);
+      }
+    }
   };
 
   return (
@@ -241,25 +327,55 @@ const Negocios = ({ user }) => {
                 <div className="usuarios-grid">
                   {usuarios.map(usuario => (
                     <div key={usuario.id} className="usuario-card">
-                      <div className="usuario-info">
-                        <h4>{usuario.nombre}</h4>
-                        <p><strong>Email:</strong> {usuario.email}</p>
-                        <p><strong>Rol:</strong> 
-                          <span className={`rol-badge ${usuario.rol}`}>
-                            {usuario.rol}
-                          </span>
-                        </p>
-                        <p><strong>Creado:</strong> {new Date(usuario.fecha_creacion).toLocaleDateString()}</p>
+                      <div className="usuario-card-top">
+                        <div className="usuario-info">
+                          <h4>{usuario.nombre}</h4>
+                          <p><strong>Email:</strong> {usuario.email}</p>
+                          <p><strong>Rol:</strong>
+                            <span className={`rol-badge ${usuario.rol}`}>
+                              {usuario.rol}
+                            </span>
+                          </p>
+                          <p><strong>Creado:</strong> {new Date(usuario.fecha_creacion).toLocaleDateString()}</p>
+                        </div>
+                        <div className="usuario-actions">
+                          <button
+                            onClick={() => eliminarUsuario(usuario.id)}
+                            className="btn-eliminar"
+                            disabled={usuario.email === user.email}
+                          >
+                            🗑️ Eliminar
+                          </button>
+                        </div>
                       </div>
-                      <div className="usuario-actions">
-                        <button 
-                          onClick={() => eliminarUsuario(usuario.id)}
-                          className="btn-eliminar"
-                          disabled={usuario.email === user.email}
-                        >
-                          🗑️ Eliminar
-                        </button>
-                      </div>
+
+                      {/* Acceso a módulos: los admin ven todos los módulos
+                          al iniciar sesión sin pasar por usuario_modulos
+                          (ver POST /api/login), así que el checklist —que
+                          sí controla el acceso real— solo aplica a
+                          trabajador. */}
+                      {usuario.rol === 'trabajador' ? (
+                        modulosDelNegocio.length > 0 && (
+                          <div className="usuario-modulos-checklist">
+                            <span className="usuario-modulos-label">Acceso a módulos:</span>
+                            {modulosDelNegocio.map(modulo => {
+                              const tieneAcceso = usuario.modulos_asignados?.some(m => m.id === modulo.id);
+                              return (
+                                <label key={modulo.id} className="usuario-modulo-check">
+                                  <input
+                                    type="checkbox"
+                                    checked={!!tieneAcceso}
+                                    onChange={() => toggleAccesoModulo(usuario.id, modulo.id, tieneAcceso)}
+                                  />
+                                  {modulo.nombre}
+                                </label>
+                              );
+                            })}
+                          </div>
+                        )
+                      ) : (
+                        <p className="usuario-modulos-nota">Administrador: acceso a todos los módulos del negocio</p>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -321,6 +437,35 @@ const Negocios = ({ user }) => {
                 </div>
               ) : (
                 <p>Cargando estadísticas...</p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Ver Módulos */}
+      {showVerModulos && (
+        <div className="modal-overlay">
+          <div className="modal-container">
+            <div className="modal-header">
+              <h2>📁 Módulos de {negocioSeleccionado?.nombre}</h2>
+              <button className="btn-close" onClick={() => setShowVerModulos(false)}>×</button>
+            </div>
+
+            <div className="modal-content">
+              {modulosDelNegocio.length === 0 ? (
+                <p>Este negocio no tiene módulos.</p>
+              ) : (
+                <div className="modulos-ver-grid">
+                  {modulosDelNegocio.map(modulo => (
+                    <div key={modulo.id} className="modulo-ver-card">
+                      <h4>{modulo.nombre}</h4>
+                      {modulo.descripcion && <p className="modulo-ver-desc">{modulo.descripcion}</p>}
+                      <p className="modulo-ver-meta">📅 Creado: {new Date(modulo.fecha_creacion).toLocaleDateString()}</p>
+                      <p className="modulo-ver-meta">👥 {contarUsuariosConAcceso(modulo.id)} usuario(s) con acceso</p>
+                    </div>
+                  ))}
+                </div>
               )}
             </div>
           </div>
@@ -432,14 +577,14 @@ const Negocios = ({ user }) => {
       {/* Lista de Negocios */}
       <div className="negocios-grid">
         {negocios.map(negocio => (
-          <div key={negocio.id} className="negocio-card">
+          <div key={negocio.id} className={`negocio-card ${!negocio.activo ? 'negocio-inactivo' : ''}`}>
             <div className="negocio-header">
               <h3>{negocio.nombre}</h3>
               <span className={`estado ${negocio.activo ? 'activo' : 'inactivo'}`}>
                 {negocio.activo ? 'Activo' : 'Inactivo'}
               </span>
             </div>
-            
+
             <div className="negocio-info">
               {negocio.direccion && (
                 <p><strong>📍 Dirección:</strong> {negocio.direccion}</p>
@@ -454,20 +599,37 @@ const Negocios = ({ user }) => {
                 <p><strong>🔢 NIT/RUC:</strong> {negocio.ruc_nit}</p>
               )}
               <p><strong>📅 Creado:</strong> {new Date(negocio.fecha_creacion).toLocaleDateString()}</p>
+              {!negocio.activo && negocio.motivo_desactivacion && (
+                <p className="negocio-motivo-desactivacion">
+                  <strong>⚠️ Motivo de desactivación:</strong> {negocio.motivo_desactivacion}
+                </p>
+              )}
             </div>
 
             <div className="negocio-actions">
-              <button 
+              <button
                 onClick={() => abrirGestionUsuarios(negocio)}
                 className="btn-gestion-usuarios"
               >
                 👥 Gestionar Usuarios
               </button>
-              <button 
+              <button
+                onClick={() => abrirVerModulos(negocio)}
+                className="btn-ver-modulos"
+              >
+                📁 Ver módulos
+              </button>
+              <button
                 onClick={() => abrirEstadisticas(negocio)}
                 className="btn-estadisticas"
               >
                 📊 Ver Estadísticas
+              </button>
+              <button
+                onClick={() => cambiarEstadoNegocio(negocio)}
+                className={negocio.activo ? 'btn-desactivar' : 'btn-reactivar'}
+              >
+                {negocio.activo ? '🚫 Desactivar' : '✅ Reactivar'}
               </button>
             </div>
           </div>

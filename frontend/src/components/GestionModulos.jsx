@@ -75,6 +75,27 @@ const GestionModulos = ({ user, onClose }) => {
     return usuario.modulos_asignados.some(m => m.id === moduloId);
   };
 
+  // El backend decide si borra de verdad o solo desactiva (según si el
+  // módulo tiene productos/ventas/clientes/proveedores) — eliminado:false
+  // no es un error, es el resultado esperado para un módulo con datos.
+  const handleEliminarModulo = async (modulo) => {
+    if (!window.confirm(`¿Eliminar el módulo "${modulo.nombre}"?\n\nSi tiene productos, ventas, clientes o proveedores asociados, se desactivará en vez de eliminarse.`)) {
+      return;
+    }
+
+    try {
+      const response = await api.delete(`/modulos/${modulo.id}`);
+      setMensaje(response.data.eliminado ? `✅ ${response.data.message}` : `⚠️ ${response.data.message}`);
+      await refrescarModulos();
+      await cargarDatos();
+    } catch (error) {
+      console.error('Error eliminando módulo:', error);
+      setMensaje(error.response?.data?.error || '❌ Error al eliminar el módulo');
+    } finally {
+      setTimeout(() => setMensaje(''), 6000);
+    }
+  };
+
   const toggleAcceso = async (usuario, modulo) => {
     const key = `${usuario.id}-${modulo.id}`;
     const yaAsignado = tieneAcceso(usuario, modulo.id);
@@ -148,6 +169,30 @@ const GestionModulos = ({ user, onClose }) => {
                 {creando ? 'Creando...' : 'Crear módulo'}
               </button>
             </form>
+          </section>
+
+          <section className="gestion-modulos-seccion">
+            <h4>📦 Módulos existentes</h4>
+            {modulos.length === 0 ? (
+              <p className="gestion-modulos-info">Todavía no hay módulos creados.</p>
+            ) : (
+              <ul className="gestion-modulos-lista">
+                {modulos.map(modulo => (
+                  <li key={modulo.id} className="gestion-modulos-lista-item">
+                    <div>
+                      <strong>{modulo.nombre}</strong>
+                      {modulo.descripcion && <span className="gestion-modulos-lista-desc"> — {modulo.descripcion}</span>}
+                    </div>
+                    <button
+                      onClick={() => handleEliminarModulo(modulo)}
+                      className="gestion-modulos-btn-eliminar"
+                    >
+                      🗑️ Eliminar
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
           </section>
 
           <section className="gestion-modulos-seccion">

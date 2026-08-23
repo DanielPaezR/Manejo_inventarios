@@ -283,14 +283,52 @@ app.post('/api/negocios', authenticateToken, requireSuperAdmin, async (req, res)
   }
 });
 
+// Trae TODOS los negocios (activos e inactivos): el panel de super_admin
+// necesita ver los inactivos para poder reactivarlos — filtrar por
+// activo=true los escondería para siempre.
 app.get('/api/negocios', authenticateToken, requireSuperAdmin, async (req, res) => {
   try {
     const result = await pool.query(
-      'SELECT * FROM negocios WHERE activo = true ORDER BY nombre'
+      'SELECT * FROM negocios ORDER BY activo DESC, nombre'
     );
     res.json(result.rows);
   } catch (error) {
     console.error('Error obteniendo negocios:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// Activar/desactivar un negocio. No hay borrado real: con todo lo que
+// depende de un negocio (módulos, productos, ventas, clientes, historial
+// financiero), un borrado sería demasiado riesgoso — desactivar ya
+// bloquea el login de sus usuarios (ver POST /api/login, que filtra
+// WHERE activo = true) de forma segura y reversible.
+app.put('/api/negocios/:id/estado', authenticateToken, requireSuperAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { activo, motivo } = req.body;
+
+    if (typeof activo !== 'boolean') {
+      return res.status(400).json({ error: 'activo debe ser true o false' });
+    }
+
+    // Al reactivar se limpia el motivo: ya no aplica una vez el negocio
+    // vuelve a estar activo. Al desactivar, motivo es opcional.
+    const result = await pool.query(
+      `UPDATE negocios
+       SET activo = $1, motivo_desactivacion = $2
+       WHERE id = $3
+       RETURNING *`,
+      [activo, activo ? null : (motivo?.trim() || null), id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Negocio no encontrado' });
+    }
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error actualizando estado del negocio:', error);
     res.status(500).json({ error: 'Error interno del servidor' });
   }
 });
@@ -598,6 +636,86 @@ app.put('/api/modulos/:id/portada', authenticateToken, checkAccess, requireAdmin
   } catch (error) {
     console.error('Error actualizando módulo:', error);
     res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// Borrado real solo si el módulo está genuinamente vacío (sin productos,
+// ventas, clientes ni proveedores) — mismo criterio de seguridad que
+// Negocios: si tiene datos, se desactiva en vez de borrarse, porque un
+// borrado perdería historial real. Mismo patrón de auto-scoping ("solo tu
+// propio negocio si no eres super_admin") que POST /api/negocios/:id/modulos
+// y DELETE /api/usuarios/:id.
+app.delete('/api/modulos/:id', authenticateToken, requireAdmin, async (req, res) => {
+  let client;
+  try {
+    const { id } = req.params;
+
+    const moduloResult = await pool.query(
+      'SELECT id, nombre, negocio_id FROM modulos WHERE id = $1',
+      [id]
+    );
+
+    if (moduloResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Módulo no encontrado' });
+    }
+
+    const modulo = moduloResult.rows[0];
+
+    if (req.user.rol !== 'super_admin') {
+      const callerResult = await pool.query('SELECT negocio_id FROM usuarios WHERE id = $1', [req.user.id]);
+      if (callerResult.rows[0]?.negocio_id !== modulo.negocio_id) {
+        return res.status(403).json({ error: 'No tienes acceso a este negocio' });
+      }
+    }
+
+    const [productos, ventas, clientes, proveedores] = await Promise.all([
+      pool.query('SELECT COUNT(*) FROM productos WHERE modulo_id = $1', [id]),
+      pool.query('SELECT COUNT(*) FROM ventas WHERE modulo_id = $1', [id]),
+      pool.query('SELECT COUNT(*) FROM clientes WHERE modulo_id = $1', [id]),
+      pool.query('SELECT COUNT(*) FROM proveedores WHERE modulo_id = $1', [id])
+    ]);
+
+    const conteos = {
+      productos: parseInt(productos.rows[0].count, 10),
+      ventas: parseInt(ventas.rows[0].count, 10),
+      clientes: parseInt(clientes.rows[0].count, 10),
+      proveedores: parseInt(proveedores.rows[0].count, 10)
+    };
+    const tieneDatos = Object.values(conteos).some(c => c > 0);
+
+    if (tieneDatos) {
+      await pool.query('UPDATE modulos SET activo = false WHERE id = $1', [id]);
+
+      const detalle = Object.entries(conteos)
+        .filter(([, c]) => c > 0)
+        .map(([tabla, c]) => `${c} ${tabla}`)
+        .join(', ');
+
+      return res.json({
+        eliminado: false,
+        message: `El módulo "${modulo.nombre}" tenía datos asociados (${detalle}), así que se desactivó en vez de eliminarse.`
+      });
+    }
+
+    client = await pool.connect();
+    await client.query('BEGIN');
+
+    await client.query('DELETE FROM secuencias_factura WHERE modulo_id = $1', [id]);
+    await client.query('DELETE FROM secuencias_cliente WHERE modulo_id = $1', [id]);
+    await client.query('DELETE FROM usuario_modulos WHERE modulo_id = $1', [id]);
+    await client.query('DELETE FROM modulos WHERE id = $1', [id]);
+
+    await client.query('COMMIT');
+
+    res.json({ eliminado: true, message: `Módulo "${modulo.nombre}" eliminado correctamente.` });
+  } catch (error) {
+    if (client) {
+      await client.query('ROLLBACK').catch(() => {});
+    }
+    console.error('Error eliminando módulo:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  } finally {
+    if (client) client.release();
   }
 });
 
@@ -3614,6 +3732,79 @@ app.get('/api/finanzas/evolucion-egresos', authenticateToken, checkAccess, requi
   }
 });
 
+// Evolución de ventas período a período, SIN acumular — cada punto es lo
+// vendido EN ese bucket. A diferencia de evolucion-balance/egresos (que son
+// de todo el negocio, vía movimientos_caja), esta es del módulo activo
+// (req.moduloId), igual que el resto de las estadísticas de Estadísticas.jsx.
+app.get('/api/estadisticas/evolucion-ventas', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+  try {
+    const moduloId = req.moduloId;
+    const { granularidad = 'semana', fecha_inicio, fecha_fin } = req.query;
+
+    if (!moduloId) {
+      return res.status(400).json({ error: 'Módulo no identificado' });
+    }
+
+    if (!['dia', 'semana', 'mes'].includes(granularidad)) {
+      return res.status(400).json({ error: "granularidad debe ser 'dia', 'semana' o 'mes'" });
+    }
+
+    if ((fecha_inicio && !fecha_fin) || (!fecha_inicio && fecha_fin)) {
+      return res.status(400).json({ error: 'fecha_inicio y fecha_fin deben venir juntas' });
+    }
+
+    let startDate, endDate;
+    if (fecha_inicio && fecha_fin) {
+      // Mismo anclaje explícito a -05:00 que el resto de Finanzas/Estadísticas.
+      startDate = moment(`${fecha_inicio} 00:00:00-05:00`).toDate();
+      endDate = moment(`${fecha_fin} 23:59:59-05:00`).toDate();
+    } else {
+      // Por defecto, "desde la venta más antigua de este módulo" hasta hoy
+      // (mismo criterio que evolución-balance/egresos, pero a nivel módulo).
+      const minResult = await pool.query(
+        'SELECT MIN(fecha_venta) as min_fecha FROM ventas WHERE modulo_id = $1',
+        [moduloId]
+      );
+      const minFecha = minResult.rows[0]?.min_fecha;
+      if (!minFecha) {
+        return res.json({ puntos: [] });
+      }
+      startDate = minFecha;
+      endDate = ahoraColombia().endOf('day').toDate();
+    }
+
+    const ventasResult = await pool.query(
+      `SELECT fecha_venta as fecha, total
+       FROM ventas
+       WHERE modulo_id = $1
+       AND fecha_venta BETWEEN $2 AND $3
+       AND es_ajuste_manual = false
+       AND metodo_pago != 'consumo_propio'`,
+      [moduloId, startDate, endDate]
+    );
+
+    const buckets = new Map();
+    for (const venta of ventasResult.rows) {
+      const clave = claveBucketColombia(venta.fecha, granularidad);
+      const actual = buckets.get(clave) || { monto: 0, total_ventas: 0 };
+      actual.monto += Number(venta.total);
+      actual.total_ventas += 1;
+      buckets.set(clave, actual);
+    }
+
+    const claves = generarClavesBucket(startDate, endDate, granularidad);
+    const puntos = claves.map(clave => ({
+      fecha: clave,
+      ...(buckets.get(clave) || { monto: 0, total_ventas: 0 })
+    }));
+
+    res.json({ puntos });
+  } catch (error) {
+    console.error('Error obteniendo evolución de ventas:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
 // ==================== RUTAS DE ALERTAS MEJORADAS ====================
 
 // Obtener productos con stock bajo Y sus proveedores
@@ -3879,7 +4070,7 @@ app.get('/api/negocios/:id/usuarios', authenticateToken, requireAdmin, async (re
        FROM usuarios u
        LEFT JOIN usuario_modulos um ON u.id = um.usuario_id
        LEFT JOIN modulos m ON um.modulo_id = m.id
-       WHERE u.negocio_id = $1 AND u.rol != 'super_admin'
+       WHERE u.negocio_id = $1 AND u.rol != 'super_admin' AND u.activo = true
        GROUP BY u.id
        ORDER BY u.nombre`,
       [id]
@@ -3940,12 +4131,12 @@ app.post('/api/negocios/:id/usuarios', authenticateToken, requireSuperAdmin, asy
   }
 });
 
-app.delete('/api/usuarios/:id', authenticateToken, requireSuperAdmin, async (req, res) => {
+app.delete('/api/usuarios/:id', authenticateToken, requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
 
     const usuario = await pool.query(
-      'SELECT rol FROM usuarios WHERE id = $1',
+      'SELECT rol, negocio_id FROM usuarios WHERE id = $1',
       [id]
     );
 
@@ -3955,6 +4146,18 @@ app.delete('/api/usuarios/:id', authenticateToken, requireSuperAdmin, async (req
 
     if (usuario.rows[0].rol === 'super_admin') {
       return res.status(400).json({ error: 'No se puede eliminar un super administrador' });
+    }
+
+    // Mismo patrón de auto-scoping que GET /api/negocios/:id/usuarios: un
+    // admin normal solo puede eliminar usuarios de su propio negocio.
+    if (req.user.rol !== 'super_admin') {
+      const adminResult = await pool.query(
+        'SELECT negocio_id FROM usuarios WHERE id = $1',
+        [req.user.id]
+      );
+      if (adminResult.rows[0]?.negocio_id !== usuario.rows[0].negocio_id) {
+        return res.status(403).json({ error: 'No tienes acceso a este negocio' });
+      }
     }
 
     await pool.query('UPDATE usuarios SET activo = false WHERE id = $1', [id]);
