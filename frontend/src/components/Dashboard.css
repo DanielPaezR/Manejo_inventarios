@@ -120,6 +120,72 @@
 }
 
 /* ============================================================
+   SELECTOR DE MÓDULO (navbar) — solo se usa cuando hay más de un
+   módulo disponible; con uno solo se muestra el .navbar-modulo de
+   siempre, sin selector.
+   ============================================================ */
+.navbar-modulo-selector {
+  position: relative;
+}
+
+.navbar-modulo-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.navbar-modulo-btn:hover {
+  background: rgba(255, 255, 255, 0.22);
+}
+
+.navbar-modulo-arrow {
+  font-size: 10px;
+  opacity: 0.8;
+}
+
+.dropdown-modulo {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  background: #ffffff;
+  border-radius: 12px;
+  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.2);
+  min-width: 220px;
+  max-height: 320px;
+  overflow-y: auto;
+  z-index: 1000;
+  border: 1px solid var(--border);
+  padding: 6px 0;
+  animation: dropdownSlide 0.25s ease;
+}
+
+.dropdown-modulo-item {
+  display: block;
+  width: 100%;
+  padding: 10px 18px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+  color: var(--text-default);
+  text-align: left;
+  white-space: nowrap;
+  transition: background 0.2s;
+}
+
+.dropdown-modulo-item:hover {
+  background: var(--border-soft);
+}
+
+.dropdown-modulo-item.active {
+  color: var(--link);
+  font-weight: 700;
+  background: #ebf8ff;
+}
+
+/* ============================================================
    NAVBAR DERECHA
    ============================================================ */
 .navbar-right {

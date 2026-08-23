@@ -9,10 +9,14 @@ import './Dashboard.css';
 const Dashboard = ({ user, onLogout }) => {
   const location = useLocation();
   const navigate = useNavigate();
-  const { moduloActivo, modulos } = useModulo();
+  const { moduloActivo, modulos, cambiarModulo } = useModulo();
   const [showCambiarPassword, setShowCambiarPassword] = useState(false);
   const [showGestionModulos, setShowGestionModulos] = useState(false);
+  const [showModuloMenu, setShowModuloMenu] = useState(false);
   const puedeGestionarModulos = user?.rol === 'admin';
+  // Solo tiene sentido mostrar un selector si hay más de un módulo entre
+  // los que elegir — con uno solo, el badge de siempre es más simple.
+  const puedeCambiarModulo = modulos.length > 1;
   // En móvil el sidebar es un drawer: debe arrancar cerrado (collapsed=true).
   // En desktop arranca expandido (collapsed=false).
   const [sidebarCollapsed, setSidebarCollapsed] = useState(
@@ -38,6 +42,7 @@ const Dashboard = ({ user, onLogout }) => {
       if (e.key === 'Escape') {
         setShowUserMenu(false);
         setShowNotificaciones(false);
+        setShowModuloMenu(false);
       }
     };
 
@@ -62,6 +67,20 @@ const Dashboard = ({ user, onLogout }) => {
       { id: 2, mensaje: '📦 Pedido #1234 en camino', tipo: 'info', leido: false },
     ];
     setNotificaciones(notificacionesSimuladas);
+  }, []);
+
+  // Al cambiar de módulo, la página actual puede tener datos cargados del
+  // módulo anterior (productos, ventas, etc.) — en vez de auditar cada
+  // componente para que recargue bien sus propios datos, se hace un
+  // reload completo, la forma más simple y confiable de dejar todo el
+  // estado de la app limpio con el módulo nuevo.
+  useEffect(() => {
+    const handleModuloCambiado = () => {
+      window.location.reload();
+    };
+
+    window.addEventListener('moduloCambiado', handleModuloCambiado);
+    return () => window.removeEventListener('moduloCambiado', handleModuloCambiado);
   }, []);
 
   const handleLogout = () => {
@@ -125,9 +144,39 @@ const Dashboard = ({ user, onLogout }) => {
           <div className="navbar-brand">
             <h1>📊 Sistema de Inventario</h1>
             {moduloActivo && (
-              <span className="navbar-modulo">
-                📁 {moduloActivo.nombre}
-              </span>
+              puedeCambiarModulo ? (
+                <div className="navbar-modulo-selector">
+                  <button
+                    className="navbar-modulo navbar-modulo-btn"
+                    onClick={() => setShowModuloMenu(!showModuloMenu)}
+                    title="Cambiar módulo"
+                  >
+                    📁 {moduloActivo.nombre}
+                    <span className="navbar-modulo-arrow">▾</span>
+                  </button>
+
+                  {showModuloMenu && (
+                    <div className="dropdown-modulo">
+                      {modulos.map((modulo) => (
+                        <button
+                          key={modulo.id}
+                          className={`dropdown-modulo-item ${modulo.id === moduloActivo.id ? 'active' : ''}`}
+                          onClick={() => {
+                            cambiarModulo(modulo);
+                            setShowModuloMenu(false);
+                          }}
+                        >
+                          📁 {modulo.nombre}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <span className="navbar-modulo">
+                  📁 {moduloActivo.nombre}
+                </span>
+              )
             )}
           </div>
         </div>
@@ -329,12 +378,13 @@ const Dashboard = ({ user, onLogout }) => {
       </div>
 
       {/* Overlay para cerrar menús en móvil */}
-      {(showUserMenu || showNotificaciones) && (
+      {(showUserMenu || showNotificaciones || showModuloMenu) && (
         <div
           className="dropdown-overlay"
           onClick={() => {
             setShowUserMenu(false);
             setShowNotificaciones(false);
+            setShowModuloMenu(false);
           }}
         />
       )}
