@@ -523,7 +523,7 @@ app.get('/api/modulos/:id', authenticateToken, checkAccess, async (req, res) => 
     }
 
     const result = await pool.query(
-      'SELECT id, nombre, descripcion, activo, foto_portada_url FROM modulos WHERE id = $1 AND negocio_id = $2',
+      'SELECT id, nombre, descripcion, activo, foto_portada_url, frecuencia_entrega_dias FROM modulos WHERE id = $1 AND negocio_id = $2',
       [id, negocioId]
     );
 
@@ -538,25 +538,56 @@ app.get('/api/modulos/:id', authenticateToken, checkAccess, async (req, res) => 
   }
 });
 
-// Configurar la foto de portada del menú público (hero de MenuPublico.jsx).
-// Ruta dedicada en vez de un PUT /api/modulos/:id genérico porque hoy no
-// existe ninguna ruta general de edición de módulo, y este es el único
-// campo editable por ahora.
+// Configurar la foto de portada del menú público (hero de MenuPublico.jsx)
+// y la frecuencia de entrega a domicilio (informativa, la usa la Ruta de
+// Entregas). Ruta dedicada en vez de un PUT /api/modulos/:id genérico
+// porque hoy no existe ninguna ruta general de edición de módulo. Los 2
+// campos son independientes entre sí: cada uno se actualiza SOLO si vino
+// explícito en el body (PedidosCliente.jsx solo manda foto_portada_url;
+// RutaEntregas.jsx solo manda frecuencia_entrega_dias), para que editar
+// uno no borre el otro.
 app.put('/api/modulos/:id/portada', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
     const negocioId = req.negocioId;
-    const { foto_portada_url } = req.body;
 
     if (!negocioId) {
       return res.status(400).json({ error: 'Negocio no identificado' });
     }
 
+    const sets = [];
+    const values = [];
+    let paramIndex = 1;
+
+    if ('foto_portada_url' in req.body) {
+      sets.push(`foto_portada_url = $${paramIndex++}`);
+      values.push(req.body.foto_portada_url?.trim() || null);
+    }
+
+    if ('frecuencia_entrega_dias' in req.body) {
+      const { frecuencia_entrega_dias } = req.body;
+      let frecuenciaValida = null;
+      if (frecuencia_entrega_dias !== null && frecuencia_entrega_dias !== undefined && frecuencia_entrega_dias !== '') {
+        frecuenciaValida = parseInt(frecuencia_entrega_dias, 10);
+        if (!Number.isFinite(frecuenciaValida) || frecuenciaValida <= 0) {
+          return res.status(400).json({ error: 'frecuencia_entrega_dias debe ser un entero positivo' });
+        }
+      }
+      sets.push(`frecuencia_entrega_dias = $${paramIndex++}`);
+      values.push(frecuenciaValida);
+    }
+
+    if (sets.length === 0) {
+      return res.status(400).json({ error: 'No hay nada para actualizar' });
+    }
+
+    values.push(id, negocioId);
+
     const result = await pool.query(
-      `UPDATE modulos SET foto_portada_url = $1
-       WHERE id = $2 AND negocio_id = $3
-       RETURNING id, nombre, descripcion, activo, foto_portada_url`,
-      [foto_portada_url?.trim() || null, id, negocioId]
+      `UPDATE modulos SET ${sets.join(', ')}
+       WHERE id = $${paramIndex++} AND negocio_id = $${paramIndex}
+       RETURNING id, nombre, descripcion, activo, foto_portada_url, frecuencia_entrega_dias`,
+      values
     );
 
     if (result.rows.length === 0) {
@@ -565,7 +596,7 @@ app.put('/api/modulos/:id/portada', authenticateToken, checkAccess, requireAdmin
 
     res.json(result.rows[0]);
   } catch (error) {
-    console.error('Error actualizando foto de portada del módulo:', error);
+    console.error('Error actualizando módulo:', error);
     res.status(500).json({ error: 'Error interno del servidor' });
   }
 });
@@ -4406,6 +4437,53 @@ app.put('/api/pedidos-cliente/:id/cancelar', authenticateToken, checkAccess, asy
     res.json(actualizado.rows[0]);
   } catch (error) {
     console.error('Error cancelando pedido de cliente (panel negocio):', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// Posición de una parada en la Ruta de Entregas. Solo aplica a pedidos a
+// domicilio — uno para recoger en el local no tiene "parada" que ordenar.
+// orden_ruta null es válido (vuelve a quedar "sin asignar", al final de
+// la lista en el frontend).
+app.put('/api/pedidos-cliente/:id/orden-ruta', authenticateToken, checkAccess, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const moduloId = req.moduloId;
+    const { orden_ruta } = req.body;
+
+    if (!moduloId) {
+      return res.status(400).json({ error: 'Se requiere un módulo' });
+    }
+
+    let ordenValido = null;
+    if (orden_ruta !== null && orden_ruta !== undefined && orden_ruta !== '') {
+      ordenValido = parseInt(orden_ruta, 10);
+      if (!Number.isFinite(ordenValido)) {
+        return res.status(400).json({ error: 'orden_ruta debe ser un número' });
+      }
+    }
+
+    const pedidoResult = await pool.query(
+      'SELECT id, es_domicilio FROM pedidos_cliente WHERE id = $1 AND modulo_id = $2',
+      [id, moduloId]
+    );
+
+    if (pedidoResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Pedido no encontrado' });
+    }
+
+    if (!pedidoResult.rows[0].es_domicilio) {
+      return res.status(400).json({ error: 'Este pedido no es a domicilio' });
+    }
+
+    const result = await pool.query(
+      'UPDATE pedidos_cliente SET orden_ruta = $1 WHERE id = $2 RETURNING *',
+      [ordenValido, id]
+    );
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error actualizando orden de ruta:', error);
     res.status(500).json({ error: 'Error interno del servidor' });
   }
 });

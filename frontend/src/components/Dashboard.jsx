@@ -89,12 +89,14 @@ const Dashboard = ({ user, onLogout }) => {
       { path: '/proveedores', icon: '🤝', label: 'Proveedores' },      // ✅ NUEVO
       { path: '/pedidos', icon: '📦', label: 'Pedidos' },              // ✅ NUEVO
       { path: '/pedidos-cliente', icon: '🧾', label: 'Pedidos de Clientes' },
+      { path: '/ruta-entregas', icon: '🛵', label: 'Ruta de Entregas' },
       { path: '/clientes', icon: '👤', label: 'Clientes' },            // ✅ NUEVO
       { path: '/finanzas', icon: '💰', label: 'Finanzas' },            // ✅ NUEVO
     ],
     trabajador: [
       { path: '/ventas', icon: '🛒', label: 'Ventas' },
       { path: '/pedidos-cliente', icon: '🧾', label: 'Pedidos de Clientes' },
+      { path: '/ruta-entregas', icon: '🛵', label: 'Ruta de Entregas' },
     ]
   };
 

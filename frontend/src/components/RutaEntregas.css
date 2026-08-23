@@ -1,0 +1,272 @@
+/* ============================================================
+   RUTA DE ENTREGAS
+   Nota: reutiliza a propósito .header-left, .modulo-indicador, .badge,
+   .loading, .sin-datos, .alert/.alert-warning, .mensaje-flotante,
+   .btn-cerrar-mensaje, .form-group, .card,
+   .modal/.modal-content/.modal-header/.modal-footer, .btn-guardar y
+   .btn-cancelar (todo el CSS del frontend se compila en una sola hoja
+   global) — mismo criterio ya documentado en PedidosCliente.css.
+   ============================================================ */
+.ruta-entregas-container {
+  padding: 24px;
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+.ruta-entregas-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.ruta-entregas-frecuencia-card,
+.ruta-entregas-resumen-card,
+.ruta-entregas-paradas-card {
+  margin-bottom: 16px;
+}
+
+.ruta-entregas-frecuencia-texto,
+.ruta-entregas-frecuencia-form {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  font-size: 14px;
+  color: #2d3748;
+}
+
+.ruta-entregas-frecuencia-input {
+  width: 70px;
+  padding: 6px 10px;
+  border: 2px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 14px;
+}
+
+.ruta-entregas-btn-chico {
+  background: #edf2f7;
+  color: #4a5568;
+  border: none;
+  padding: 6px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.ruta-entregas-btn-chico:hover:not(:disabled) {
+  background: #e2e8f0;
+}
+
+.ruta-entregas-btn-chico:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.ruta-entregas-btn-guardar-chico {
+  background: #48bb78;
+  color: white;
+}
+
+.ruta-entregas-btn-guardar-chico:hover:not(:disabled) {
+  background: #38a169;
+}
+
+.ruta-entregas-resumen-card h3,
+.ruta-entregas-paradas-card h3 {
+  margin: 0 0 14px;
+  font-size: 16px;
+  color: #2d3748;
+}
+
+.ruta-entregas-resumen-lista {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ruta-entregas-resumen-lista li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  color: #2d3748;
+  padding: 6px 0;
+  border-bottom: 1px solid #f0f4f8;
+}
+
+.ruta-entregas-resumen-lista li:last-child {
+  border-bottom: none;
+}
+
+.ruta-entregas-resumen-cantidad {
+  min-width: 32px;
+  padding: 2px 8px;
+  background: #ebf8ff;
+  color: #2b6cb0;
+  border-radius: 12px;
+  font-weight: 700;
+  text-align: center;
+  font-size: 13px;
+}
+
+.ruta-entregas-lista {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.ruta-entregas-parada {
+  display: flex;
+  align-items: stretch;
+  gap: 14px;
+  background: #f7fafc;
+  border-radius: 12px;
+  padding: 14px 16px;
+  flex-wrap: wrap;
+}
+
+.ruta-entregas-parada-orden {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.ruta-entregas-btn-mover {
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  width: 28px;
+  height: 24px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #4a5568;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.ruta-entregas-btn-mover:hover:not(:disabled) {
+  background: #ebf8ff;
+}
+
+.ruta-entregas-btn-mover:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.ruta-entregas-parada-numero {
+  font-weight: 700;
+  font-size: 14px;
+  color: #2d3748;
+}
+
+.ruta-entregas-parada-info {
+  flex: 1;
+  min-width: 180px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.ruta-entregas-parada-nombre {
+  font-weight: 700;
+  color: #2d3748;
+  font-size: 15px;
+}
+
+.ruta-entregas-parada-direccion {
+  color: #4a5568;
+  font-size: 13px;
+}
+
+.ruta-entregas-parada-datos {
+  display: flex;
+  gap: 14px;
+  font-size: 13px;
+  color: #718096;
+  margin-top: 2px;
+}
+
+.ruta-entregas-parada-acciones {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  justify-content: center;
+  min-width: 170px;
+}
+
+.ruta-entregas-btn-como-llegar,
+.ruta-entregas-btn-completar,
+.ruta-entregas-btn-cancelar-parada {
+  border: none;
+  padding: 7px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.ruta-entregas-btn-como-llegar {
+  background: #ebf8ff;
+  color: #2b6cb0;
+}
+
+.ruta-entregas-btn-como-llegar:hover {
+  background: #bee3f8;
+}
+
+.ruta-entregas-btn-completar {
+  background: #c6f6d5;
+  color: #22543d;
+}
+
+.ruta-entregas-btn-completar:hover:not(:disabled) {
+  background: #9ae6b4;
+}
+
+.ruta-entregas-btn-cancelar-parada {
+  background: #fff5f5;
+  color: #c53030;
+}
+
+.ruta-entregas-btn-cancelar-parada:hover:not(:disabled) {
+  background: #fed7d7;
+}
+
+.ruta-entregas-btn-completar:disabled,
+.ruta-entregas-btn-cancelar-parada:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.ruta-entregas-modal-completar {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 4px 0 12px;
+}
+
+@media (max-width: 600px) {
+  .ruta-entregas-parada {
+    flex-direction: column;
+  }
+
+  .ruta-entregas-parada-orden {
+    flex-direction: row;
+    justify-content: flex-start;
+  }
+
+  .ruta-entregas-parada-acciones {
+    width: 100%;
+  }
+}
