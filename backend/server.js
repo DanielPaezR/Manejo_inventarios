@@ -24,6 +24,7 @@ const { authenticateToken, requireAdmin, requireSuperAdmin } = require('./src/mi
 const { checkAccess } = require('./src/middleware/checkAccess');
 const { generarNumeroFactura } = require('./src/helpers/generarNumeroFactura');
 const { generarNumeroCliente } = require('./src/helpers/generarNumeroCliente');
+const { geocodificar } = require('./src/helpers/geocodificar');
 const { JWT_SECRET } = require('./src/config/jwtSecret');
 
 // ==================== IMPORTS DE REPORTES ====================
@@ -4861,6 +4862,22 @@ app.get('/api/menu/:moduloId', async (req, res) => {
   }
 });
 
+// Geocodifica la dirección de un pedido a domicilio y guarda lat/lng si
+// Nominatim la encontró. Igual que enviarNotificacionesPedidoNuevo, se
+// llama SIN await después de responder al cliente (fire-and-forget): la
+// geocodificación puede tardar (cola de Nominatim) o fallar, y ninguna de
+// las dos cosas debe demorar ni tumbar la creación/edición del pedido,
+// que ya quedó confirmada en la BD sin coordenadas.
+async function geocodificarYGuardarPedido(pedidoId, direccion) {
+  const coords = await geocodificar(direccion);
+  if (!coords) return;
+
+  await pool.query(
+    'UPDATE pedidos_cliente SET lat = $1, lng = $2 WHERE id = $3',
+    [coords.lat, coords.lng, pedidoId]
+  );
+}
+
 // Crear pedido de cliente. NO descuenta stock todavía (eso pasa en la
 // Tanda 3, cuando el negocio lo completa) — solo valida que alcance.
 // Envía un push a cada admin/trabajador del negocio suscrito, avisando de
@@ -5046,6 +5063,12 @@ app.post('/api/menu/:moduloId/pedidos', async (req, res) => {
       console.error('Error inesperado enviando notificaciones push:', err)
     );
 
+    if (esDomicilio && direccionEntregaValida) {
+      geocodificarYGuardarPedido(pedido.id, direccionEntregaValida).catch(err =>
+        console.error('Error inesperado geocodificando dirección:', err)
+      );
+    }
+
     res.status(201).json({ ...pedido, detalles: detallesValidados });
   } catch (error) {
     if (client) {
@@ -5220,6 +5243,12 @@ app.put('/api/menu/pedido/:token', async (req, res) => {
     );
 
     await client.query('COMMIT');
+
+    if (esDomicilio && direccionEntregaValida) {
+      geocodificarYGuardarPedido(pedido.id, direccionEntregaValida).catch(err =>
+        console.error('Error inesperado geocodificando dirección:', err)
+      );
+    }
 
     res.json({ ...actualizado.rows[0], detalles: detallesValidados });
   } catch (error) {

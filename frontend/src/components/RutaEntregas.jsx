@@ -1,7 +1,46 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from 'react-leaflet';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
 import api from '../services/api';
 import { useModulo } from '../hooks/useModulo';
 import './RutaEntregas.css';
+
+// react-leaflet + Vite: los íconos por defecto de Leaflet dependen de
+// rutas de imagen que el empaquetado de Vite no resuelve bien (problema
+// conocido). En vez de pelear con eso, se evita del todo con L.divIcon:
+// un pin numerado hecho con HTML/CSS puro, sin ninguna imagen de por
+// medio.
+const crearIconoNumerado = (numero) =>
+  L.divIcon({
+    className: 'ruta-entregas-pin',
+    // El número va en un span aparte, contra-rotado, porque el pin
+    // (el div de afuera) se gira 45° por CSS para lograr la forma de
+    // gota — sin el contra-giro, el texto quedaría en diagonal.
+    html: `<div class="ruta-entregas-pin-gota"><span class="ruta-entregas-pin-numero">${numero}</span></div>`,
+    iconSize: [30, 30],
+    iconAnchor: [15, 30],
+    popupAnchor: [0, -30]
+  });
+
+// Encaja el mapa para que se vean todos los pines a la vez. Va como
+// subcomponente (no un efecto en el padre) porque fitBounds necesita la
+// instancia del mapa vía useMap(), que solo existe dentro de un
+// <MapContainer>.
+const AjustarVistaAParadas = ({ posiciones }) => {
+  const map = useMap();
+
+  useEffect(() => {
+    if (posiciones.length === 0) return;
+    if (posiciones.length === 1) {
+      map.setView(posiciones[0], 15);
+      return;
+    }
+    map.fitBounds(L.latLngBounds(posiciones), { padding: [30, 30] });
+  }, [map, posiciones]);
+
+  return null;
+};
 
 // Vista especializada sobre pedidos_cliente: no es un sistema nuevo, solo
 // filtra/ordena los pedidos a domicilio (es_domicilio=true) que ya trae
@@ -83,6 +122,22 @@ const RutaEntregas = ({ user }) => {
       .sort((a, b) => new Date(a.fecha_creacion) - new Date(b.fecha_creacion));
     return [...conOrden, ...sinOrden];
   }, [pedidos]);
+
+  // Solo las paradas con coordenadas pueden dibujarse en el mapa — las
+  // demás se quedan solo en la lista de abajo (con una notita explicando
+  // por qué no aparecen arriba). "index" acá SÍ es el número de la parada
+  // en la ruta completa (incluye las que no tienen mapa), para que el pin
+  // numerado coincida con el número que ve el repartidor en la lista.
+  const paradasConCoordenadas = useMemo(() => {
+    return paradas
+      .map((parada, index) => ({ parada, numero: index + 1 }))
+      .filter(({ parada }) => parada.lat !== null && parada.lat !== undefined && parada.lng !== null && parada.lng !== undefined);
+  }, [paradas]);
+
+  const posicionesMapa = useMemo(
+    () => paradasConCoordenadas.map(({ parada }) => [Number(parada.lat), Number(parada.lng)]),
+    [paradasConCoordenadas]
+  );
 
   // Consolidado de todos los productos de todas las paradas pendientes,
   // para que el repartidor sepa qué empacar antes de salir.
@@ -276,6 +331,49 @@ const RutaEntregas = ({ user }) => {
         <div className="loading">Cargando paradas...</div>
       ) : (
         <>
+          {paradas.length > 0 && (
+            <div className="card ruta-entregas-mapa-card">
+              <h3>🗺️ Mapa de la ruta</h3>
+              {paradasConCoordenadas.length === 0 ? (
+                <p className="sin-datos">Ninguna dirección se pudo ubicar en el mapa todavía</p>
+              ) : (
+                <div className="ruta-entregas-mapa-wrapper">
+                  <MapContainer center={posicionesMapa[0]} zoom={13} scrollWheelZoom={true}>
+                    <TileLayer
+                      attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+                      url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                    />
+                    <AjustarVistaAParadas posiciones={posicionesMapa} />
+                    {posicionesMapa.length > 1 && (
+                      <Polyline positions={posicionesMapa} pathOptions={{ color: '#4299e1', weight: 3, dashArray: '6 8' }} />
+                    )}
+                    {paradasConCoordenadas.map(({ parada, numero }) => (
+                      <Marker
+                        key={parada.id}
+                        position={[Number(parada.lat), Number(parada.lng)]}
+                        icon={crearIconoNumerado(numero)}
+                      >
+                        <Popup>
+                          <strong>{parada.mesa_nombre}</strong>
+                          <br />
+                          {parada.direccion_entrega}
+                          <br />
+                          <a
+                            href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(parada.direccion_entrega)}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            📍 Cómo llegar
+                          </a>
+                        </Popup>
+                      </Marker>
+                    ))}
+                  </MapContainer>
+                </div>
+              )}
+            </div>
+          )}
+
           {resumenProductos.length > 0 && (
             <div className="card ruta-entregas-resumen-card">
               <h3>📦 Resumen: qué llevar</h3>
@@ -327,6 +425,9 @@ const RutaEntregas = ({ user }) => {
                           <span>{parada.detalles?.length || 0} producto(s)</span>
                           <span>{formatearMoneda(parada.total)}</span>
                         </div>
+                        {(parada.lat === null || parada.lat === undefined || parada.lng === null || parada.lng === undefined) && (
+                          <div className="ruta-entregas-parada-sin-mapa">📍 sin ubicación en el mapa</div>
+                        )}
                       </div>
 
                       <div className="ruta-entregas-parada-acciones">

@@ -21,9 +21,58 @@
 }
 
 .ruta-entregas-frecuencia-card,
+.ruta-entregas-mapa-card,
 .ruta-entregas-resumen-card,
 .ruta-entregas-paradas-card {
   margin-bottom: 16px;
+}
+
+.ruta-entregas-mapa-card h3 {
+  margin: 0 0 14px;
+  font-size: 16px;
+  color: #2d3748;
+}
+
+.ruta-entregas-mapa-wrapper {
+  height: 320px;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.ruta-entregas-mapa-wrapper .leaflet-container {
+  height: 100%;
+  width: 100%;
+}
+
+/* Pin numerado con L.divIcon — evita depender de los íconos por defecto
+   de Leaflet, que no cargan bien empaquetados con Vite. La "gota" es un
+   cuadrado girado 45°; el número va en un span contra-girado para que
+   quede derecho. */
+.ruta-entregas-pin-gota {
+  width: 28px;
+  height: 28px;
+  border-radius: 50% 50% 50% 0;
+  transform: rotate(-45deg);
+  background: #4299e1;
+  border: 2px solid white;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ruta-entregas-pin-numero {
+  transform: rotate(45deg);
+  color: white;
+  font-weight: 700;
+  font-size: 13px;
+}
+
+.ruta-entregas-parada-sin-mapa {
+  font-size: 12px;
+  color: #a0aec0;
+  font-style: italic;
+  margin-top: 2px;
 }
 
 .ruta-entregas-frecuencia-texto,
