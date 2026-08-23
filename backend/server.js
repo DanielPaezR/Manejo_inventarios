@@ -2026,24 +2026,26 @@ app.get('/api/estadisticas/global', authenticateToken, requireAdmin, async (req,
 
 // ==================== RUTAS DE PROVEEDORES ====================
 
-// Obtener todos los proveedores del negocio
+// Obtener todos los proveedores del módulo. Los proveedores son por
+// módulo (no por negocio): cada módulo tiene su propia lista, igual
+// criterio que se aplicó a clientes.
 app.get('/api/proveedores', authenticateToken, checkAccess, async (req, res) => {
   try {
-    const negocioId = req.negocioId;
-    
-    if (!negocioId) {
-      return res.status(400).json({ error: 'Negocio no identificado' });
+    const moduloId = req.moduloId;
+
+    if (!moduloId) {
+      return res.status(400).json({ error: 'Se requiere un módulo' });
     }
 
     const result = await pool.query(
-      `SELECT p.*, 
+      `SELECT p.*,
               array_agg(pp.producto_id) as productos_asociados
        FROM proveedores p
        LEFT JOIN producto_proveedor pp ON p.id = pp.proveedor_id AND pp.activo = true
-       WHERE p.negocio_id = $1 AND p.activo = true
+       WHERE p.modulo_id = $1 AND p.activo = true
        GROUP BY p.id
        ORDER BY p.nombre`,
-      [negocioId]
+      [moduloId]
     );
 
     res.json(result.rows);
@@ -2057,7 +2059,12 @@ app.get('/api/proveedores', authenticateToken, checkAccess, async (req, res) => 
 app.post('/api/proveedores', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
   try {
     const negocioId = req.negocioId;
+    const moduloId = req.moduloId;
     const { nombre, contacto, telefono, email, direccion, dias_entrega } = req.body;
+
+    if (!moduloId) {
+      return res.status(400).json({ error: 'Se requiere un módulo' });
+    }
 
     if (!nombre) {
       return res.status(400).json({ error: 'El nombre es requerido' });
@@ -2075,10 +2082,10 @@ app.post('/api/proveedores', authenticateToken, checkAccess, requireAdmin, async
     }
 
     const result = await pool.query(
-      `INSERT INTO proveedores (negocio_id, nombre, contacto, telefono, email, direccion, dias_entrega)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
+      `INSERT INTO proveedores (negocio_id, modulo_id, nombre, contacto, telefono, email, direccion, dias_entrega)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
        RETURNING *`,
-      [negocioId, nombre, contacto, telefono, email, direccion, diasEntregaValor]
+      [negocioId, moduloId, nombre, contacto, telefono, email, direccion, diasEntregaValor]
     );
 
     res.status(201).json(result.rows[0]);
@@ -2092,7 +2099,7 @@ app.post('/api/proveedores', authenticateToken, checkAccess, requireAdmin, async
 app.put('/api/proveedores/:id', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
-    const negocioId = req.negocioId;
+    const moduloId = req.moduloId;
     const { nombre, contacto, telefono, email, direccion, activo, dias_entrega } = req.body;
 
     let diasEntregaValor = null;
@@ -2119,9 +2126,9 @@ app.put('/api/proveedores/:id', authenticateToken, checkAccess, requireAdmin, as
            direccion = $5,
            activo = COALESCE($6, activo),
            dias_entrega = $7
-       WHERE id = $8 AND negocio_id = $9
+       WHERE id = $8 AND modulo_id = $9
        RETURNING *`,
-      [nombre, contacto, telefono, email, direccion, activo, diasEntregaValor, id, negocioId]
+      [nombre, contacto, telefono, email, direccion, activo, diasEntregaValor, id, moduloId]
     );
 
     if (result.rows.length === 0) {
@@ -2139,11 +2146,11 @@ app.put('/api/proveedores/:id', authenticateToken, checkAccess, requireAdmin, as
 app.delete('/api/proveedores/:id', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
-    const negocioId = req.negocioId;
+    const moduloId = req.moduloId;
 
     await pool.query(
-      'UPDATE proveedores SET activo = false WHERE id = $1 AND negocio_id = $2',
-      [id, negocioId]
+      'UPDATE proveedores SET activo = false WHERE id = $1 AND modulo_id = $2',
+      [id, moduloId]
     );
 
     res.json({ message: 'Proveedor eliminado correctamente' });
@@ -2160,7 +2167,6 @@ app.delete('/api/proveedores/:id', authenticateToken, checkAccess, requireAdmin,
 app.get('/api/proveedores/:id/sugerencia-pedido', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
-    const negocioId = req.negocioId;
     const moduloId = req.moduloId;
     const { dias_historial } = req.query;
 
@@ -2169,8 +2175,8 @@ app.get('/api/proveedores/:id/sugerencia-pedido', authenticateToken, checkAccess
     }
 
     const proveedorResult = await pool.query(
-      'SELECT id, nombre, dias_entrega FROM proveedores WHERE id = $1 AND negocio_id = $2 AND activo = true',
-      [id, negocioId]
+      'SELECT id, nombre, dias_entrega FROM proveedores WHERE id = $1 AND modulo_id = $2 AND activo = true',
+      [id, moduloId]
     );
 
     if (proveedorResult.rows.length === 0) {
@@ -2260,7 +2266,6 @@ app.get('/api/proveedores/:id/sugerencia-pedido', authenticateToken, checkAccess
 app.get('/api/proveedores/:id/productos-asociados', authenticateToken, checkAccess, async (req, res) => {
   try {
     const { id } = req.params;
-    const negocioId = req.negocioId;
     const moduloId = req.moduloId;
 
     if (!moduloId) {
@@ -2268,8 +2273,8 @@ app.get('/api/proveedores/:id/productos-asociados', authenticateToken, checkAcce
     }
 
     const proveedorResult = await pool.query(
-      'SELECT id FROM proveedores WHERE id = $1 AND negocio_id = $2 AND activo = true',
-      [id, negocioId]
+      'SELECT id FROM proveedores WHERE id = $1 AND modulo_id = $2 AND activo = true',
+      [id, moduloId]
     );
 
     if (proveedorResult.rows.length === 0) {
@@ -2307,7 +2312,6 @@ app.post('/api/proveedores/:id/productos-bulk', authenticateToken, checkAccess, 
     await client.query('BEGIN');
 
     const { id } = req.params;
-    const negocioId = req.negocioId;
     const moduloId = req.moduloId;
     const { productos } = req.body;
 
@@ -2322,8 +2326,8 @@ app.post('/api/proveedores/:id/productos-bulk', authenticateToken, checkAccess, 
     }
 
     const proveedorResult = await client.query(
-      'SELECT id, dias_entrega FROM proveedores WHERE id = $1 AND negocio_id = $2 AND activo = true',
-      [id, negocioId]
+      'SELECT id, dias_entrega FROM proveedores WHERE id = $1 AND modulo_id = $2 AND activo = true',
+      [id, moduloId]
     );
 
     if (proveedorResult.rows.length === 0) {
@@ -2405,7 +2409,6 @@ app.post('/api/productos/:productoId/proveedores/:proveedorId', authenticateToke
     const { productoId, proveedorId } = req.params;
     const { precio_compra, tiempo_entrega_dias, cantidad_minima_pedido, unidades_por_paquete } = req.body;
     const moduloId = req.moduloId;
-    const negocioId = req.negocioId;
 
     // Verificar que el producto existe y pertenece al módulo
     const productoResult = await pool.query(
@@ -2417,11 +2420,11 @@ app.post('/api/productos/:productoId/proveedores/:proveedorId', authenticateToke
       return res.status(404).json({ error: 'Producto no encontrado' });
     }
 
-    // Verificar que el proveedor existe Y pertenece al mismo negocio (evita
-    // asociar productos propios con proveedores de otro negocio)
+    // Verificar que el proveedor existe Y pertenece al mismo módulo (evita
+    // asociar productos propios con proveedores de otro módulo/negocio)
     const proveedorResult = await pool.query(
-      'SELECT id FROM proveedores WHERE id = $1 AND negocio_id = $2 AND activo = true',
-      [proveedorId, negocioId]
+      'SELECT id FROM proveedores WHERE id = $1 AND modulo_id = $2 AND activo = true',
+      [proveedorId, moduloId]
     );
 
     if (proveedorResult.rows.length === 0) {
@@ -2450,11 +2453,23 @@ app.post('/api/productos/:productoId/proveedores/:proveedorId', authenticateToke
 app.delete('/api/productos/:productoId/proveedores/:proveedorId', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
   try {
     const { productoId, proveedorId } = req.params;
-    const negocioId = req.negocioId;
+    const moduloId = req.moduloId;
+
+    // Mismo chequeo que la asociación (POST), ahora también aquí: antes
+    // esta ruta solo validaba el proveedor, no que productoId perteneciera
+    // al módulo del usuario.
+    const productoResult = await pool.query(
+      'SELECT id FROM productos WHERE id = $1 AND modulo_id = $2 AND activo = true',
+      [productoId, moduloId]
+    );
+
+    if (productoResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Producto no encontrado' });
+    }
 
     const proveedorResult = await pool.query(
-      'SELECT id FROM proveedores WHERE id = $1 AND negocio_id = $2 AND activo = true',
-      [proveedorId, negocioId]
+      'SELECT id FROM proveedores WHERE id = $1 AND modulo_id = $2 AND activo = true',
+      [proveedorId, moduloId]
     );
 
     if (proveedorResult.rows.length === 0) {
@@ -2530,10 +2545,10 @@ app.post('/api/pedidos', authenticateToken, checkAccess, requireAdmin, async (re
       return res.status(400).json({ error: 'Proveedor y detalles son requeridos' });
     }
 
-    // Verificar que el proveedor existe y pertenece al mismo negocio
+    // Verificar que el proveedor existe y pertenece al mismo módulo
     const proveedorResult = await client.query(
-      'SELECT id FROM proveedores WHERE id = $1 AND negocio_id = $2 AND activo = true',
-      [proveedor_id, negocioId]
+      'SELECT id FROM proveedores WHERE id = $1 AND modulo_id = $2 AND activo = true',
+      [proveedor_id, moduloId]
     );
 
     if (proveedorResult.rows.length === 0) {
