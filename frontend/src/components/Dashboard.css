@@ -550,6 +550,23 @@
   font-style: italic;
 }
 
+.btn-gestionar-modulos {
+  padding: 6px 14px;
+  background: white;
+  color: var(--link);
+  border: 1px solid #bee3f8;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  transition: background 0.2s;
+}
+
+.btn-gestionar-modulos:hover {
+  background: #ebf8ff;
+}
+
 /* ============================================================
    SIDEBAR - CORREGIDO CON COLORES FORZADOS
    ============================================================ */

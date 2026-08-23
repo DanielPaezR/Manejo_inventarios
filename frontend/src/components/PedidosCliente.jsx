@@ -495,6 +495,9 @@ const PedidosCliente = ({ user }) => {
                 <div className="pedido-cliente-resumen" onClick={() => toggleExpandido(pedido.id)}>
                   <div className="pedido-cliente-resumen-principal">
                     <span className="pedido-cliente-mesa">{pedido.mesa_nombre}</span>
+                    {pedido.es_domicilio && (
+                      <span className="pedido-cliente-domicilio-badge">🛵 Domicilio</span>
+                    )}
                     <span
                       className="estado-badge-pedidos-cliente"
                       style={{ background: estado.color, color: estado.textColor }}
@@ -621,6 +624,9 @@ const PedidosCliente = ({ user }) => {
                         </table>
                         {pedido.monto_recibido && (
                           <p className="pedido-cliente-monto-recibido">💵 El cliente indicó que paga con: {formatearMoneda(pedido.monto_recibido)}</p>
+                        )}
+                        {pedido.es_domicilio && (
+                          <p className="pedido-cliente-domicilio">🛵 Domicilio: {pedido.direccion_entrega}</p>
                         )}
 
                         {(pedido.estado === 'pendiente' || pedido.estado === 'confirmado' || pedido.estado === 'cancelado') && (

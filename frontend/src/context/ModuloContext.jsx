@@ -1,4 +1,5 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
+import api from '../services/api';
 
 // Crear el contexto
 const ModuloContext = createContext();
@@ -62,9 +63,32 @@ export const ModuloProvider = ({ children, user }) => {
     
     setModuloActivo(modulo);
     localStorage.setItem('moduloActivo', JSON.stringify(modulo));
-    
+
     // Opcional: recargar datos o notificar a otros componentes
     window.dispatchEvent(new CustomEvent('moduloCambiado', { detail: modulo }));
+  };
+
+  // Vuelve a pedir la lista de módulos del usuario (GET /api/usuarios/modulos)
+  // sin necesidad de cerrar sesión — usado después de crear un módulo nuevo
+  // desde la app, para que aparezca de inmediato en el selector. Si se pasa
+  // activarModuloId, ese módulo queda como activo al terminar (para entrar
+  // directo al módulo recién creado).
+  const refrescarModulos = async (activarModuloId) => {
+    if (!user) return;
+    try {
+      const response = await api.get('/usuarios/modulos');
+      setModulos(response.data);
+
+      if (activarModuloId) {
+        const nuevo = response.data.find(m => m.id === activarModuloId);
+        if (nuevo) {
+          setModuloActivo(nuevo);
+          localStorage.setItem('moduloActivo', JSON.stringify(nuevo));
+        }
+      }
+    } catch (error) {
+      console.error('Error refrescando módulos:', error);
+    }
   };
 
   // Valor del contexto
@@ -73,6 +97,7 @@ export const ModuloProvider = ({ children, user }) => {
     modulos,
     loading,
     cambiarModulo,
+    refrescarModulos,
     tieneModulos: modulos.length > 0
   };
 

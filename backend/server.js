@@ -323,10 +323,14 @@ app.get('/api/negocios/:id/modulos', authenticateToken, async (req, res) => {
   }
 });
 
-app.post('/api/negocios/:id/modulos', authenticateToken, async (req, res) => {
+app.post('/api/negocios/:id/modulos', authenticateToken, requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
     const { nombre, descripcion } = req.body;
+
+    if (!nombre || !nombre.trim()) {
+      return res.status(400).json({ error: 'El nombre es requerido' });
+    }
 
     if (req.user.rol !== 'super_admin') {
       const userResult = await pool.query(
@@ -339,9 +343,9 @@ app.post('/api/negocios/:id/modulos', authenticateToken, async (req, res) => {
     }
 
     const result = await pool.query(
-      `INSERT INTO modulos (negocio_id, nombre, descripcion) 
+      `INSERT INTO modulos (negocio_id, nombre, descripcion)
        VALUES ($1, $2, $3) RETURNING *`,
-      [id, nombre, descripcion]
+      [id, nombre.trim(), descripcion?.trim() || null]
     );
 
     await pool.query(
@@ -395,7 +399,13 @@ app.get('/api/usuarios/modulos', authenticateToken, async (req, res) => {
 
 // ==================== RUTAS DE GESTIÓN DE USUARIOS EN MÓDULOS ====================
 
-app.post('/api/usuarios/:usuarioId/modulos/:moduloId', authenticateToken, async (req, res) => {
+// requireAdmin + chequeo de negocio: antes solo validaba que el usuario y
+// el módulo objetivo fueran del MISMO negocio entre sí, pero no que el
+// que llama (req.user) tuviera algo que ver con ese negocio — cualquier
+// usuario autenticado podía asignar/desasignar módulos de un negocio
+// ajeno adivinando ids. Mismo patrón de auto-scoping que el resto de
+// rutas de módulos/usuarios.
+app.post('/api/usuarios/:usuarioId/modulos/:moduloId', authenticateToken, requireAdmin, async (req, res) => {
   try {
     const { usuarioId, moduloId } = req.params;
 
@@ -403,7 +413,7 @@ app.post('/api/usuarios/:usuarioId/modulos/:moduloId', authenticateToken, async 
       'SELECT rol, negocio_id FROM usuarios WHERE id = $1 AND activo = true',
       [usuarioId]
     );
-    
+
     if (usuarioResult.rows.length === 0) {
       return res.status(404).json({ error: 'Usuario no encontrado' });
     }
@@ -416,13 +426,20 @@ app.post('/api/usuarios/:usuarioId/modulos/:moduloId', authenticateToken, async 
       'SELECT id, negocio_id FROM modulos WHERE id = $1 AND activo = true',
       [moduloId]
     );
-    
+
     if (moduloResult.rows.length === 0) {
       return res.status(404).json({ error: 'Módulo no encontrado' });
     }
 
     if (usuarioResult.rows[0].negocio_id !== moduloResult.rows[0].negocio_id) {
       return res.status(400).json({ error: 'El usuario no pertenece al negocio del módulo' });
+    }
+
+    if (req.user.rol !== 'super_admin') {
+      const callerResult = await pool.query('SELECT negocio_id FROM usuarios WHERE id = $1', [req.user.id]);
+      if (callerResult.rows[0]?.negocio_id !== moduloResult.rows[0].negocio_id) {
+        return res.status(403).json({ error: 'No tienes acceso a este negocio' });
+      }
     }
 
     await pool.query(
@@ -437,21 +454,28 @@ app.post('/api/usuarios/:usuarioId/modulos/:moduloId', authenticateToken, async 
   }
 });
 
-app.delete('/api/usuarios/:usuarioId/modulos/:moduloId', authenticateToken, async (req, res) => {
+app.delete('/api/usuarios/:usuarioId/modulos/:moduloId', authenticateToken, requireAdmin, async (req, res) => {
   try {
     const { usuarioId, moduloId } = req.params;
 
     const usuarioResult = await pool.query(
-      'SELECT rol FROM usuarios WHERE id = $1 AND activo = true',
+      'SELECT rol, negocio_id FROM usuarios WHERE id = $1 AND activo = true',
       [usuarioId]
     );
-    
+
     if (usuarioResult.rows.length === 0) {
       return res.status(404).json({ error: 'Usuario no encontrado' });
     }
 
     if (usuarioResult.rows[0].rol === 'super_admin') {
       return res.status(400).json({ error: 'No se puede desasignar un super admin' });
+    }
+
+    if (req.user.rol !== 'super_admin') {
+      const callerResult = await pool.query('SELECT negocio_id FROM usuarios WHERE id = $1', [req.user.id]);
+      if (callerResult.rows[0]?.negocio_id !== usuarioResult.rows[0].negocio_id) {
+        return res.status(403).json({ error: 'No tienes acceso a este negocio' });
+      }
     }
 
     await pool.query(
@@ -895,14 +919,16 @@ app.post('/api/ventas', authenticateToken, checkAccess, async (req, res) => {
       return res.status(400).json({ error: 'Las ventas a crédito requieren un cliente registrado' });
     }
 
-    // cliente_id nunca se validaba contra el negocio del usuario: cualquier
+    // cliente_id nunca se validaba contra el módulo del usuario: cualquier
     // llamada directa a la API (sin pasar por el buscador ya filtrado del
-    // POS) podía mandar el id de un cliente de otro negocio. Con crédito de
-    // por medio eso generaría deuda falsa en un cliente ajeno.
+    // POS) podía mandar el id de un cliente de otro módulo/negocio. Con
+    // crédito de por medio eso generaría deuda falsa en un cliente ajeno.
+    // Los clientes son por módulo (no por negocio), así que la validación
+    // es contra moduloId.
     if (cliente_id) {
       const clienteCheck = await client.query(
-        'SELECT id FROM clientes WHERE id = $1 AND negocio_id = $2',
-        [cliente_id, negocioId]
+        'SELECT id FROM clientes WHERE id = $1 AND modulo_id = $2',
+        [cliente_id, moduloId]
       );
       if (clienteCheck.rows.length === 0) {
         await client.query('ROLLBACK');
@@ -1140,14 +1166,17 @@ app.get('/api/ventas/:id/factura', authenticateToken, checkAccess, async (req, r
 
 // ==================== RUTAS DE CLIENTES ====================
 
-// Listar / buscar clientes del negocio (admin y trabajador, para el autocomplete del POS)
+// Listar / buscar clientes del módulo (admin y trabajador, para el autocomplete del POS).
+// Los clientes son por módulo (no por negocio): cada módulo tiene su propia
+// lista de clientes y su propia deuda/crédito, independiente de otros
+// módulos del mismo negocio.
 app.get('/api/clientes', authenticateToken, checkAccess, async (req, res) => {
   try {
-    const negocioId = req.negocioId;
+    const moduloId = req.moduloId;
     const { search, numero_cliente } = req.query;
 
-    if (!negocioId) {
-      return res.status(400).json({ error: 'Negocio no identificado' });
+    if (!moduloId) {
+      return res.status(400).json({ error: 'Se requiere un módulo' });
     }
 
     // deuda_actual = ventas a crédito de ese cliente (metodo_pago='credito',
@@ -1157,8 +1186,8 @@ app.get('/api/clientes', authenticateToken, checkAccess, async (req, res) => {
     // 'manual'/'venta'/'pedido' — 'abono_credito' no es un valor válido ahí.
     const deudaSelect = `(
         (SELECT COALESCE(SUM(v.total), 0)
-         FROM ventas v JOIN modulos m ON v.modulo_id = m.id
-         WHERE m.negocio_id = clientes.negocio_id
+         FROM ventas v
+         WHERE v.modulo_id = clientes.modulo_id
          AND v.cliente_id = clientes.id AND v.metodo_pago = 'credito')
         -
         (SELECT COALESCE(SUM(mc.monto), 0)
@@ -1175,15 +1204,15 @@ app.get('/api/clientes', authenticateToken, checkAccess, async (req, res) => {
       }
 
       const result = await pool.query(
-        `SELECT clientes.*, ${deudaSelect} FROM clientes WHERE negocio_id = $1 AND activo = true AND numero_cliente = $2`,
-        [negocioId, parseInt(numeroClienteStr, 10)]
+        `SELECT clientes.*, ${deudaSelect} FROM clientes WHERE modulo_id = $1 AND activo = true AND numero_cliente = $2`,
+        [moduloId, parseInt(numeroClienteStr, 10)]
       );
 
       return res.json(result.rows);
     }
 
-    let query = `SELECT clientes.*, ${deudaSelect} FROM clientes WHERE negocio_id = $1 AND activo = true`;
-    const params = [negocioId];
+    let query = `SELECT clientes.*, ${deudaSelect} FROM clientes WHERE modulo_id = $1 AND activo = true`;
+    const params = [moduloId];
 
     if (search && search.trim() !== '') {
       params.push(`%${search.trim()}%`);
@@ -1204,22 +1233,22 @@ app.get('/api/clientes', authenticateToken, checkAccess, async (req, res) => {
 app.get('/api/clientes/:id', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
-    const negocioId = req.negocioId;
+    const moduloId = req.moduloId;
 
     const result = await pool.query(
       `SELECT clientes.*,
           (
             (SELECT COALESCE(SUM(v.total), 0)
-             FROM ventas v JOIN modulos m ON v.modulo_id = m.id
-             WHERE m.negocio_id = clientes.negocio_id
+             FROM ventas v
+             WHERE v.modulo_id = clientes.modulo_id
              AND v.cliente_id = clientes.id AND v.metodo_pago = 'credito')
             -
             (SELECT COALESCE(SUM(mc.monto), 0)
              FROM movimientos_caja mc
              WHERE mc.cliente_id = clientes.id AND mc.origen = 'manual' AND mc.categoria = 'abono_credito')
           ) AS deuda_actual
-       FROM clientes WHERE id = $1 AND negocio_id = $2`,
-      [id, negocioId]
+       FROM clientes WHERE id = $1 AND modulo_id = $2`,
+      [id, moduloId]
     );
 
     if (result.rows.length === 0) {
@@ -1237,12 +1266,12 @@ app.get('/api/clientes/:id', authenticateToken, checkAccess, requireAdmin, async
 app.get('/api/clientes/:id/historial', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
-    const negocioId = req.negocioId;
+    const moduloId = req.moduloId;
 
-    // Confirmar que el cliente pertenece al negocio del usuario antes de exponer su historial
+    // Confirmar que el cliente pertenece al módulo del usuario antes de exponer su historial
     const clienteResult = await pool.query(
-      'SELECT id FROM clientes WHERE id = $1 AND negocio_id = $2',
-      [id, negocioId]
+      'SELECT id FROM clientes WHERE id = $1 AND modulo_id = $2',
+      [id, moduloId]
     );
 
     if (clienteResult.rows.length === 0) {
@@ -1262,14 +1291,13 @@ app.get('/api/clientes/:id/historial', authenticateToken, checkAccess, requireAd
                 )
               ) as detalles
        FROM ventas v
-       JOIN modulos m ON v.modulo_id = m.id
        JOIN usuarios u ON v.usuario_id = u.id
        LEFT JOIN detalle_venta dv ON v.id = dv.venta_id
        LEFT JOIN productos p ON dv.producto_id = p.id
-       WHERE v.cliente_id = $1 AND m.negocio_id = $2
+       WHERE v.cliente_id = $1 AND v.modulo_id = $2
        GROUP BY v.id, u.id
        ORDER BY v.fecha_venta DESC`,
-      [id, negocioId]
+      [id, moduloId]
     );
 
     // Abonos a crédito del cliente, para verlos junto a las ventas
@@ -1294,12 +1322,13 @@ app.post('/api/clientes/:id/abonos', authenticateToken, checkAccess, requireAdmi
   try {
     const { id } = req.params;
     const negocioId = req.negocioId;
+    const moduloId = req.moduloId;
     const usuarioId = req.user.id;
     const { monto, concepto } = req.body;
 
     const clienteResult = await pool.query(
-      'SELECT id FROM clientes WHERE id = $1 AND negocio_id = $2',
-      [id, negocioId]
+      'SELECT id FROM clientes WHERE id = $1 AND modulo_id = $2',
+      [id, moduloId]
     );
     if (clienteResult.rows.length === 0) {
       return res.status(404).json({ error: 'Cliente no encontrado' });
@@ -1315,7 +1344,9 @@ app.post('/api/clientes/:id/abonos', authenticateToken, checkAccess, requireAdmi
     // origen='manual' porque el CHECK de movimientos_caja.origen solo
     // admite 'manual'/'venta'/'pedido'; categoria='abono_credito' es la
     // marca (sin restricción) que distingue esto de un ingreso manual
-    // cualquiera en el resto de las consultas de finanzas/deuda.
+    // cualquiera en el resto de las consultas de finanzas/deuda. Este
+    // movimiento sigue siendo por negocio (igual que el resto de
+    // Finanzas) — solo el cliente y su deuda son por módulo.
     const result = await pool.query(
       `INSERT INTO movimientos_caja
        (negocio_id, tipo, origen, monto, concepto, categoria, cliente_id, usuario_id)
@@ -1329,14 +1360,14 @@ app.post('/api/clientes/:id/abonos', authenticateToken, checkAccess, requireAdmi
     const deudaResult = await pool.query(
       `SELECT
           (SELECT COALESCE(SUM(v.total), 0)
-           FROM ventas v JOIN modulos m ON v.modulo_id = m.id
-           WHERE m.negocio_id = $1 AND v.cliente_id = $2 AND v.metodo_pago = 'credito')
+           FROM ventas v
+           WHERE v.modulo_id = $1 AND v.cliente_id = $2 AND v.metodo_pago = 'credito')
           -
           (SELECT COALESCE(SUM(mc.monto), 0)
            FROM movimientos_caja mc
            WHERE mc.cliente_id = $2 AND mc.origen = 'manual' AND mc.categoria = 'abono_credito')
         AS deuda_actual`,
-      [negocioId, id]
+      [moduloId, id]
     );
 
     res.status(201).json({
@@ -1360,7 +1391,6 @@ app.post('/api/clientes/:id/abonos', authenticateToken, checkAccess, requireAdmi
 app.post('/api/clientes/:id/deuda-manual', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
-    const negocioId = req.negocioId;
     const moduloId = req.moduloId;
     const usuarioId = req.user.id;
     const { monto, concepto } = req.body;
@@ -1370,8 +1400,8 @@ app.post('/api/clientes/:id/deuda-manual', authenticateToken, checkAccess, requi
     }
 
     const clienteResult = await pool.query(
-      'SELECT id, nombre, cedula, telefono, direccion FROM clientes WHERE id = $1 AND negocio_id = $2',
-      [id, negocioId]
+      'SELECT id, nombre, cedula, telefono, direccion FROM clientes WHERE id = $1 AND modulo_id = $2',
+      [id, moduloId]
     );
     if (clienteResult.rows.length === 0) {
       return res.status(404).json({ error: 'Cliente no encontrado' });
@@ -1398,14 +1428,14 @@ app.post('/api/clientes/:id/deuda-manual', authenticateToken, checkAccess, requi
     const deudaResult = await pool.query(
       `SELECT
           (SELECT COALESCE(SUM(v.total), 0)
-           FROM ventas v JOIN modulos m ON v.modulo_id = m.id
-           WHERE m.negocio_id = $1 AND v.cliente_id = $2 AND v.metodo_pago = 'credito')
+           FROM ventas v
+           WHERE v.modulo_id = $1 AND v.cliente_id = $2 AND v.metodo_pago = 'credito')
           -
           (SELECT COALESCE(SUM(mc.monto), 0)
            FROM movimientos_caja mc
            WHERE mc.cliente_id = $2 AND mc.origen = 'manual' AND mc.categoria = 'abono_credito')
         AS deuda_actual`,
-      [negocioId, id]
+      [moduloId, id]
     );
 
     res.status(201).json({
@@ -1423,33 +1453,37 @@ app.post('/api/clientes/:id/deuda-manual', authenticateToken, checkAccess, requi
 app.post('/api/clientes', authenticateToken, checkAccess, async (req, res) => {
   try {
     const negocioId = req.negocioId;
+    const moduloId = req.moduloId;
     const { nombre, cedula, telefono, direccion, email } = req.body;
 
-    if (!negocioId) {
-      return res.status(400).json({ error: 'Negocio no identificado' });
+    if (!moduloId) {
+      return res.status(400).json({ error: 'Se requiere un módulo' });
     }
 
     if (!nombre || !nombre.trim()) {
       return res.status(400).json({ error: 'El nombre es requerido' });
     }
 
-    // UNIQUE(negocio_id, cedula) permite múltiples NULL sin chocar, pero un
-    // string vacío '' sí choca si hay más de un cliente sin cédula.
+    // UNIQUE(modulo_id, cedula) permite múltiples NULL sin chocar, pero un
+    // string vacío '' sí choca si hay más de un cliente sin cédula. La
+    // misma cédula SÍ puede existir en otro módulo del mismo negocio (son
+    // clientes independientes, con su propia deuda cada uno) — por eso la
+    // unicidad es por módulo, no por negocio.
     const cedulaLimpia = cedula && cedula.trim() !== '' ? cedula.trim() : null;
 
-    const numero_cliente = await generarNumeroCliente(negocioId, pool);
+    const numero_cliente = await generarNumeroCliente(moduloId, pool);
 
     const result = await pool.query(
-      `INSERT INTO clientes (negocio_id, numero_cliente, nombre, cedula, telefono, direccion, email)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
+      `INSERT INTO clientes (negocio_id, modulo_id, numero_cliente, nombre, cedula, telefono, direccion, email)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
        RETURNING *`,
-      [negocioId, numero_cliente, nombre.trim(), cedulaLimpia, telefono || null, direccion || null, email || null]
+      [negocioId, moduloId, numero_cliente, nombre.trim(), cedulaLimpia, telefono || null, direccion || null, email || null]
     );
 
     res.status(201).json(result.rows[0]);
   } catch (error) {
     if (error.code === '23505') {
-      return res.status(409).json({ error: 'Ya existe un cliente con esa cédula en este negocio' });
+      return res.status(409).json({ error: 'Ya existe un cliente con esa cédula en este módulo' });
     }
     console.error('Error creando cliente:', error);
     res.status(500).json({ error: 'Error interno del servidor' });
@@ -1460,7 +1494,7 @@ app.post('/api/clientes', authenticateToken, checkAccess, async (req, res) => {
 app.put('/api/clientes/:id', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
-    const negocioId = req.negocioId;
+    const moduloId = req.moduloId;
     const { nombre, cedula, telefono, direccion, email } = req.body;
 
     if (!nombre || !nombre.trim()) {
@@ -1472,9 +1506,9 @@ app.put('/api/clientes/:id', authenticateToken, checkAccess, requireAdmin, async
     const result = await pool.query(
       `UPDATE clientes
        SET nombre = $1, cedula = $2, telefono = $3, direccion = $4, email = $5
-       WHERE id = $6 AND negocio_id = $7
+       WHERE id = $6 AND modulo_id = $7
        RETURNING *`,
-      [nombre.trim(), cedulaLimpia, telefono || null, direccion || null, email || null, id, negocioId]
+      [nombre.trim(), cedulaLimpia, telefono || null, direccion || null, email || null, id, moduloId]
     );
 
     if (result.rows.length === 0) {
@@ -1484,7 +1518,7 @@ app.put('/api/clientes/:id', authenticateToken, checkAccess, requireAdmin, async
     res.json(result.rows[0]);
   } catch (error) {
     if (error.code === '23505') {
-      return res.status(409).json({ error: 'Ya existe un cliente con esa cédula en este negocio' });
+      return res.status(409).json({ error: 'Ya existe un cliente con esa cédula en este módulo' });
     }
     console.error('Error actualizando cliente:', error);
     res.status(500).json({ error: 'Error interno del servidor' });
@@ -3766,15 +3800,36 @@ app.post('/api/inventario/ajustar-stock', authenticateToken, checkAccess, requir
   }
 });
 
-// ==================== RUTAS DE USUARIOS (solo super admin) ====================
+// ==================== RUTAS DE USUARIOS ====================
+// Crear/eliminar usuarios sigue siendo solo super admin. Listar usuarios
+// de un negocio (para la pantalla de admin que asigna módulos a sus
+// trabajadores) también se permite a admin, pero solo de su propio
+// negocio — mismo patrón de auto-scoping que /api/negocios/:id/modulos.
 
-app.get('/api/negocios/:id/usuarios', authenticateToken, requireSuperAdmin, async (req, res) => {
+app.get('/api/negocios/:id/usuarios', authenticateToken, requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
-    
+
+    if (req.user.rol !== 'super_admin') {
+      const userResult = await pool.query(
+        'SELECT negocio_id FROM usuarios WHERE id = $1',
+        [req.user.id]
+      );
+      if (userResult.rows[0]?.negocio_id !== parseInt(id)) {
+        return res.status(403).json({ error: 'No tienes acceso a este negocio' });
+      }
+    }
+
+    // modulos_asignados va con id además de nombre (no solo nombre, como
+    // antes) para poder marcar los checkboxes de la pantalla de asignación
+    // sin ambigüedad; el FILTER evita que un usuario sin módulos quede
+    // como [null] en vez de [].
     const result = await pool.query(
-      `SELECT u.id, u.nombre, u.email, u.rol, u.activo, 
-              json_agg(m.nombre) as modulos_asignados
+      `SELECT u.id, u.nombre, u.email, u.rol, u.activo,
+              COALESCE(
+                json_agg(json_build_object('id', m.id, 'nombre', m.nombre)) FILTER (WHERE m.id IS NOT NULL),
+                '[]'
+              ) as modulos_asignados
        FROM usuarios u
        LEFT JOIN usuario_modulos um ON u.id = um.usuario_id
        LEFT JOIN modulos m ON um.modulo_id = m.id
@@ -4168,10 +4223,12 @@ app.put('/api/pedidos-cliente/:id/completar', authenticateToken, checkAccess, as
       return res.status(400).json({ error: 'Para completar como crédito, este pedido necesita un cliente registrado primero' });
     }
 
+    // Los clientes son por módulo (no por negocio) — mismo criterio que
+    // POST /api/ventas.
     if (cliente_id) {
       const clienteCheck = await client.query(
-        'SELECT id FROM clientes WHERE id = $1 AND negocio_id = $2',
-        [cliente_id, negocioId]
+        'SELECT id FROM clientes WHERE id = $1 AND modulo_id = $2',
+        [cliente_id, moduloId]
       );
       if (clienteCheck.rows.length === 0) {
         await client.query('ROLLBACK');
@@ -4575,7 +4632,7 @@ app.post('/api/menu/:moduloId/pedidos', async (req, res) => {
     await client.query('BEGIN');
 
     const { moduloId } = req.params;
-    const { mesa_nombre, monto_recibido, items } = req.body;
+    const { mesa_nombre, monto_recibido, items, es_domicilio, direccion_entrega } = req.body;
 
     if (!/^\d+$/.test(moduloId)) {
       await client.query('ROLLBACK');
@@ -4609,6 +4666,18 @@ app.post('/api/menu/:moduloId/pedidos', async (req, res) => {
         return res.status(400).json({ error: 'Monto recibido inválido' });
       }
       montoRecibidoValido = val;
+    }
+
+    // Si es domicilio, la dirección es obligatoria (sin ella el negocio no
+    // sabe dónde llevarlo).
+    const esDomicilio = !!es_domicilio;
+    let direccionEntregaValida = null;
+    if (esDomicilio) {
+      if (!direccion_entrega || !direccion_entrega.trim()) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: 'La dirección de entrega es requerida para pedidos a domicilio' });
+      }
+      direccionEntregaValida = direccion_entrega.trim();
     }
 
     const detallesValidados = [];
@@ -4658,10 +4727,10 @@ app.post('/api/menu/:moduloId/pedidos', async (req, res) => {
     const tokenPublico = crypto.randomBytes(24).toString('hex');
 
     const pedidoResult = await client.query(
-      `INSERT INTO pedidos_cliente (modulo_id, token_publico, mesa_nombre, monto_recibido, subtotal, total)
-       VALUES ($1, $2, $3, $4, $5, $6)
+      `INSERT INTO pedidos_cliente (modulo_id, token_publico, mesa_nombre, monto_recibido, subtotal, total, es_domicilio, direccion_entrega)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
        RETURNING *`,
-      [moduloId, tokenPublico, mesa_nombre.trim(), montoRecibidoValido, subtotal, total]
+      [moduloId, tokenPublico, mesa_nombre.trim(), montoRecibidoValido, subtotal, total, esDomicilio, direccionEntregaValida]
     );
 
     const pedido = pedidoResult.rows[0];
@@ -4737,7 +4806,7 @@ app.put('/api/menu/pedido/:token', async (req, res) => {
     await client.query('BEGIN');
 
     const { token } = req.params;
-    const { mesa_nombre, monto_recibido, items } = req.body;
+    const { mesa_nombre, monto_recibido, items, es_domicilio, direccion_entrega } = req.body;
 
     // FOR UPDATE: evita que una edición y, por ejemplo, una cancelación
     // simultánea del mismo pedido se pisen entre sí.
@@ -4778,6 +4847,17 @@ app.put('/api/menu/pedido/:token', async (req, res) => {
         return res.status(400).json({ error: 'Monto recibido inválido' });
       }
       montoRecibidoValido = val;
+    }
+
+    // Mismo criterio que POST /api/menu/:moduloId/pedidos.
+    const esDomicilio = !!es_domicilio;
+    let direccionEntregaValida = null;
+    if (esDomicilio) {
+      if (!direccion_entrega || !direccion_entrega.trim()) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: 'La dirección de entrega es requerida para pedidos a domicilio' });
+      }
+      direccionEntregaValida = direccion_entrega.trim();
     }
 
     const detallesValidados = [];
@@ -4836,10 +4916,11 @@ app.put('/api/menu/pedido/:token', async (req, res) => {
 
     const actualizado = await client.query(
       `UPDATE pedidos_cliente
-       SET mesa_nombre = $1, monto_recibido = $2, subtotal = $3, total = $4, fecha_actualizacion = NOW()
-       WHERE id = $5
+       SET mesa_nombre = $1, monto_recibido = $2, subtotal = $3, total = $4, fecha_actualizacion = NOW(),
+           es_domicilio = $5, direccion_entrega = $6
+       WHERE id = $7
        RETURNING *`,
-      [mesa_nombre.trim(), montoRecibidoValido, subtotal, total, pedido.id]
+      [mesa_nombre.trim(), montoRecibidoValido, subtotal, total, esDomicilio, direccionEntregaValida, pedido.id]
     );
 
     await client.query('COMMIT');

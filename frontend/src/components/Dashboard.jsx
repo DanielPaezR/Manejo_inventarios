@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import SelectorModulo from './SelectorModulo';
 import CambiarPassword from './CambiarPassword';
+import GestionModulos from './GestionModulos';
 import { useModulo } from '../hooks/useModulo';
 import './Dashboard.css';
 
@@ -10,6 +11,8 @@ const Dashboard = ({ user, onLogout }) => {
   const navigate = useNavigate();
   const { moduloActivo, modulos } = useModulo();
   const [showCambiarPassword, setShowCambiarPassword] = useState(false);
+  const [showGestionModulos, setShowGestionModulos] = useState(false);
+  const puedeGestionarModulos = user?.rol === 'admin';
   // En móvil el sidebar es un drawer: debe arrancar cerrado (collapsed=true).
   // En desktop arranca expandido (collapsed=false).
   const [sidebarCollapsed, setSidebarCollapsed] = useState(
@@ -249,6 +252,15 @@ const Dashboard = ({ user, onLogout }) => {
             )}
           </div>
           <SelectorModulo />
+          {puedeGestionarModulos && (
+            <button
+              className="btn-gestionar-modulos"
+              onClick={() => setShowGestionModulos(true)}
+              title="Crear módulos y dar acceso a usuarios"
+            >
+              🧩 Gestionar módulos
+            </button>
+          )}
         </div>
       )}
 
@@ -327,6 +339,10 @@ const Dashboard = ({ user, onLogout }) => {
 
       {showCambiarPassword && (
         <CambiarPassword onClose={() => setShowCambiarPassword(false)} />
+      )}
+
+      {showGestionModulos && (
+        <GestionModulos user={user} onClose={() => setShowGestionModulos(false)} />
       )}
     </div>
   );

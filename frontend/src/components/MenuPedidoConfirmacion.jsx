@@ -64,6 +64,8 @@ const MenuPedidoConfirmacion = () => {
   const [carritoEdit, setCarritoEdit] = useState({});
   const [mesaNombreEdit, setMesaNombreEdit] = useState('');
   const [montoRecibidoEdit, setMontoRecibidoEdit] = useState('');
+  const [esDomicilioEdit, setEsDomicilioEdit] = useState(false);
+  const [direccionEntregaEdit, setDireccionEntregaEdit] = useState('');
   const [guardando, setGuardando] = useState(false);
   const [cancelando, setCancelando] = useState(false);
   const [confirmando, setConfirmando] = useState(false);
@@ -101,6 +103,8 @@ const MenuPedidoConfirmacion = () => {
     setCarritoEdit(inicial);
     setMesaNombreEdit(pedido.mesa_nombre);
     setMontoRecibidoEdit(pedido.monto_recibido ? String(Number(pedido.monto_recibido)) : '');
+    setEsDomicilioEdit(!!pedido.es_domicilio);
+    setDireccionEntregaEdit(pedido.direccion_entrega || '');
     setErrorAccion('');
     setEditando(true);
 
@@ -174,12 +178,18 @@ const MenuPedidoConfirmacion = () => {
       setErrorAccion('⚠️ Agrega al menos un producto');
       return;
     }
+    if (esDomicilioEdit && !direccionEntregaEdit.trim()) {
+      setErrorAccion('⚠️ Ingresa la dirección de entrega');
+      return;
+    }
 
     try {
       setGuardando(true);
       await apiPublico.put(`/menu/pedido/${token}`, {
         mesa_nombre: mesaNombreEdit.trim(),
         monto_recibido: montoRecibidoEdit ? Number(montoRecibidoEdit) : undefined,
+        es_domicilio: esDomicilioEdit,
+        direccion_entrega: esDomicilioEdit ? direccionEntregaEdit.trim() : undefined,
         items: itemsEdit
       });
       // Se recarga por GET en vez de usar la respuesta del PUT directamente:
@@ -249,6 +259,11 @@ const MenuPedidoConfirmacion = () => {
       if (pedido.monto_recibido) {
         mensaje += `*Paga con:* ${formatearMoneda(pedido.monto_recibido)}\n`;
       }
+      // Sin emoji de domicilio aquí (🛵 tampoco es BMP): mismo motivo que
+      // el resto de emojis excluidos de este mensaje, arriba.
+      if (pedido.es_domicilio) {
+        mensaje += `*Domicilio:* ${pedido.direccion_entrega}\n`;
+      }
 
       const url = `https://wa.me/${telefono}?text=${encodeURIComponent(mensaje)}`;
       window.open(url, '_blank');
@@ -301,6 +316,12 @@ const MenuPedidoConfirmacion = () => {
           {pedido.monto_recibido && (
             <p className="menu-confirmacion-monto-recibido">
               Paga con: {formatearMoneda(pedido.monto_recibido)}
+            </p>
+          )}
+
+          {pedido.es_domicilio && (
+            <p className="menu-confirmacion-monto-recibido">
+              🛵 Domicilio: {pedido.direccion_entrega}
             </p>
           )}
 
@@ -405,6 +426,25 @@ const MenuPedidoConfirmacion = () => {
               onChange={(e) => setMontoRecibidoEdit(e.target.value)}
               className="mp-input"
             />
+
+            <label className="mp-checkbox">
+              <input
+                type="checkbox"
+                checked={esDomicilioEdit}
+                onChange={(e) => setEsDomicilioEdit(e.target.checked)}
+              />
+              <span>🛵 Es domicilio (necesito que me lo lleven)</span>
+            </label>
+
+            {esDomicilioEdit && (
+              <input
+                type="text"
+                placeholder="Dirección de entrega *"
+                value={direccionEntregaEdit}
+                onChange={(e) => setDireccionEntregaEdit(e.target.value)}
+                className="mp-input"
+              />
+            )}
           </div>
 
           {errorAccion && <p className="mp-error">{errorAccion}</p>}

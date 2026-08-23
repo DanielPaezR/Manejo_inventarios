@@ -688,6 +688,24 @@
   gap: 10px;
 }
 
+.mp-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  color: var(--color-text);
+  padding: 4px 2px;
+  cursor: pointer;
+}
+
+.mp-checkbox input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--color-accent);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
 @media (max-width: 480px) {
   .menu-publico-container {
     padding: 0 16px 28px;

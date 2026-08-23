@@ -180,6 +180,24 @@
   color: #718096;
 }
 
+.pedido-cliente-domicilio-badge {
+  display: inline-block;
+  padding: 3px 12px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+  background: #feebc8;
+  color: #9c4221;
+}
+
+.pedido-cliente-domicilio {
+  margin: 6px 0 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: #9c4221;
+}
+
 .pedido-cliente-acciones {
   display: flex;
   gap: 10px;

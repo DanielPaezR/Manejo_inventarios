@@ -125,6 +125,8 @@ const MenuPublico = () => {
   const [carrito, setCarrito] = useState({}); // { [producto_id]: cantidad }
   const [mesaNombre, setMesaNombre] = useState('');
   const [montoRecibido, setMontoRecibido] = useState('');
+  const [esDomicilio, setEsDomicilio] = useState(false);
+  const [direccionEntrega, setDireccionEntrega] = useState('');
   const [enviando, setEnviando] = useState(false);
   const [errorEnvio, setErrorEnvio] = useState('');
   const [categoriasAbiertas, setCategoriasAbiertas] = useState(new Set());
@@ -248,12 +250,18 @@ const MenuPublico = () => {
       setErrorEnvio('⚠️ Agrega al menos un producto');
       return;
     }
+    if (esDomicilio && !direccionEntrega.trim()) {
+      setErrorEnvio('⚠️ Ingresa la dirección de entrega');
+      return;
+    }
 
     try {
       setEnviando(true);
       const response = await apiPublico.post(`/menu/${moduloId}/pedidos`, {
         mesa_nombre: mesaNombre.trim(),
         monto_recibido: montoRecibido ? Number(montoRecibido) : undefined,
+        es_domicilio: esDomicilio,
+        direccion_entrega: esDomicilio ? direccionEntrega.trim() : undefined,
         items: itemsCarrito.map(item => ({
           producto_id: item.producto.id,
           cantidad: item.cantidad
@@ -329,6 +337,25 @@ const MenuPublico = () => {
               onChange={(e) => setMontoRecibido(e.target.value)}
               className="mp-input"
             />
+
+            <label className="mp-checkbox">
+              <input
+                type="checkbox"
+                checked={esDomicilio}
+                onChange={(e) => setEsDomicilio(e.target.checked)}
+              />
+              <span>🛵 Es domicilio (necesito que me lo lleven)</span>
+            </label>
+
+            {esDomicilio && (
+              <input
+                type="text"
+                placeholder="Dirección de entrega *"
+                value={direccionEntrega}
+                onChange={(e) => setDireccionEntrega(e.target.value)}
+                className="mp-input"
+              />
+            )}
           </div>
 
           {errorEnvio && <p className="mp-error">{errorEnvio}</p>}
