@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import api from '../services/api';
 import { useModulo } from '../hooks/useModulo';
 import SubidaImagen from './SubidaImagen';
+import { IconoHoja, obtenerColorPlaceholder } from '../utils/menuVisual';
 import './PedidosCliente.css';
 
 const ESTADO_INFO = {
@@ -31,7 +32,7 @@ function urlBase64ToUint8Array(base64String) {
 const INTERVALO_POLLING_MS = 30000;
 
 const PedidosCliente = ({ user }) => {
-  const { moduloActivo } = useModulo();
+  const { moduloActivo, cambiarModulo } = useModulo();
   const [pedidos, setPedidos] = useState([]);
   const [loading, setLoading] = useState(false);
   const [mensaje, setMensaje] = useState('');
@@ -53,10 +54,14 @@ const PedidosCliente = ({ user }) => {
   const [clienteIdCompletar, setClienteIdCompletar] = useState('');
   const [completando, setCompletando] = useState(false);
 
-  // Configuración del menú público (foto de portada del hero). Solo admin
-  // puede verla/editarla, igual que la gestión de Productos/Categorías.
+  // Configuración del menú público (nombre de marca visible al cliente y
+  // foto de portada del hero). Solo admin puede verla/editarla, igual que
+  // la gestión de Productos/Categorías.
+  const [nombrePublico, setNombrePublico] = useState('');
   const [fotoPortadaUrl, setFotoPortadaUrl] = useState('');
+  const [negocioNombre, setNegocioNombre] = useState('');
   const [guardandoPortada, setGuardandoPortada] = useState(false);
+  const [editandoNombrePublico, setEditandoNombrePublico] = useState(false);
   const esAdmin = user?.rol === 'admin' || user?.rol === 'super_admin';
 
   // Notificaciones push de pedidos nuevos. Disponible para admin y
@@ -92,7 +97,11 @@ const PedidosCliente = ({ user }) => {
   useEffect(() => {
     if (!moduloActivo || !esAdmin) return;
     api.get(`/modulos/${moduloActivo.id}`)
-      .then(response => setFotoPortadaUrl(response.data.foto_portada_url || ''))
+      .then(response => {
+        setFotoPortadaUrl(response.data.foto_portada_url || '');
+        setNombrePublico(response.data.nombre_publico || '');
+        setNegocioNombre(response.data.negocio_nombre || '');
+      })
       .catch(error => console.error('Error cargando configuración del módulo:', error));
   }, [moduloActivo, esAdmin]);
 
@@ -308,14 +317,17 @@ const PedidosCliente = ({ user }) => {
     }
   };
 
-  const guardarFotoPortada = async () => {
+  const guardarConfiguracionMenu = async () => {
     try {
       setGuardandoPortada(true);
-      await api.put(`/modulos/${moduloActivo.id}/portada`, { foto_portada_url: fotoPortadaUrl.trim() });
-      setMensaje('✅ Foto de portada actualizada');
+      await api.put(`/modulos/${moduloActivo.id}/portada`, {
+        nombre_publico: nombrePublico.trim(),
+        foto_portada_url: fotoPortadaUrl.trim()
+      });
+      setMensaje('✅ Menú actualizado');
     } catch (error) {
-      console.error('Error guardando foto de portada:', error);
-      setMensaje(`❌ ${error.response?.data?.error || 'Error al guardar la foto de portada'}`);
+      console.error('Error guardando configuración del menú:', error);
+      setMensaje(`❌ ${error.response?.data?.error || 'Error al guardar el menú'}`);
     } finally {
       setGuardandoPortada(false);
       setTimeout(() => setMensaje(''), 4000);
@@ -421,20 +433,62 @@ const PedidosCliente = ({ user }) => {
       {esAdmin && (
         <div className="config-menu-card">
           <h3>⚙️ Configuración del menú</h3>
-          <div className="config-menu-fila">
-            <SubidaImagen
-              valor={fotoPortadaUrl}
-              onCambiar={setFotoPortadaUrl}
-              botonTexto="📷 Subir foto de portada"
-            />
-            <button
-              onClick={guardarFotoPortada}
-              disabled={guardandoPortada}
-              className="btn-guardar config-menu-btn-guardar"
-            >
-              {guardandoPortada ? 'Guardando...' : '💾 Guardar'}
-            </button>
+          <p className="config-menu-hint">Así lo ve tu cliente. Haz clic en el nombre o pasa el mouse sobre la foto para cambiarlos.</p>
+
+          <div
+            className="mp-hero config-menu-preview"
+            style={!fotoPortadaUrl ? { background: obtenerColorPlaceholder(nombrePublico || moduloActivo.nombre) } : undefined}
+          >
+            {fotoPortadaUrl && (
+              <img src={fotoPortadaUrl} alt="" className="mp-hero__foto" />
+            )}
+            <div className="mp-hero__overlay" />
+
+            <div className="config-menu-foto-control">
+              <SubidaImagen
+                valor={fotoPortadaUrl}
+                onCambiar={setFotoPortadaUrl}
+                botonTexto="📷 Cambiar foto"
+                ocultarPreview
+              />
+            </div>
+
+            <div className="mp-hero__contenido">
+              <span className="mp-hero__icono-wrap">
+                <IconoHoja className="mp-hero__icono" />
+              </span>
+              <div className="config-menu-nombre-wrap">
+                {editandoNombrePublico ? (
+                  <input
+                    type="text"
+                    className="mp-hero__nombre config-menu-nombre-input"
+                    value={nombrePublico}
+                    onChange={(e) => setNombrePublico(e.target.value)}
+                    onBlur={() => setEditandoNombrePublico(false)}
+                    placeholder={moduloActivo.nombre}
+                    autoFocus
+                  />
+                ) : (
+                  <h1
+                    className="mp-hero__nombre config-menu-nombre-editable"
+                    onClick={() => setEditandoNombrePublico(true)}
+                    title="Clic para cambiar el nombre"
+                  >
+                    {nombrePublico || moduloActivo.nombre} <span className="config-menu-lapiz">✏️</span>
+                  </h1>
+                )}
+                <p className="mp-hero__tagline">{negocioNombre}</p>
+              </div>
+            </div>
           </div>
+
+          <button
+            onClick={guardarConfiguracionMenu}
+            disabled={guardandoPortada}
+            className="btn-guardar config-menu-btn-guardar"
+          >
+            {guardandoPortada ? 'Guardando...' : '💾 Guardar cambios del menú'}
+          </button>
         </div>
       )}
 
@@ -495,6 +549,11 @@ const PedidosCliente = ({ user }) => {
                 <div className="pedido-cliente-resumen" onClick={() => toggleExpandido(pedido.id)}>
                   <div className="pedido-cliente-resumen-principal">
                     <span className="pedido-cliente-mesa">{pedido.mesa_nombre}</span>
+                    {esAdmin && pedido.modulo_nombre && (
+                      <span className="badge-otro-modulo" title="Módulo al que pertenece este pedido">
+                        📁 {pedido.modulo_nombre}
+                      </span>
+                    )}
                     {pedido.es_domicilio && (
                       <span className="pedido-cliente-domicilio-badge">🛵 Domicilio</span>
                     )}
@@ -629,7 +688,16 @@ const PedidosCliente = ({ user }) => {
                           <p className="pedido-cliente-domicilio">🛵 Domicilio: {pedido.direccion_entrega}</p>
                         )}
 
-                        {(pedido.estado === 'pendiente' || pedido.estado === 'confirmado' || pedido.estado === 'cancelado') && (
+                        {esAdmin && pedido.modulo_id !== moduloActivo.id ? (
+                          <div className="pedido-cliente-acciones">
+                            <button
+                              onClick={() => cambiarModulo({ id: pedido.modulo_id, nombre: pedido.modulo_nombre })}
+                              className="btn-editar-pedido-cliente"
+                            >
+                              🔀 Cambiar a "{pedido.modulo_nombre}" para gestionarlo
+                            </button>
+                          </div>
+                        ) : (pedido.estado === 'pendiente' || pedido.estado === 'confirmado' || pedido.estado === 'cancelado') && (
                           <div className="pedido-cliente-acciones">
                             {pedido.estado === 'pendiente' && (
                               <button

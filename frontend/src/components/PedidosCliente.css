@@ -77,6 +77,64 @@
   padding: 10px 18px;
 }
 
+/* Vista previa editable del menú: reutiliza las clases .mp-hero* de
+   MenuPublico.css (una sola hoja global compilada) para que se vea
+   idéntica al menú real que ve el cliente. */
+.config-menu-hint {
+  margin: 0 0 14px;
+  font-size: 13px;
+  color: #718096;
+}
+
+.config-menu-preview {
+  margin: 0 0 14px;
+  border-radius: 16px;
+}
+
+.config-menu-foto-control {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 2;
+}
+
+.config-menu-foto-control .subida-imagen-fila {
+  gap: 0;
+}
+
+.config-menu-foto-control .btn-subida-imagen,
+.config-menu-foto-control .btn-quitar-imagen {
+  font-size: 12px;
+  padding: 6px 10px;
+  border-radius: 20px;
+  background: rgba(0, 0, 0, 0.55);
+  color: white;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+}
+
+.config-menu-nombre-wrap {
+  min-width: 0;
+}
+
+.config-menu-nombre-editable {
+  cursor: pointer;
+}
+
+.config-menu-lapiz {
+  font-size: 16px;
+  opacity: 0.75;
+}
+
+.config-menu-nombre-input {
+  display: block;
+  background: rgba(255, 255, 255, 0.15);
+  border: 1px dashed rgba(255, 255, 255, 0.7);
+  border-radius: 6px;
+  padding: 2px 6px;
+  width: 100%;
+  max-width: 280px;
+}
+
 .notificaciones-estado {
   margin: 0;
   font-size: 13px;

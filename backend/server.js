@@ -561,8 +561,15 @@ app.get('/api/modulos/:id', authenticateToken, checkAccess, async (req, res) => 
       return res.status(400).json({ error: 'Negocio no identificado' });
     }
 
+    // negocio_nombre se trae para la vista previa editable del menú en
+    // PedidosCliente.jsx (el subtítulo bajo el nombre público, igual que
+    // en el menú real que ve el cliente).
     const result = await pool.query(
-      'SELECT id, nombre, descripcion, activo, foto_portada_url, frecuencia_entrega_dias FROM modulos WHERE id = $1 AND negocio_id = $2',
+      `SELECT m.id, m.nombre, m.nombre_publico, m.descripcion, m.activo, m.foto_portada_url, m.frecuencia_entrega_dias,
+              n.nombre as negocio_nombre
+       FROM modulos m
+       JOIN negocios n ON m.negocio_id = n.id
+       WHERE m.id = $1 AND m.negocio_id = $2`,
       [id, negocioId]
     );
 
@@ -577,14 +584,13 @@ app.get('/api/modulos/:id', authenticateToken, checkAccess, async (req, res) => 
   }
 });
 
-// Configurar la foto de portada del menú público (hero de MenuPublico.jsx)
-// y la frecuencia de entrega a domicilio (informativa, la usa la Ruta de
+// Configurar la personalización del menú público de este módulo: nombre de
+// marca visible al cliente, foto de portada (hero de MenuPublico.jsx) y
+// frecuencia de entrega a domicilio (informativa, la usa la Ruta de
 // Entregas). Ruta dedicada en vez de un PUT /api/modulos/:id genérico
-// porque hoy no existe ninguna ruta general de edición de módulo. Los 2
+// porque hoy no existe ninguna ruta general de edición de módulo. Los 3
 // campos son independientes entre sí: cada uno se actualiza SOLO si vino
-// explícito en el body (PedidosCliente.jsx solo manda foto_portada_url;
-// RutaEntregas.jsx solo manda frecuencia_entrega_dias), para que editar
-// uno no borre el otro.
+// explícito en el body, para que editar uno no borre los demás.
 app.put('/api/modulos/:id/portada', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
@@ -597,6 +603,11 @@ app.put('/api/modulos/:id/portada', authenticateToken, checkAccess, requireAdmin
     const sets = [];
     const values = [];
     let paramIndex = 1;
+
+    if ('nombre_publico' in req.body) {
+      sets.push(`nombre_publico = $${paramIndex++}`);
+      values.push(req.body.nombre_publico?.trim() || null);
+    }
 
     if ('foto_portada_url' in req.body) {
       sets.push(`foto_portada_url = $${paramIndex++}`);
@@ -625,7 +636,7 @@ app.put('/api/modulos/:id/portada', authenticateToken, checkAccess, requireAdmin
     const result = await pool.query(
       `UPDATE modulos SET ${sets.join(', ')}
        WHERE id = $${paramIndex++} AND negocio_id = $${paramIndex}
-       RETURNING id, nombre, descripcion, activo, foto_portada_url, frecuencia_entrega_dias`,
+       RETURNING id, nombre, nombre_publico, descripcion, activo, foto_portada_url, frecuencia_entrega_dias`,
       values
     );
 
@@ -4299,29 +4310,53 @@ app.delete('/api/usuarios/:id', authenticateToken, requireAdmin, async (req, res
 // authenticateToken + checkAccess pero SIN requireAdmin: tanto admin
 // como trabajador deben poder gestionarlos, igual que ya operan el POS.
 
-// Lista los pedidos del módulo activo. 'pendiente'/'confirmado' primero
-// (son los que necesitan acción), luego 'completado'/'cancelado' al
-// final — cada grupo por fecha_creacion descendente.
+// Lista los pedidos. El admin/super_admin ve los de TODOS los módulos de su
+// negocio a la vez (con el nombre del módulo en cada fila, para que el
+// frontend pinte el badge) — así no se le pierde un pedido pendiente de un
+// módulo que no tiene activo en este momento. El trabajador sigue viendo
+// solo los del módulo activo, igual que el resto de la app.
+// 'pendiente'/'confirmado' primero (son los que necesitan acción), luego
+// 'completado'/'cancelado' al final — cada grupo por fecha_creacion
+// descendente.
 app.get('/api/pedidos-cliente', authenticateToken, checkAccess, async (req, res) => {
   try {
     const moduloId = req.moduloId;
+    const negocioId = req.negocioId;
+    const esAdmin = req.user.rol === 'admin' || req.user.rol === 'super_admin';
 
     if (!moduloId) {
       return res.status(400).json({ error: 'Se requiere un módulo' });
     }
 
-    const pedidosResult = await pool.query(
-      `SELECT * FROM pedidos_cliente
-       WHERE modulo_id = $1
-       ORDER BY
-         CASE estado
-           WHEN 'pendiente' THEN 0
-           WHEN 'confirmado' THEN 0
-           ELSE 1
-         END,
-         fecha_creacion DESC`,
-      [moduloId]
-    );
+    const pedidosResult = esAdmin && negocioId
+      ? await pool.query(
+          `SELECT pc.*, m.nombre as modulo_nombre
+           FROM pedidos_cliente pc
+           JOIN modulos m ON pc.modulo_id = m.id
+           WHERE m.negocio_id = $1
+           ORDER BY
+             CASE pc.estado
+               WHEN 'pendiente' THEN 0
+               WHEN 'confirmado' THEN 0
+               ELSE 1
+             END,
+             pc.fecha_creacion DESC`,
+          [negocioId]
+        )
+      : await pool.query(
+          `SELECT pc.*, m.nombre as modulo_nombre
+           FROM pedidos_cliente pc
+           JOIN modulos m ON pc.modulo_id = m.id
+           WHERE pc.modulo_id = $1
+           ORDER BY
+             CASE pc.estado
+               WHEN 'pendiente' THEN 0
+               WHEN 'confirmado' THEN 0
+               ELSE 1
+             END,
+             pc.fecha_creacion DESC`,
+          [moduloId]
+        );
 
     const pedidos = pedidosResult.rows;
     if (pedidos.length === 0) {
@@ -4948,7 +4983,7 @@ app.get('/api/menu/:moduloId', async (req, res) => {
     }
 
     const moduloResult = await pool.query(
-      `SELECT m.id, m.nombre, m.activo, m.foto_portada_url, n.nombre as negocio_nombre
+      `SELECT m.id, m.nombre, m.nombre_publico, m.activo, m.foto_portada_url, n.nombre as negocio_nombre
        FROM modulos m
        JOIN negocios n ON m.negocio_id = n.id
        WHERE m.id = $1`,
@@ -4973,6 +5008,10 @@ app.get('/api/menu/:moduloId', async (req, res) => {
       modulo: {
         id: moduloResult.rows[0].id,
         nombre: moduloResult.rows[0].nombre,
+        // nombre_publico es el nombre de marca que ve el cliente en el menú
+        // (ej. "Cositas de Ana"); si el módulo no lo configuró, cae al
+        // nombre interno de gestión — así el menú nunca queda sin título.
+        nombre_publico: moduloResult.rows[0].nombre_publico || moduloResult.rows[0].nombre,
         negocio_nombre: moduloResult.rows[0].negocio_nombre,
         foto_portada_url: moduloResult.rows[0].foto_portada_url
       },

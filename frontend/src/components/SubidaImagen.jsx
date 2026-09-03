@@ -8,7 +8,10 @@ import './SubidaImagen.css';
 // "controlado": no guarda la URL en su propio estado, solo la sube y
 // avisa al padre vía onCambiar — el padre decide dónde vive ese string
 // (formData.foto_url, etc.).
-const SubidaImagen = ({ valor, onCambiar, botonTexto = '📷 Subir foto' }) => {
+// ocultarPreview: para cuando el padre ya muestra la foto en otro lado
+// (ej. como fondo de un hero) y la miniatura propia de este componente
+// sería redundante — solo se renderiza el botón (y el de quitar foto).
+const SubidaImagen = ({ valor, onCambiar, botonTexto = '📷 Subir foto', ocultarPreview = false }) => {
   const inputRef = useRef(null);
   const [subiendo, setSubiendo] = useState(false);
   const [error, setError] = useState('');
@@ -37,7 +40,7 @@ const SubidaImagen = ({ valor, onCambiar, botonTexto = '📷 Subir foto' }) => {
   return (
     <div className="subida-imagen">
       <div className="subida-imagen-fila">
-        {valor && (
+        {valor && !ocultarPreview && (
           <img src={valor} alt="Vista previa" className="subida-imagen-preview" />
         )}
 

@@ -1,20 +1,16 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import apiPublico from '../services/apiPublico';
+import { IconoHoja, obtenerColorPlaceholder } from '../utils/menuVisual';
 import './MenuPublico.css';
 
 // ============================================================
 // Iconografía — SVG en línea, paths tal cual especificados en el
 // diseño "Modernist". stroke="currentColor" para heredar el color del
 // contenedor vía CSS `color`.
+// IconoHoja y obtenerColorPlaceholder viven en utils/menuVisual.js porque
+// la vista previa editable de PedidosCliente.jsx también los necesita.
 // ============================================================
-const IconoHoja = (props) => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
-    <path d="M4 20c8 0 14-6 14-14 0-1 0-2-.5-3C10 4 4 10 4 18c0 .7 0 1.4.2 2z" />
-    <path d="M4 20c3-6 7-10 13-13" />
-  </svg>
-);
-
 const IconoMontana = (props) => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
     <path d="M3 20l5.5-9.5L12 16l3-5L21 20H3z" />
@@ -61,19 +57,6 @@ const obtenerIconoCategoria = (nombreCategoria) => {
   if (n.includes('bebida') || n.includes('trago') || n.includes('jugo') || n.includes('gaseosa')) return IconoGota;
   if (n.includes('postre') || n.includes('dulce')) return IconoEspiga;
   return IconoHoja;
-};
-
-// Paleta cálida para placeholders de foto (producto y hero): rota por
-// hash del nombre para que cada uno tenga un color consistente entre
-// renders.
-const COLORES_PLACEHOLDER = ['#B5533C', '#5C7A52', '#C98A2E', '#8C5B3F', '#7A4B32', '#4E6B4A'];
-
-const obtenerColorPlaceholder = (texto) => {
-  let hash = 0;
-  for (let i = 0; i < texto.length; i++) {
-    hash = texto.charCodeAt(i) + ((hash << 5) - hash);
-  }
-  return COLORES_PLACEHOLDER[Math.abs(hash) % COLORES_PLACEHOLDER.length];
 };
 
 const obtenerIniciales = (nombre) =>
@@ -373,7 +356,7 @@ const MenuPublico = () => {
         <>
           <div
             className="mp-hero"
-            style={(!modulo?.foto_portada_url || heroImagenConError) ? { background: obtenerColorPlaceholder(modulo?.negocio_nombre || '') } : undefined}
+            style={(!modulo?.foto_portada_url || heroImagenConError) ? { background: obtenerColorPlaceholder(modulo?.nombre_publico || '') } : undefined}
           >
             {modulo?.foto_portada_url && !heroImagenConError && (
               <img
@@ -390,8 +373,8 @@ const MenuPublico = () => {
                 <IconoHoja className="mp-hero__icono" />
               </span>
               <div>
-                <h1 className="mp-hero__nombre">{modulo?.negocio_nombre}</h1>
-                <p className="mp-hero__tagline">{modulo?.nombre}</p>
+                <h1 className="mp-hero__nombre">{modulo?.nombre_publico}</h1>
+                <p className="mp-hero__tagline">{modulo?.negocio_nombre}</p>
               </div>
             </div>
           </div>
