@@ -39,6 +39,14 @@
   border: 1px solid #bee3f8;
 }
 
+.badge-otro-modulo {
+  padding: 2px 8px;
+  font-size: 11px;
+  background: #faf5ff;
+  color: #805ad5;
+  border-color: #e9d8fd;
+}
+
 /* ============================================================
    ACCIONES - BÚSQUEDA Y BOTONES
    ============================================================ */

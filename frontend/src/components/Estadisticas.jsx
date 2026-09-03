@@ -30,10 +30,12 @@ const Estadisticas = ({ user }) => {
   const [loading, setLoading] = useState(false);
   const [periodo, setPeriodo] = useState('hoy');
   const [fechas, setFechas] = useState({ inicio: '', fin: '' });
-  const [vistaActiva, setVistaActiva] = useState('general'); // 'general', 'productos', 'ventas', 'finanzas', 'evolucion'
+  const [vistaActiva, setVistaActiva] = useState('general'); // 'general', 'productos', 'ventas', 'finanzas', 'cruzadas', 'evolucion'
   const [hoveredProducto, setHoveredProducto] = useState(null);
   const [finanzasResumen, setFinanzasResumen] = useState(null);
   const [loadingFinanzas, setLoadingFinanzas] = useState(false);
+  const [ventasCruzadas, setVentasCruzadas] = useState(null);
+  const [loadingCruzadas, setLoadingCruzadas] = useState(false);
 
   // Navegación ← → a bloques anteriores/siguientes cuando periodo es
   // 'semana' o 'mes' (rolling por defecto). periodoOffset 0 = el bloque
@@ -131,6 +133,32 @@ const Estadisticas = ({ user }) => {
       cargarFinanzasResumen();
     }
   }, [moduloActivo, vistaActiva, periodo, periodoOffset, cargarFinanzasResumen]);
+
+  // Ventas cruzadas: cuánto de mis productos compartidos vendieron otros
+  // módulos, y cuánto vendí yo de productos ajenos. Se carga solo al entrar
+  // a esta pestaña, igual que Finanzas.
+  const cargarVentasCruzadas = useCallback(async () => {
+    const params = construirParamsPeriodo();
+    if (!params) {
+      return;
+    }
+
+    try {
+      setLoadingCruzadas(true);
+      const response = await api.get('/estadisticas/ventas-cruzadas', { params });
+      setVentasCruzadas(response.data);
+    } catch (error) {
+      console.error('Error cargando ventas cruzadas:', error);
+    } finally {
+      setLoadingCruzadas(false);
+    }
+  }, [periodo, fechas, periodoOffset]);
+
+  useEffect(() => {
+    if (moduloActivo && vistaActiva === 'cruzadas') {
+      cargarVentasCruzadas();
+    }
+  }, [moduloActivo, vistaActiva, periodo, periodoOffset, cargarVentasCruzadas]);
 
   // Consumo propio: card independiente dentro de la vista 'ventas', con su
   // propio selector de periodo (no el general de la página) porque acá sí
@@ -348,6 +376,12 @@ const Estadisticas = ({ user }) => {
             onClick={() => setVistaActiva('finanzas')}
           >
             💰 Ingresos y Egresos
+          </button>
+          <button
+            className={`btn-vista ${vistaActiva === 'cruzadas' ? 'active' : ''}`}
+            onClick={() => setVistaActiva('cruzadas')}
+          >
+            🔗 Ventas cruzadas
           </button>
           <button
             className={`btn-vista ${vistaActiva === 'evolucion' ? 'active' : ''}`}
@@ -963,6 +997,62 @@ const Estadisticas = ({ user }) => {
                       </div>
                     ) : (
                       <p className="sin-datos">No hay datos en este período</p>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
+          {/* ============================================================
+              VISTA DE VENTAS CRUZADAS (productos compartidos entre módulos)
+              ============================================================ */}
+          {vistaActiva === 'cruzadas' && (
+            <div className="estadisticas-grid">
+              {loadingCruzadas && !ventasCruzadas ? (
+                <div className="loading-container">
+                  <div className="spinner"></div>
+                  <p>Cargando ventas cruzadas...</p>
+                </div>
+              ) : (
+                <>
+                  <div className="card grafico-horizontal-card">
+                    <h3>📤 De tus productos compartidos, vendido por otros módulos</h3>
+                    {ventasCruzadas?.como_dueno?.length > 0 ? (
+                      <div className="barras-horizontales">
+                        {ventasCruzadas.como_dueno.map((item) => (
+                          <div key={item.modulo_id} className="barra-horizontal-item">
+                            <div className="barra-horizontal-header">
+                              <span className="barra-horizontal-nombre">{item.modulo_nombre}</span>
+                              <span className="barra-horizontal-valor">
+                                {formatearMoneda(item.monto)} ({item.unidades} und.)
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="sin-datos">Ningún otro módulo vendió tus productos compartidos en este período</p>
+                    )}
+                  </div>
+
+                  <div className="card grafico-horizontal-card">
+                    <h3>📥 De productos ajenos, cuánto vendiste tú</h3>
+                    {ventasCruzadas?.como_vendedor?.length > 0 ? (
+                      <div className="barras-horizontales">
+                        {ventasCruzadas.como_vendedor.map((item) => (
+                          <div key={item.modulo_id} className="barra-horizontal-item">
+                            <div className="barra-horizontal-header">
+                              <span className="barra-horizontal-nombre">{item.modulo_nombre}</span>
+                              <span className="barra-horizontal-valor">
+                                {formatearMoneda(item.monto)} ({item.unidades} und.)
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="sin-datos">No vendiste productos de otros módulos en este período</p>
                     )}
                   </div>
                 </>

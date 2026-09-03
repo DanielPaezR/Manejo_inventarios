@@ -726,25 +726,34 @@ app.get('/api/productos', authenticateToken, checkAccess, async (req, res) => {
   try {
     const { search } = req.query;
     const moduloId = req.moduloId;
+    const negocioId = req.negocioId;
 
     if (!moduloId) {
       return res.status(400).json({ error: 'Se requiere un módulo' });
     }
 
+    // Un producto siempre pertenece a su módulo dueño (p.modulo_id), pero si
+    // quedó marcado compartido = true, también aparece en el listado de
+    // cualquier otro módulo del MISMO negocio (ej. productos en consignación
+    // de otro módulo que se venden desde este). m_dueno.negocio_id acota el
+    // cruce al negocio del usuario, nunca fuera de él.
     let query = `
-      SELECT p.*, c.nombre as categoria_nombre 
-      FROM productos p 
-      LEFT JOIN categorias c ON p.categoria_id = c.id 
-      WHERE p.activo = true AND p.modulo_id = $1
+      SELECT p.*, c.nombre as categoria_nombre,
+             m_dueno.nombre as modulo_dueno_nombre
+      FROM productos p
+      LEFT JOIN categorias c ON p.categoria_id = c.id
+      JOIN modulos m_dueno ON p.modulo_id = m_dueno.id
+      WHERE p.activo = true
+      AND (p.modulo_id = $1 OR (p.compartido = true AND m_dueno.negocio_id = $2))
     `;
-    let params = [moduloId];
+    let params = [moduloId, negocioId];
 
     if (search) {
       // codigo_ean antes exigía coincidencia exacta y completa (=), a
       // diferencia de nombre (ILIKE parcial). Escribir un código de barras
       // a mano y buscar mientras se completa nunca encontraba nada hasta
       // el último dígito. Ahora ambos aceptan coincidencia parcial.
-      query += ` AND (p.nombre ILIKE $2 OR p.codigo_ean ILIKE $2)`;
+      query += ` AND (p.nombre ILIKE $3 OR p.codigo_ean ILIKE $3)`;
       params.push(`%${search}%`);
     }
 
@@ -771,7 +780,8 @@ app.post('/api/productos', authenticateToken, checkAccess, requireAdmin, async (
       categoria_id,
       es_novedad,
       foto_url,
-      ignora_stock
+      ignora_stock,
+      compartido
     } = req.body;
 
     const moduloId = req.moduloId;
@@ -785,10 +795,10 @@ app.post('/api/productos', authenticateToken, checkAccess, requireAdmin, async (
 
     const result = await pool.query(
       `INSERT INTO productos
-       (modulo_id, codigo_ean, nombre, descripcion, precio_compra, precio_venta, stock_actual, stock_minimo, categoria_id, es_novedad, foto_url, ignora_stock)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+       (modulo_id, codigo_ean, nombre, descripcion, precio_compra, precio_venta, stock_actual, stock_minimo, categoria_id, es_novedad, foto_url, ignora_stock, compartido)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
        RETURNING *`,
-      [moduloId, codigo_ean, nombre, descripcion, precio_compra, precio_venta, stock_actual, stock_minimo, categoriaIdValor, !!es_novedad, foto_url?.trim() || null, !!ignora_stock]
+      [moduloId, codigo_ean, nombre, descripcion, precio_compra, precio_venta, stock_actual, stock_minimo, categoriaIdValor, !!es_novedad, foto_url?.trim() || null, !!ignora_stock, !!compartido]
     );
 
     res.status(201).json(result.rows[0]);
@@ -812,7 +822,8 @@ app.put('/api/productos/:id', authenticateToken, checkAccess, requireAdmin, asyn
       categoria_id,
       es_novedad,
       foto_url,
-      ignora_stock
+      ignora_stock,
+      compartido
     } = req.body;
 
     const moduloId = req.moduloId;
@@ -826,6 +837,9 @@ app.put('/api/productos/:id', authenticateToken, checkAccess, requireAdmin, asyn
     // (invalid input syntax for type integer).
     const categoriaIdValor = categoria_id === '' || categoria_id === undefined ? null : categoria_id;
 
+    // WHERE ... AND modulo_id = $13 (dueño): un módulo que solo tiene acceso
+    // de VENTA a este producto por ser compartido no puede editarlo — solo
+    // el módulo dueño puede tocar precio/stock/nombre/compartido.
     const result = await pool.query(
       `UPDATE productos
        SET codigo_ean = $1,
@@ -839,10 +853,11 @@ app.put('/api/productos/:id', authenticateToken, checkAccess, requireAdmin, asyn
            es_novedad = $9,
            foto_url = $10,
            ignora_stock = $11,
+           compartido = $12,
            fecha_actualizacion = NOW()
-       WHERE id = $12 AND modulo_id = $13
+       WHERE id = $13 AND modulo_id = $14
        RETURNING *`,
-      [codigo_ean, nombre, descripcion, precio_compra, precio_venta, stock_actual, stock_minimo, categoriaIdValor, !!es_novedad, foto_url?.trim() || null, !!ignora_stock, id, moduloId]
+      [codigo_ean, nombre, descripcion, precio_compra, precio_venta, stock_actual, stock_minimo, categoriaIdValor, !!es_novedad, foto_url?.trim() || null, !!ignora_stock, !!compartido, id, moduloId]
     );
 
     if (result.rows.length === 0) {
@@ -881,19 +896,21 @@ app.get('/api/productos/buscar/:ean', authenticateToken, checkAccess, async (req
   try {
     const { ean } = req.params;
     const moduloId = req.moduloId;
+    const negocioId = req.negocioId;
 
     if (!moduloId) {
       return res.status(400).json({ error: 'Se requiere un módulo' });
     }
 
     const result = await pool.query(
-      `SELECT p.*, c.nombre as categoria_nombre 
-       FROM productos p 
-       LEFT JOIN categorias c ON p.categoria_id = c.id 
-       WHERE p.activo = true 
-       AND p.modulo_id = $1 
+      `SELECT p.*, c.nombre as categoria_nombre, m_dueno.nombre as modulo_dueno_nombre
+       FROM productos p
+       LEFT JOIN categorias c ON p.categoria_id = c.id
+       JOIN modulos m_dueno ON p.modulo_id = m_dueno.id
+       WHERE p.activo = true
+       AND (p.modulo_id = $1 OR (p.compartido = true AND m_dueno.negocio_id = $3))
        AND p.codigo_ean = $2`,
-      [moduloId, ean]
+      [moduloId, ean, negocioId]
     );
 
     if (result.rows.length === 0) {
@@ -1097,6 +1114,12 @@ app.post('/api/ventas', authenticateToken, checkAccess, async (req, res) => {
     // sin importar stock_actual, y no lo descuentan al completarse.
     const productosQueIgnoranStock = new Set();
 
+    // Módulo dueño real de cada producto vendido (puede ser distinto de
+    // moduloId cuando el producto es compartido y se vende desde otro
+    // módulo del negocio) — se guarda en detalle_venta para poder atribuir
+    // la venta a las cuentas del dueño aunque la factura sea de quien vendió.
+    const duenoPorProducto = new Map();
+
     for (const detalle of detalles) {
       // Number.isFinite() NO coerce strings (a diferencia de isFinite()).
       // Postgres devuelve las columnas NUMERIC/DECIMAL como string a
@@ -1119,9 +1142,18 @@ app.post('/api/ventas', authenticateToken, checkAccess, async (req, res) => {
       // FOR UPDATE bloquea la fila hasta el COMMIT/ROLLBACK de esta
       // transacción: dos ventas concurrentes del mismo producto ya no
       // pueden leer el mismo stock antes de que ninguna confirme.
+      // El producto es vendible desde este módulo si es suyo (modulo_id =
+      // moduloId) o si su dueño lo marcó compartido = true dentro del MISMO
+      // negocio (join a modulos para confirmarlo) — así se puede vender
+      // mercancía en consignación de otro módulo sin salir del negocio.
       const stockResult = await client.query(
-        'SELECT id, nombre, stock_actual, ignora_stock FROM productos WHERE id = $1 AND modulo_id = $2 AND activo = true FOR UPDATE',
-        [detalle.producto_id, moduloId]
+        `SELECT p.id, p.nombre, p.stock_actual, p.ignora_stock, p.modulo_id
+         FROM productos p
+         JOIN modulos m_dueno ON p.modulo_id = m_dueno.id
+         WHERE p.id = $1 AND p.activo = true
+         AND (p.modulo_id = $2 OR (p.compartido = true AND m_dueno.negocio_id = $3))
+         FOR UPDATE`,
+        [detalle.producto_id, moduloId, negocioId]
       );
 
       if (stockResult.rows.length === 0) {
@@ -1129,6 +1161,8 @@ app.post('/api/ventas', authenticateToken, checkAccess, async (req, res) => {
       }
 
       const producto = stockResult.rows[0];
+      duenoPorProducto.set(detalle.producto_id, producto.modulo_id);
+
       if (producto.ignora_stock) {
         productosQueIgnoranStock.add(detalle.producto_id);
       } else if (producto.stock_actual < detalle.cantidad) {
@@ -1160,16 +1194,23 @@ app.post('/api/ventas', authenticateToken, checkAccess, async (req, res) => {
     console.log('✅ Venta registrada con ID:', venta.id);
     
     for (const detalle of detalles) {
+      // modulo_dueno_id queda fijo (snapshot) al momento de la venta: si el
+      // producto cambia de dueño después, esta línea histórica sigue
+      // atribuida a quien era dueño cuando realmente se vendió.
       await client.query(
-        `INSERT INTO detalle_venta (venta_id, producto_id, cantidad, precio_unitario, subtotal)
-         VALUES ($1, $2, $3, $4, $5)`,
-        [venta.id, detalle.producto_id, detalle.cantidad, detalle.precio_unitario, detalle.cantidad * detalle.precio_unitario]
+        `INSERT INTO detalle_venta (venta_id, producto_id, cantidad, precio_unitario, subtotal, modulo_dueno_id)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [venta.id, detalle.producto_id, detalle.cantidad, detalle.precio_unitario, detalle.cantidad * detalle.precio_unitario, duenoPorProducto.get(detalle.producto_id)]
       );
 
       if (!productosQueIgnoranStock.has(detalle.producto_id)) {
+        // Sin "AND modulo_id = ..." aquí: el producto puede ser de otro
+        // módulo (compartido). Ya se validó arriba, con el mismo FOR UPDATE,
+        // que este módulo puede venderlo — el stock es una sola fila física
+        // y se descuenta por su propio id sin importar quién lo vendió.
         await client.query(
-          'UPDATE productos SET stock_actual = stock_actual - $1, fecha_actualizacion = NOW() WHERE id = $2 AND modulo_id = $3',
-          [detalle.cantidad, detalle.producto_id, moduloId]
+          'UPDATE productos SET stock_actual = stock_actual - $1, fecha_actualizacion = NOW() WHERE id = $2',
+          [detalle.cantidad, detalle.producto_id]
         );
       }
     }
@@ -1956,6 +1997,87 @@ app.get('/api/estadisticas', authenticateToken, checkAccess, requireAdmin, async
     res.json(response);
   } catch (error) {
     console.error('Error obteniendo estadísticas:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// Ventas cruzadas entre módulos: cuando un producto compartido se vende
+// desde un módulo distinto al dueño, la factura queda a nombre de quien
+// vendió (su numeración, su caja), pero el dueño necesita saber cuánto le
+// vendieron para poder liquidarlo. Dos direcciones sobre el módulo activo:
+// - como_dueno: de MIS productos, cuánto vendieron OTROS módulos.
+// - como_vendedor: de lo que YO vendí, cuánto era de OTROS dueños.
+// Mismo patrón de resolución de período que GET /api/estadisticas.
+app.get('/api/estadisticas/ventas-cruzadas', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+  try {
+    const moduloId = req.moduloId;
+    const { periodo, fecha_inicio, fecha_fin } = req.query;
+
+    if (!moduloId) {
+      return res.status(400).json({ error: 'Se requiere un módulo' });
+    }
+
+    let startDate, endDate;
+
+    switch (periodo) {
+      case 'hoy':
+        startDate = ahoraColombia().startOf('day').toDate();
+        endDate = ahoraColombia().endOf('day').toDate();
+        break;
+      case 'semana':
+        startDate = ahoraColombia().subtract(7, 'days').startOf('day').toDate();
+        endDate = ahoraColombia().endOf('day').toDate();
+        break;
+      case 'mes':
+        startDate = ahoraColombia().subtract(30, 'days').startOf('day').toDate();
+        endDate = ahoraColombia().endOf('day').toDate();
+        break;
+      case 'personalizado':
+        if (!fecha_inicio || !fecha_fin) {
+          return res.status(400).json({ error: 'Para período personalizado se requieren fecha_inicio y fecha_fin' });
+        }
+        startDate = moment(`${fecha_inicio} 00:00:00-05:00`).toDate();
+        endDate = moment(`${fecha_fin} 23:59:59-05:00`).toDate();
+        break;
+      default:
+        startDate = ahoraColombia().startOf('day').toDate();
+        endDate = ahoraColombia().endOf('day').toDate();
+    }
+
+    const comoDueno = await pool.query(
+      `SELECT v.modulo_id as modulo_id, m.nombre as modulo_nombre,
+              SUM(dv.cantidad) as unidades, SUM(dv.subtotal) as monto
+       FROM detalle_venta dv
+       JOIN ventas v ON dv.venta_id = v.id
+       JOIN modulos m ON v.modulo_id = m.id
+       WHERE dv.modulo_dueno_id = $1 AND v.modulo_id != $1
+       AND v.fecha_venta BETWEEN $2 AND $3
+       AND v.es_ajuste_manual = false AND v.metodo_pago != 'consumo_propio'
+       GROUP BY v.modulo_id, m.nombre
+       ORDER BY monto DESC`,
+      [moduloId, startDate, endDate]
+    );
+
+    const comoVendedor = await pool.query(
+      `SELECT dv.modulo_dueno_id as modulo_id, m.nombre as modulo_nombre,
+              SUM(dv.cantidad) as unidades, SUM(dv.subtotal) as monto
+       FROM detalle_venta dv
+       JOIN ventas v ON dv.venta_id = v.id
+       JOIN modulos m ON dv.modulo_dueno_id = m.id
+       WHERE v.modulo_id = $1 AND dv.modulo_dueno_id != $1
+       AND v.fecha_venta BETWEEN $2 AND $3
+       AND v.es_ajuste_manual = false AND v.metodo_pago != 'consumo_propio'
+       GROUP BY dv.modulo_dueno_id, m.nombre
+       ORDER BY monto DESC`,
+      [moduloId, startDate, endDate]
+    );
+
+    res.json({
+      como_dueno: comoDueno.rows.map(r => ({ ...r, unidades: Number(r.unidades), monto: Number(r.monto) })),
+      como_vendedor: comoVendedor.rows.map(r => ({ ...r, unidades: Number(r.unidades), monto: Number(r.monto) }))
+    });
+  } catch (error) {
+    console.error('Error obteniendo ventas cruzadas:', error);
     res.status(500).json({ error: 'Error interno del servidor' });
   }
 });

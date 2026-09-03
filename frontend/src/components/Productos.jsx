@@ -23,7 +23,8 @@ const Productos = ({ user }) => {
     categoria_id: '',
     es_novedad: false,
     foto_url: '',
-    ignora_stock: false
+    ignora_stock: false,
+    compartido: false
   });
   // Gestión de categorías (solo desde este modal, no hay página aparte)
   const [showCategoriasModal, setShowCategoriasModal] = useState(false);
@@ -163,7 +164,8 @@ const Productos = ({ user }) => {
         categoria_id: '',
         es_novedad: false,
         foto_url: '',
-        ignora_stock: false
+        ignora_stock: false,
+        compartido: false
       });
       cargarProductos();
     } catch (error) {
@@ -198,13 +200,19 @@ const Productos = ({ user }) => {
       categoria_id: producto.categoria_id || '',
       es_novedad: producto.es_novedad || false,
       foto_url: producto.foto_url || '',
-      ignora_stock: producto.ignora_stock || false
+      ignora_stock: producto.ignora_stock || false,
+      compartido: producto.compartido || false
     });
     setShowModal(true);
   };
 
   // Verificar permisos
   const puedeEditar = user?.rol === 'admin' || user?.rol === 'super_admin';
+  // Productos compartidos de OTRO módulo aparecen en este listado (para
+  // venderlos), pero solo su módulo dueño puede editarlos/borrarlos — el
+  // backend ya lo exige (WHERE modulo_id = dueño en PUT/DELETE), esto solo
+  // oculta la acción en la UI para que no parezca posible.
+  const esPropio = (producto) => producto.modulo_id === moduloActivo?.id;
 
   if (!moduloActivo) {
     return (
@@ -239,7 +247,7 @@ const Productos = ({ user }) => {
         </div>
         
         {puedeEditar && (
-          <button onClick={() => { setEditProducto(null); setFormData({ codigo_ean: '', nombre: '', descripcion: '', precio_compra: '', precio_venta: '', stock_actual: '', stock_minimo: '', categoria_id: '', es_novedad: false, foto_url: '', ignora_stock: false }); setShowModal(true); }} className="btn-agregar">
+          <button onClick={() => { setEditProducto(null); setFormData({ codigo_ean: '', nombre: '', descripcion: '', precio_compra: '', precio_venta: '', stock_actual: '', stock_minimo: '', categoria_id: '', es_novedad: false, foto_url: '', ignora_stock: false, compartido: false }); setShowModal(true); }} className="btn-agregar">
             + Nuevo Producto
           </button>
         )}
@@ -265,7 +273,14 @@ const Productos = ({ user }) => {
               {productos.map(producto => (
                 <tr key={producto.id}>
                   <td>{producto.codigo_ean || 'N/A'}</td>
-                  <td>{producto.nombre}</td>
+                  <td>
+                    {producto.nombre}
+                    {!esPropio(producto) && (
+                      <span className="badge badge-otro-modulo" title="Producto de otro módulo, compartido contigo">
+                        {' '}🔗 de {producto.modulo_dueno_nombre}
+                      </span>
+                    )}
+                  </td>
                   <td>{producto.categoria_nombre || 'General'}</td>
                   <td className={producto.stock_actual <= producto.stock_minimo ? 'stock-bajo' : ''}>
                     {producto.stock_actual}
@@ -275,8 +290,14 @@ const Productos = ({ user }) => {
                   <td>${Number(producto.precio_venta).toLocaleString()}</td>
                   {puedeEditar && (
                     <td>
-                      <button onClick={() => handleEdit(producto)} className="btn-editar">✏️</button>
-                      <button onClick={() => handleDelete(producto.id)} className="btn-eliminar">🗑️</button>
+                      {esPropio(producto) ? (
+                        <>
+                          <button onClick={() => handleEdit(producto)} className="btn-editar">✏️</button>
+                          <button onClick={() => handleDelete(producto.id)} className="btn-eliminar">🗑️</button>
+                        </>
+                      ) : (
+                        <span className="sin-datos">Solo lectura</span>
+                      )}
                     </td>
                   )}
                 </tr>
@@ -423,6 +444,17 @@ const Productos = ({ user }) => {
                     onChange={(e) => setFormData({ ...formData, ignora_stock: e.target.checked })}
                   />
                   🍳 Se prepara al pedir (no depende del stock)
+                </label>
+              </div>
+
+              <div className="form-group form-group-checkbox">
+                <label className="checkbox-label">
+                  <input
+                    type="checkbox"
+                    checked={formData.compartido}
+                    onChange={(e) => setFormData({ ...formData, compartido: e.target.checked })}
+                  />
+                  🔗 Compartir con otros módulos (se puede ver, vender y descontar stock desde cualquier módulo del negocio, pero solo tú puedes editarlo)
                 </label>
               </div>
 

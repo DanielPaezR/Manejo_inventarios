@@ -920,7 +920,14 @@ const Ventas = ({ user }) => {
                   onClick={() => agregarAlCarrito(producto)}
                 >
                   <div className="producto-info">
-                    <h4>{producto.nombre}</h4>
+                    <h4>
+                      {producto.nombre}
+                      {producto.modulo_id !== moduloActivo.id && (
+                        <span className="badge badge-otro-modulo" title="Producto de otro módulo, compartido contigo">
+                          {' '}🔗 {producto.modulo_dueno_nombre}
+                        </span>
+                      )}
+                    </h4>
                     <p className="producto-precio">${producto.precio_venta.toLocaleString()}</p>
                     <p className={`producto-stock ${!producto.ignora_stock && producto.stock_actual <= producto.stock_minimo ? 'bajo' : ''}`}>
                       {producto.ignora_stock ? 'Se prepara al pedir 🍳' : `Stock: ${producto.stock_actual}`}
