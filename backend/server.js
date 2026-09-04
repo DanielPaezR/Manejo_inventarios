@@ -1257,9 +1257,9 @@ app.post('/api/ventas', authenticateToken, checkAccess, async (req, res) => {
     if (metodo_pago !== 'credito' && metodo_pago !== 'consumo_propio') {
       await client.query(
         `INSERT INTO movimientos_caja
-         (negocio_id, tipo, origen, monto, concepto, venta_id, usuario_id)
-         VALUES ($1, 'ingreso', 'venta', $2, $3, $4, $5)`,
-        [negocioId, total, `Venta #${numero_factura}`, venta.id, usuario_id]
+         (negocio_id, modulo_id, tipo, origen, monto, concepto, venta_id, usuario_id)
+         VALUES ($1, $2, 'ingreso', 'venta', $3, $4, $5, $6)`,
+        [negocioId, moduloId, total, `Venta #${numero_factura}`, venta.id, usuario_id]
       );
     }
 
@@ -1568,15 +1568,13 @@ app.post('/api/clientes/:id/abonos', authenticateToken, checkAccess, requireAdmi
     // origen='manual' porque el CHECK de movimientos_caja.origen solo
     // admite 'manual'/'venta'/'pedido'; categoria='abono_credito' es la
     // marca (sin restricción) que distingue esto de un ingreso manual
-    // cualquiera en el resto de las consultas de finanzas/deuda. Este
-    // movimiento sigue siendo por negocio (igual que el resto de
-    // Finanzas) — solo el cliente y su deuda son por módulo.
+    // cualquiera en el resto de las consultas de finanzas/deuda.
     const result = await pool.query(
       `INSERT INTO movimientos_caja
-       (negocio_id, tipo, origen, monto, concepto, categoria, cliente_id, usuario_id)
-       VALUES ($1, 'ingreso', 'manual', $2, $3, 'abono_credito', $4, $5)
+       (negocio_id, modulo_id, tipo, origen, monto, concepto, categoria, cliente_id, usuario_id)
+       VALUES ($1, $2, 'ingreso', 'manual', $3, $4, 'abono_credito', $5, $6)
        RETURNING *`,
-      [negocioId, montoNum, conceptoFinal, id, usuarioId]
+      [negocioId, moduloId, montoNum, conceptoFinal, id, usuarioId]
     );
 
     // Deuda actualizada tras el abono. No se bloquea si el abono supera la
@@ -3074,15 +3072,15 @@ app.put('/api/pedidos/:id/estado', authenticateToken, checkAccess, requireAdmin,
 
 app.get('/api/categorias-gasto', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
   try {
-    const negocioId = req.negocioId;
+    const moduloId = req.moduloId;
 
-    if (!negocioId) {
-      return res.status(400).json({ error: 'Negocio no identificado' });
+    if (!moduloId) {
+      return res.status(400).json({ error: 'Se requiere un módulo' });
     }
 
     const result = await pool.query(
-      'SELECT * FROM categorias_gasto WHERE negocio_id = $1 AND activo = true ORDER BY nombre',
-      [negocioId]
+      'SELECT * FROM categorias_gasto WHERE modulo_id = $1 AND activo = true ORDER BY nombre',
+      [moduloId]
     );
 
     res.json(result.rows);
@@ -3094,31 +3092,31 @@ app.get('/api/categorias-gasto', authenticateToken, checkAccess, requireAdmin, a
 
 app.post('/api/categorias-gasto', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
   try {
-    const negocioId = req.negocioId;
+    const moduloId = req.moduloId;
     const { nombre } = req.body;
 
-    if (!negocioId) {
-      return res.status(400).json({ error: 'Negocio no identificado' });
+    if (!moduloId) {
+      return res.status(400).json({ error: 'Se requiere un módulo' });
     }
 
     if (!nombre || !nombre.trim()) {
       return res.status(400).json({ error: 'El nombre es requerido' });
     }
 
-    // El UNIQUE(negocio_id, nombre) de la tabla incluye las inactivas, así
+    // El UNIQUE(modulo_id, nombre) de la tabla incluye las inactivas, así
     // que validamos antes para responder con un mensaje claro en vez del
     // error crudo del constraint.
     const existente = await pool.query(
-      'SELECT id FROM categorias_gasto WHERE negocio_id = $1 AND nombre = $2',
-      [negocioId, nombre.trim()]
+      'SELECT id FROM categorias_gasto WHERE modulo_id = $1 AND nombre = $2',
+      [moduloId, nombre.trim()]
     );
     if (existente.rows.length > 0) {
       return res.status(400).json({ error: 'Ya existe una categoría de gasto con ese nombre' });
     }
 
     const result = await pool.query(
-      'INSERT INTO categorias_gasto (negocio_id, nombre) VALUES ($1, $2) RETURNING *',
-      [negocioId, nombre.trim()]
+      'INSERT INTO categorias_gasto (negocio_id, modulo_id, nombre) VALUES ($1, $2, $3) RETURNING *',
+      [req.negocioId, moduloId, nombre.trim()]
     );
 
     res.status(201).json(result.rows[0]);
@@ -3131,7 +3129,7 @@ app.post('/api/categorias-gasto', authenticateToken, checkAccess, requireAdmin, 
 app.put('/api/categorias-gasto/:id', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
-    const negocioId = req.negocioId;
+    const moduloId = req.moduloId;
     const { nombre } = req.body;
 
     if (!nombre || !nombre.trim()) {
@@ -3139,16 +3137,16 @@ app.put('/api/categorias-gasto/:id', authenticateToken, checkAccess, requireAdmi
     }
 
     const existente = await pool.query(
-      'SELECT id FROM categorias_gasto WHERE negocio_id = $1 AND nombre = $2 AND id != $3',
-      [negocioId, nombre.trim(), id]
+      'SELECT id FROM categorias_gasto WHERE modulo_id = $1 AND nombre = $2 AND id != $3',
+      [moduloId, nombre.trim(), id]
     );
     if (existente.rows.length > 0) {
       return res.status(400).json({ error: 'Ya existe una categoría de gasto con ese nombre' });
     }
 
     const result = await pool.query(
-      'UPDATE categorias_gasto SET nombre = $1 WHERE id = $2 AND negocio_id = $3 RETURNING *',
-      [nombre.trim(), id, negocioId]
+      'UPDATE categorias_gasto SET nombre = $1 WHERE id = $2 AND modulo_id = $3 RETURNING *',
+      [nombre.trim(), id, moduloId]
     );
 
     if (result.rows.length === 0) {
@@ -3167,11 +3165,11 @@ app.put('/api/categorias-gasto/:id', authenticateToken, checkAccess, requireAdmi
 app.delete('/api/categorias-gasto/:id', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
-    const negocioId = req.negocioId;
+    const moduloId = req.moduloId;
 
     await pool.query(
-      'UPDATE categorias_gasto SET activo = false WHERE id = $1 AND negocio_id = $2',
-      [id, negocioId]
+      'UPDATE categorias_gasto SET activo = false WHERE id = $1 AND modulo_id = $2',
+      [id, moduloId]
     );
 
     res.json({ message: 'Categoría de gasto eliminada correctamente' });
@@ -3182,24 +3180,26 @@ app.delete('/api/categorias-gasto/:id', authenticateToken, checkAccess, requireA
 });
 
 // ==================== RUTAS DE FINANZAS ====================
-// Caja del negocio completo (no por módulo). Los ingresos por venta se
-// insertan automáticamente dentro de la transacción de POST /api/ventas
-// (ahí no hay ambigüedad de precio). Los egresos por pedido a proveedor
-// YA NO se insertan solos al crear el pedido: el precio calculado puede
-// no coincidir con lo que realmente se paga, y algunos proveedores
-// entregan sin pedido formal previo. El egreso se registra a mano desde
-// POST /api/finanzas/movimientos cuando efectivamente se paga, opcionalmente
-// vinculado a un pedido existente (pedido_id) para trazabilidad.
+// Caja independiente por módulo (antes era del negocio completo). Los
+// ingresos por venta se insertan automáticamente dentro de la transacción
+// de POST /api/ventas (ahí no hay ambigüedad de precio ni de módulo). Los
+// egresos por pedido a proveedor YA NO se insertan solos al crear el
+// pedido: el precio calculado puede no coincidir con lo que realmente se
+// paga, y algunos proveedores entregan sin pedido formal previo. El
+// egreso se registra a mano desde POST /api/finanzas/movimientos cuando
+// efectivamente se paga, opcionalmente vinculado a un pedido existente
+// (pedido_id) para trazabilidad.
 
 // Registrar un movimiento manual (saldo inicial, ingreso o egreso)
 app.post('/api/finanzas/movimientos', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
   try {
+    const moduloId = req.moduloId;
     const negocioId = req.negocioId;
     const usuarioId = req.user.id;
     const { tipo, monto, concepto, categoria, pedido_id, categoria_gasto_id } = req.body;
 
-    if (!negocioId) {
-      return res.status(400).json({ error: 'Negocio no identificado' });
+    if (!moduloId) {
+      return res.status(400).json({ error: 'Se requiere un módulo' });
     }
 
     if (!['saldo_inicial', 'ingreso', 'egreso'].includes(tipo)) {
@@ -3217,11 +3217,11 @@ app.post('/api/finanzas/movimientos', authenticateToken, checkAccess, requireAdm
 
     if (tipo === 'saldo_inicial') {
       const existente = await pool.query(
-        "SELECT id FROM movimientos_caja WHERE negocio_id = $1 AND tipo = 'saldo_inicial'",
-        [negocioId]
+        "SELECT id FROM movimientos_caja WHERE modulo_id = $1 AND tipo = 'saldo_inicial'",
+        [moduloId]
       );
       if (existente.rows.length > 0) {
-        return res.status(400).json({ error: "Ya existe un saldo inicial registrado, usa 'ingreso' o 'egreso' para ajustes" });
+        return res.status(400).json({ error: "Ya existe un saldo inicial registrado para este módulo, usa 'ingreso' o 'egreso' para ajustes" });
       }
     }
 
@@ -3235,11 +3235,8 @@ app.post('/api/finanzas/movimientos', authenticateToken, checkAccess, requireAdm
       }
 
       const pedidoResult = await pool.query(
-        `SELECT p.id
-         FROM pedidos_proveedor p
-         JOIN modulos m ON p.modulo_id = m.id
-         WHERE p.id = $1 AND m.negocio_id = $2`,
-        [pedido_id, negocioId]
+        'SELECT id FROM pedidos_proveedor WHERE id = $1 AND modulo_id = $2',
+        [pedido_id, moduloId]
       );
       if (pedidoResult.rows.length === 0) {
         return res.status(404).json({ error: 'Pedido no encontrado' });
@@ -3265,8 +3262,8 @@ app.post('/api/finanzas/movimientos', authenticateToken, checkAccess, requireAdm
       }
 
       const categoriaResult = await pool.query(
-        'SELECT id FROM categorias_gasto WHERE id = $1 AND negocio_id = $2',
-        [categoria_gasto_id, negocioId]
+        'SELECT id FROM categorias_gasto WHERE id = $1 AND modulo_id = $2',
+        [categoria_gasto_id, moduloId]
       );
       if (categoriaResult.rows.length === 0) {
         return res.status(404).json({ error: 'Categoría de gasto no encontrada' });
@@ -3277,10 +3274,10 @@ app.post('/api/finanzas/movimientos', authenticateToken, checkAccess, requireAdm
 
     const result = await pool.query(
       `INSERT INTO movimientos_caja
-       (negocio_id, tipo, origen, monto, concepto, categoria, pedido_id, usuario_id, categoria_gasto_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+       (negocio_id, modulo_id, tipo, origen, monto, concepto, categoria, pedido_id, usuario_id, categoria_gasto_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
        RETURNING *`,
-      [negocioId, tipo, origen, montoNum, concepto.trim(), categoria || null, origen === 'pedido' ? pedido_id : null, usuarioId, categoriaGastoIdValida]
+      [negocioId, moduloId, tipo, origen, montoNum, concepto.trim(), categoria || null, origen === 'pedido' ? pedido_id : null, usuarioId, categoriaGastoIdValida]
     );
 
     res.status(201).json(result.rows[0]);
@@ -3290,14 +3287,14 @@ app.post('/api/finanzas/movimientos', authenticateToken, checkAccess, requireAdm
   }
 });
 
-// Pedidos de cualquier módulo del negocio que aún no tienen un egreso
-// registrado en movimientos_caja (para vincular al pagarlos)
+// Pedidos del módulo activo que aún no tienen un egreso registrado en
+// movimientos_caja (para vincular al pagarlos)
 app.get('/api/finanzas/pedidos-sin-registrar', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
   try {
-    const negocioId = req.negocioId;
+    const moduloId = req.moduloId;
 
-    if (!negocioId) {
-      return res.status(400).json({ error: 'Negocio no identificado' });
+    if (!moduloId) {
+      return res.status(400).json({ error: 'Se requiere un módulo' });
     }
 
     const result = await pool.query(
@@ -3305,11 +3302,10 @@ app.get('/api/finanzas/pedidos-sin-registrar', authenticateToken, checkAccess, r
               pr.nombre as proveedor_nombre
        FROM pedidos_proveedor p
        JOIN proveedores pr ON p.proveedor_id = pr.id
-       JOIN modulos m ON p.modulo_id = m.id
        LEFT JOIN movimientos_caja mc ON mc.pedido_id = p.id AND mc.origen = 'pedido'
-       WHERE m.negocio_id = $1 AND mc.id IS NULL
+       WHERE p.modulo_id = $1 AND mc.id IS NULL
        ORDER BY p.fecha_pedido DESC`,
-      [negocioId]
+      [moduloId]
     );
 
     res.json(result.rows);
@@ -3322,11 +3318,11 @@ app.get('/api/finanzas/pedidos-sin-registrar', authenticateToken, checkAccess, r
 // Listar movimientos (automáticos de ventas + manuales, incluyendo egresos de pedido vinculados)
 app.get('/api/finanzas/movimientos', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
   try {
-    const negocioId = req.negocioId;
+    const moduloId = req.moduloId;
     const { limit } = req.query;
 
-    if (!negocioId) {
-      return res.status(400).json({ error: 'Negocio no identificado' });
+    if (!moduloId) {
+      return res.status(400).json({ error: 'Se requiere un módulo' });
     }
 
     let limitNum = 50;
@@ -3343,10 +3339,10 @@ app.get('/api/finanzas/movimientos', authenticateToken, checkAccess, requireAdmi
        FROM movimientos_caja mc
        LEFT JOIN usuarios u ON mc.usuario_id = u.id
        LEFT JOIN categorias_gasto cg ON mc.categoria_gasto_id = cg.id
-       WHERE mc.negocio_id = $1
+       WHERE mc.modulo_id = $1
        ORDER BY mc.fecha DESC
        LIMIT $2`,
-      [negocioId, limitNum]
+      [moduloId, limitNum]
     );
 
     res.json(result.rows);
@@ -3359,10 +3355,10 @@ app.get('/api/finanzas/movimientos', authenticateToken, checkAccess, requireAdmi
 // Balance actual y desglose
 app.get('/api/finanzas/balance', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
   try {
-    const negocioId = req.negocioId;
+    const moduloId = req.moduloId;
 
-    if (!negocioId) {
-      return res.status(400).json({ error: 'Negocio no identificado' });
+    if (!moduloId) {
+      return res.status(400).json({ error: 'Se requiere un módulo' });
     }
 
     const result = await pool.query(
@@ -3376,8 +3372,8 @@ app.get('/api/finanzas/balance', authenticateToken, checkAccess, requireAdmin, a
           COALESCE(SUM(monto) FILTER (WHERE tipo = 'egreso' AND origen = 'manual'), 0) as egresos_manuales,
           COALESCE(SUM(monto) FILTER (WHERE origen = 'manual' AND categoria = 'abono_credito'), 0) as total_abonos_credito
        FROM movimientos_caja
-       WHERE negocio_id = $1`,
-      [negocioId]
+       WHERE modulo_id = $1`,
+      [moduloId]
     );
 
     res.json(result.rows[0]);
@@ -3389,15 +3385,14 @@ app.get('/api/finanzas/balance', authenticateToken, checkAccess, requireAdmin, a
 
 // Resumen de ingresos/egresos de un período, para la pestaña "Ingresos y
 // Egresos" de Estadísticas. Misma resolución de fechas que GET
-// /api/estadisticas, pero sobre el negocio completo (movimientos_caja no
-// es por módulo).
+// /api/estadisticas, ahora filtrado por módulo (antes era todo el negocio).
 app.get('/api/finanzas/resumen-periodo', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
   try {
-    const negocioId = req.negocioId;
+    const moduloId = req.moduloId;
     const { periodo, fecha_inicio, fecha_fin } = req.query;
 
-    if (!negocioId) {
-      return res.status(400).json({ error: 'Negocio no identificado' });
+    if (!moduloId) {
+      return res.status(400).json({ error: 'Se requiere un módulo' });
     }
 
     let startDate, endDate;
@@ -3435,8 +3430,8 @@ app.get('/api/finanzas/resumen-periodo', authenticateToken, checkAccess, require
           COALESCE(SUM(monto) FILTER (WHERE tipo IN ('ingreso', 'saldo_inicial')), 0) as total_ingresos,
           COALESCE(SUM(monto) FILTER (WHERE tipo = 'egreso'), 0) as total_egresos
        FROM movimientos_caja
-       WHERE negocio_id = $1 AND fecha BETWEEN $2 AND $3`,
-      [negocioId, startDate, endDate]
+       WHERE modulo_id = $1 AND fecha BETWEEN $2 AND $3`,
+      [moduloId, startDate, endDate]
     );
 
     const totalIngresos = Number(totales.rows[0]?.total_ingresos || 0);
@@ -3461,10 +3456,10 @@ app.get('/api/finanzas/resumen-periodo', authenticateToken, checkAccess, require
           SUM(mc.monto) as monto
        FROM movimientos_caja mc
        LEFT JOIN categorias_gasto cg ON mc.categoria_gasto_id = cg.id
-       WHERE mc.negocio_id = $1 AND mc.tipo = 'egreso' AND mc.fecha BETWEEN $2 AND $3
+       WHERE mc.modulo_id = $1 AND mc.tipo = 'egreso' AND mc.fecha BETWEEN $2 AND $3
        GROUP BY grupo_key, grupo_nombre
        ORDER BY monto DESC`,
-      [negocioId, startDate, endDate]
+      [moduloId, startDate, endDate]
     );
 
     // tipo = 'saldo_inicial' se evalúa primero para que nunca caiga en el
@@ -3485,10 +3480,10 @@ app.get('/api/finanzas/resumen-periodo', authenticateToken, checkAccess, require
           END as grupo_nombre,
           SUM(mc.monto) as monto
        FROM movimientos_caja mc
-       WHERE mc.negocio_id = $1 AND mc.tipo IN ('ingreso', 'saldo_inicial') AND mc.fecha BETWEEN $2 AND $3
+       WHERE mc.modulo_id = $1 AND mc.tipo IN ('ingreso', 'saldo_inicial') AND mc.fecha BETWEEN $2 AND $3
        GROUP BY grupo_key, grupo_nombre
        ORDER BY monto DESC`,
-      [negocioId, startDate, endDate]
+      [moduloId, startDate, endDate]
     );
 
     res.json({
@@ -3527,15 +3522,14 @@ const esLunesValido = (fechaStr) => {
 
 // Registro semanal de Finanzas: ingresos por ventas, los 3 tipos de
 // gasto, utilidad bruta y la meta de reinversión (editable) de una
-// semana puntual (lunes a domingo). Todo a nivel de negocio (como el
-// resto de Finanzas), NO por módulo.
+// semana puntual (lunes a domingo). Por módulo, como el resto de Finanzas.
 app.get('/api/finanzas/reporte-semanal', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
   try {
-    const negocioId = req.negocioId;
+    const moduloId = req.moduloId;
     const { semana_inicio } = req.query;
 
-    if (!negocioId) {
-      return res.status(400).json({ error: 'Negocio no identificado' });
+    if (!moduloId) {
+      return res.status(400).json({ error: 'Se requiere un módulo' });
     }
 
     let semanaInicioStr;
@@ -3560,56 +3554,52 @@ app.get('/api/finanzas/reporte-semanal', authenticateToken, checkAccess, require
     const ingresosResult = await pool.query(
       `SELECT COALESCE(SUM(monto), 0) as total
        FROM movimientos_caja
-       WHERE negocio_id = $1 AND origen = 'venta' AND fecha BETWEEN $2 AND $3`,
-      [negocioId, startDate, endDate]
+       WHERE modulo_id = $1 AND origen = 'venta' AND fecha BETWEEN $2 AND $3`,
+      [moduloId, startDate, endDate]
     );
 
-    // "Inversión Mercancía" es una categoría de gasto que el negocio crea
-    // a mano (igual que "Gastos Fijos" más abajo) — si no existe con ese
-    // nombre exacto para este negocio, el IN (SELECT...) queda vacío y
-    // esta parte del total simplemente no suma nada (no es un error).
+    // "Inversión Mercancía" es una categoría de gasto que el módulo crea a
+    // mano (igual que "Gastos Fijos" más abajo) — si no existe con ese
+    // nombre exacto para este módulo, el IN (SELECT...) queda vacío y esta
+    // parte del total simplemente no suma nada (no es un error).
     const mercanciaResult = await pool.query(
       `SELECT COALESCE(SUM(monto), 0) as total
        FROM movimientos_caja
-       WHERE negocio_id = $1 AND fecha BETWEEN $2 AND $3
+       WHERE modulo_id = $1 AND fecha BETWEEN $2 AND $3
          AND (
            origen = 'pedido'
            OR (origen = 'manual' AND categoria_gasto_id IN (
-             SELECT id FROM categorias_gasto WHERE negocio_id = $1 AND LOWER(nombre) = LOWER('Inversión Mercancía')
+             SELECT id FROM categorias_gasto WHERE modulo_id = $1 AND LOWER(nombre) = LOWER('Inversión Mercancía')
            ))
          )`,
-      [negocioId, startDate, endDate]
+      [moduloId, startDate, endDate]
     );
 
     // Mismo criterio que GET /api/estadisticas/consumo-propio (ventas con
-    // metodo_pago = 'consumo_propio'), pero acotado a esta semana y a
-    // nivel de negocio completo en vez de un módulo puntual — Finanzas ya
-    // opera así en el resto de sus rutas (balance, resumen-periodo), así
-    // que se hace el mismo join ventas -> modulos para llegar a
-    // negocio_id en vez de filtrar por modulo_id.
+    // metodo_pago = 'consumo_propio'), acotado a esta semana y a este
+    // módulo directamente (ventas ya tiene modulo_id propio).
     const propiosResult = await pool.query(
       `SELECT COALESCE(SUM(v.total), 0) as total
        FROM ventas v
-       JOIN modulos m ON v.modulo_id = m.id
-       WHERE m.negocio_id = $1 AND v.metodo_pago = 'consumo_propio' AND v.fecha_venta BETWEEN $2 AND $3`,
-      [negocioId, startDate, endDate]
+       WHERE v.modulo_id = $1 AND v.metodo_pago = 'consumo_propio' AND v.fecha_venta BETWEEN $2 AND $3`,
+      [moduloId, startDate, endDate]
     );
 
     const fijosResult = await pool.query(
       `SELECT COALESCE(SUM(monto), 0) as total
        FROM movimientos_caja
-       WHERE negocio_id = $1 AND origen = 'manual' AND fecha BETWEEN $2 AND $3
+       WHERE modulo_id = $1 AND origen = 'manual' AND fecha BETWEEN $2 AND $3
          AND categoria_gasto_id IN (
-           SELECT id FROM categorias_gasto WHERE negocio_id = $1 AND LOWER(nombre) = LOWER('Gastos Fijos')
+           SELECT id FROM categorias_gasto WHERE modulo_id = $1 AND LOWER(nombre) = LOWER('Gastos Fijos')
          )`,
-      [negocioId, startDate, endDate]
+      [moduloId, startDate, endDate]
     );
 
     // No se crea la fila si todavía no existe — solo al guardar (POST de
     // abajo). Antes de eso, el registro semanal simplemente muestra 0.
     const reinversionResult = await pool.query(
-      'SELECT monto, notas FROM metas_reinversion WHERE negocio_id = $1 AND semana_inicio = $2',
-      [negocioId, semanaInicioStr]
+      'SELECT monto, notas FROM metas_reinversion WHERE modulo_id = $1 AND semana_inicio = $2',
+      [moduloId, semanaInicioStr]
     );
 
     const ingresosVentas = Number(ingresosResult.rows[0].total);
@@ -3641,11 +3631,12 @@ app.get('/api/finanzas/reporte-semanal', authenticateToken, checkAccess, require
 
 app.post('/api/finanzas/reporte-semanal/reinversion', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
   try {
+    const moduloId = req.moduloId;
     const negocioId = req.negocioId;
     const { semana_inicio, monto, notas } = req.body;
 
-    if (!negocioId) {
-      return res.status(400).json({ error: 'Negocio no identificado' });
+    if (!moduloId) {
+      return res.status(400).json({ error: 'Se requiere un módulo' });
     }
 
     if (!esLunesValido(semana_inicio)) {
@@ -3658,12 +3649,12 @@ app.post('/api/finanzas/reporte-semanal/reinversion', authenticateToken, checkAc
     }
 
     const result = await pool.query(
-      `INSERT INTO metas_reinversion (negocio_id, semana_inicio, monto, notas, fecha_registro)
-       VALUES ($1, $2, $3, $4, NOW())
-       ON CONFLICT (negocio_id, semana_inicio)
-       DO UPDATE SET monto = $3, notas = $4, fecha_registro = NOW()
+      `INSERT INTO metas_reinversion (negocio_id, modulo_id, semana_inicio, monto, notas, fecha_registro)
+       VALUES ($1, $2, $3, $4, $5, NOW())
+       ON CONFLICT (modulo_id, semana_inicio)
+       DO UPDATE SET monto = $4, notas = $5, fecha_registro = NOW()
        RETURNING *`,
-      [negocioId, semana_inicio, montoNum, notas?.trim() || null]
+      [negocioId, moduloId, semana_inicio, montoNum, notas?.trim() || null]
     );
 
     res.json(result.rows[0]);
@@ -3708,11 +3699,11 @@ const generarClavesBucket = (inicio, fin, granularidad) => {
 // del negocio hasta hoy, navegable por día/semana/mes.
 app.get('/api/finanzas/evolucion-balance', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
   try {
-    const negocioId = req.negocioId;
+    const moduloId = req.moduloId;
     const { granularidad = 'semana', fecha_inicio, fecha_fin } = req.query;
 
-    if (!negocioId) {
-      return res.status(400).json({ error: 'Negocio no identificado' });
+    if (!moduloId) {
+      return res.status(400).json({ error: 'Se requiere un módulo' });
     }
 
     if (!['dia', 'semana', 'mes'].includes(granularidad)) {
@@ -3730,9 +3721,9 @@ app.get('/api/finanzas/evolucion-balance', authenticateToken, checkAccess, requi
     const movimientosResult = await pool.query(
       `SELECT fecha, monto, tipo
        FROM movimientos_caja
-       WHERE negocio_id = $1
+       WHERE modulo_id = $1
        ORDER BY fecha ASC`,
-      [negocioId]
+      [moduloId]
     );
     const movimientos = movimientosResult.rows;
 
@@ -3784,11 +3775,11 @@ app.get('/api/finanzas/evolucion-balance', authenticateToken, checkAccess, requi
 // traer historia previa al rango mostrado porque no hay acumulación.
 app.get('/api/finanzas/evolucion-egresos', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
   try {
-    const negocioId = req.negocioId;
+    const moduloId = req.moduloId;
     const { granularidad = 'semana', fecha_inicio, fecha_fin } = req.query;
 
-    if (!negocioId) {
-      return res.status(400).json({ error: 'Negocio no identificado' });
+    if (!moduloId) {
+      return res.status(400).json({ error: 'Se requiere un módulo' });
     }
 
     if (!['dia', 'semana', 'mes'].includes(granularidad)) {
@@ -3805,11 +3796,11 @@ app.get('/api/finanzas/evolucion-egresos', authenticateToken, checkAccess, requi
       startDate = moment(`${fecha_inicio} 00:00:00-05:00`).toDate();
       endDate = moment(`${fecha_fin} 23:59:59-05:00`).toDate();
     } else {
-      // Por defecto, "desde que tengo el negocio": el movimiento_caja más
+      // Por defecto, "desde que tengo el módulo": el movimiento_caja más
       // antiguo (mismo criterio que evolución-balance) hasta hoy.
       const minResult = await pool.query(
-        'SELECT MIN(fecha) as min_fecha FROM movimientos_caja WHERE negocio_id = $1',
-        [negocioId]
+        'SELECT MIN(fecha) as min_fecha FROM movimientos_caja WHERE modulo_id = $1',
+        [moduloId]
       );
       const minFecha = minResult.rows[0]?.min_fecha;
       if (!minFecha) {
@@ -3821,11 +3812,11 @@ app.get('/api/finanzas/evolucion-egresos', authenticateToken, checkAccess, requi
 
     // Igual que en /api/finanzas/reporte-semanal: coincidencia por nombre
     // exacto (insensible a mayúsculas) contra las categorías de gasto que
-    // el negocio ya haya creado con esos nombres. Si no existen, quedan
-    // en null y ningún egreso cae en esas categorías (no es un error).
+    // el módulo ya haya creado con esos nombres. Si no existen, quedan en
+    // null y ningún egreso cae en esas categorías (no es un error).
     const categoriasResult = await pool.query(
-      'SELECT id, LOWER(nombre) as nombre_lower FROM categorias_gasto WHERE negocio_id = $1',
-      [negocioId]
+      'SELECT id, LOWER(nombre) as nombre_lower FROM categorias_gasto WHERE modulo_id = $1',
+      [moduloId]
     );
     const catMercanciaId = categoriasResult.rows.find(c => c.nombre_lower === 'inversión mercancía')?.id ?? null;
     const catFijosId = categoriasResult.rows.find(c => c.nombre_lower === 'gastos fijos')?.id ?? null;
@@ -3833,19 +3824,18 @@ app.get('/api/finanzas/evolucion-egresos', authenticateToken, checkAccess, requi
     const egresosResult = await pool.query(
       `SELECT fecha, monto, origen, categoria_gasto_id
        FROM movimientos_caja
-       WHERE negocio_id = $1 AND tipo = 'egreso' AND fecha BETWEEN $2 AND $3`,
-      [negocioId, startDate, endDate]
+       WHERE modulo_id = $1 AND tipo = 'egreso' AND fecha BETWEEN $2 AND $3`,
+      [moduloId, startDate, endDate]
     );
 
     // Mismo criterio que GET /api/estadisticas/consumo-propio (ventas con
-    // metodo_pago = 'consumo_propio'), a nivel de negocio completo (join
-    // con modulos), igual que ya hace /api/finanzas/reporte-semanal.
+    // metodo_pago = 'consumo_propio'), acotado a este módulo directamente
+    // (ventas ya tiene modulo_id propio).
     const propiosResult = await pool.query(
       `SELECT v.fecha_venta as fecha, v.total as monto
        FROM ventas v
-       JOIN modulos m ON v.modulo_id = m.id
-       WHERE m.negocio_id = $1 AND v.metodo_pago = 'consumo_propio' AND v.fecha_venta BETWEEN $2 AND $3`,
-      [negocioId, startDate, endDate]
+       WHERE v.modulo_id = $1 AND v.metodo_pago = 'consumo_propio' AND v.fecha_venta BETWEEN $2 AND $3`,
+      [moduloId, startDate, endDate]
     );
 
     const buckets = new Map();
@@ -4834,9 +4824,9 @@ app.put('/api/pedidos-cliente/:id/completar', authenticateToken, checkAccess, as
     if (metodo_pago !== 'credito' && metodo_pago !== 'consumo_propio') {
       await client.query(
         `INSERT INTO movimientos_caja
-         (negocio_id, tipo, origen, monto, concepto, venta_id, usuario_id)
-         VALUES ($1, 'ingreso', 'venta', $2, $3, $4, $5)`,
-        [negocioId, pedido.total, `Venta #${numero_factura}`, venta.id, usuarioId]
+         (negocio_id, modulo_id, tipo, origen, monto, concepto, venta_id, usuario_id)
+         VALUES ($1, $2, 'ingreso', 'venta', $3, $4, $5, $6)`,
+        [negocioId, moduloId, pedido.total, `Venta #${numero_factura}`, venta.id, usuarioId]
       );
     }
 
