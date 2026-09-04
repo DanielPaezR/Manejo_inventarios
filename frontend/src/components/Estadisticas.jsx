@@ -220,6 +220,32 @@ const Estadisticas = ({ user }) => {
   const [evolucionVentas, setEvolucionVentas] = useState(null);
   const [loadingEvolucion, setLoadingEvolucion] = useState(false);
 
+  // Tendencia del negocio (últimos 30 días vs los 30 anteriores) — card al
+  // principio de la pestaña Evolución. Independiente del selector de
+  // granularidad/rango de arriba: siempre es la misma comparación fija de
+  // 30 días, para que la conclusión sea consistente sin importar qué
+  // rango esté mirando el usuario en los gráficos de abajo.
+  const [tendenciaNegocio, setTendenciaNegocio] = useState(null);
+  const [loadingTendencia, setLoadingTendencia] = useState(false);
+
+  const cargarTendenciaNegocio = useCallback(async () => {
+    try {
+      setLoadingTendencia(true);
+      const response = await api.get('/estadisticas/tendencia-negocio');
+      setTendenciaNegocio(response.data);
+    } catch (error) {
+      console.error('Error cargando tendencia del negocio:', error);
+    } finally {
+      setLoadingTendencia(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (moduloActivo && vistaActiva === 'evolucion') {
+      cargarTendenciaNegocio();
+    }
+  }, [moduloActivo, vistaActiva, cargarTendenciaNegocio]);
+
   const cambiarEvolucionGranularidad = (nuevaGranularidad) => {
     setEvolucionGranularidad(nuevaGranularidad);
     setEvolucionOffset(0);
@@ -1065,6 +1091,69 @@ const Estadisticas = ({ user }) => {
               ============================================================ */}
           {vistaActiva === 'evolucion' && (
             <div className="estadisticas-grid">
+              <div className="card tendencia-negocio-card">
+                <h3>🔮 Tendencia del negocio</h3>
+                {loadingTendencia && !tendenciaNegocio ? (
+                  <div className="loading-container">
+                    <div className="spinner"></div>
+                    <p>Calculando tendencia...</p>
+                  </div>
+                ) : !tendenciaNegocio || !tendenciaNegocio.tieneDatosSuficientes ? (
+                  <p className="sin-datos">Todavía no hay suficiente historial de ventas en los últimos 30 días para calcular una tendencia confiable.</p>
+                ) : (
+                  <>
+                    <div className={`tendencia-conclusion tendencia-${tendenciaNegocio.conclusion}`}>
+                      <span className="tendencia-icono">
+                        {tendenciaNegocio.conclusion === 'creciendo' ? '📈' : tendenciaNegocio.conclusion === 'empeorando' ? '📉' : '➡️'}
+                      </span>
+                      <div>
+                        <strong>
+                          {tendenciaNegocio.conclusion === 'creciendo' && 'Tu negocio está creciendo'}
+                          {tendenciaNegocio.conclusion === 'empeorando' && 'Tu negocio está empeorando'}
+                          {tendenciaNegocio.conclusion === 'estable' && 'Tu negocio está estable'}
+                        </strong>
+                        <p>
+                          Últimos 30 días ({formatearRangoFechas(tendenciaNegocio.periodo.inicio_actual, tendenciaNegocio.periodo.fin_actual)})
+                          {' '}vs. los 30 anteriores ({formatearRangoFechas(tendenciaNegocio.periodo.inicio_anterior, tendenciaNegocio.periodo.fin_anterior)})
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="tendencia-factores">
+                      {[
+                        { key: 'ventas', label: '💰 Ventas' },
+                        { key: 'margen', label: '📊 Margen bruto' },
+                        { key: 'ticketPromedio', label: '🎫 Ticket promedio' }
+                      ].map(({ key, label }) => {
+                        const factor = tendenciaNegocio.factores[key];
+                        const signo = factor.cambioPorcentaje === null ? null : factor.cambioPorcentaje > 0 ? 'positivo' : factor.cambioPorcentaje < 0 ? 'negativo' : 'neutral';
+                        return (
+                          <div key={key} className="tendencia-factor-item">
+                            <span className="tendencia-factor-label">{label}</span>
+                            <span className="tendencia-factor-valor">{formatearMoneda(factor.actual)}</span>
+                            {factor.cambioPorcentaje !== null ? (
+                              <span className={`tendencia-factor-cambio ${signo}`}>
+                                {factor.cambioPorcentaje > 0 ? '↑' : factor.cambioPorcentaje < 0 ? '↓' : '→'} {Math.abs(factor.cambioPorcentaje).toFixed(1)}%
+                              </span>
+                            ) : (
+                              <span className="tendencia-factor-cambio neutral">
+                                {factor.puntaje > 0 ? '↑ Nuevo' : 'Sin dato previo'}
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {tendenciaNegocio.stockCritico.total > 0 && (
+                      <p className="tendencia-stock-aviso">
+                        ⚠️ Ahora mismo tienes {tendenciaNegocio.stockCritico.total} producto(s) con stock bajo o agotado ({tendenciaNegocio.stockCritico.agotados} agotados) — dato informativo del momento, no afecta la conclusión de arriba.
+                      </p>
+                    )}
+                  </>
+                )}
+              </div>
+
               <div className="card evolucion-controles-card">
                 <div className="periodo-selector">
                   <button

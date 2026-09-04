@@ -3873,6 +3873,127 @@ app.get('/api/finanzas/evolucion-egresos', authenticateToken, checkAccess, requi
   }
 });
 
+// Tendencia general del negocio (módulo activo): compara los últimos 30
+// días contra los 30 días inmediatamente anteriores en 3 factores —
+// ventas totales, margen bruto (ventas menos el costo de la mercancía
+// realmente vendida, usando productos.precio_compra) y ticket promedio —
+// y da una conclusión de si el negocio está creciendo, estable o
+// empeorando. Vive como card en la pestaña "Evolución" de
+// Estadisticas.jsx. El stock crítico se informa aparte, sin contar para
+// el puntaje: no hay snapshot histórico de stock_actual, así que no se
+// puede saber si estaba mejor o peor hace 30 días.
+app.get('/api/estadisticas/tendencia-negocio', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+  try {
+    const moduloId = req.moduloId;
+
+    if (!moduloId) {
+      return res.status(400).json({ error: 'Se requiere un módulo' });
+    }
+
+    const finActual = ahoraColombia().endOf('day').toDate();
+    const inicioActual = ahoraColombia().subtract(29, 'days').startOf('day').toDate();
+    const duracionMs = finActual.getTime() - inicioActual.getTime();
+    const finAnterior = new Date(inicioActual.getTime() - 1);
+    const inicioAnterior = new Date(inicioActual.getTime() - duracionMs);
+
+    const calcularPeriodo = async (inicio, fin) => {
+      const ventasResult = await pool.query(
+        `SELECT COUNT(*) as cantidad, COALESCE(SUM(total), 0) as monto
+         FROM ventas
+         WHERE modulo_id = $1 AND fecha_venta BETWEEN $2 AND $3
+         AND es_ajuste_manual = false AND metodo_pago != 'consumo_propio'`,
+        [moduloId, inicio, fin]
+      );
+
+      const margenResult = await pool.query(
+        `SELECT COALESCE(SUM(dv.subtotal - dv.cantidad * COALESCE(p.precio_compra, 0)), 0) as margen
+         FROM detalle_venta dv
+         JOIN ventas v ON dv.venta_id = v.id
+         JOIN productos p ON dv.producto_id = p.id
+         WHERE v.modulo_id = $1 AND v.fecha_venta BETWEEN $2 AND $3
+         AND v.es_ajuste_manual = false AND v.metodo_pago != 'consumo_propio'`,
+        [moduloId, inicio, fin]
+      );
+
+      const ventasMonto = Number(ventasResult.rows[0].monto);
+      const ventasCantidad = Number(ventasResult.rows[0].cantidad);
+
+      return {
+        ventasMonto,
+        ventasCantidad,
+        margen: Number(margenResult.rows[0].margen),
+        ticketPromedio: ventasCantidad > 0 ? ventasMonto / ventasCantidad : null
+      };
+    };
+
+    const actual = await calcularPeriodo(inicioActual, finActual);
+    const anterior = await calcularPeriodo(inicioAnterior, finAnterior);
+
+    const stockCriticoResult = await pool.query(
+      `SELECT COUNT(*) as total, COUNT(*) FILTER (WHERE stock_actual = 0) as agotados
+       FROM productos
+       WHERE modulo_id = $1 AND activo = true AND ignora_stock = false AND stock_actual <= stock_minimo`,
+      [moduloId]
+    );
+
+    // Cada factor compara % de cambio contra el período anterior. Sin
+    // datos del período anterior (negocio nuevo, o módulo recién creado)
+    // el % no tiene sentido — se marca null y ese factor no participa del
+    // puntaje, en vez de mostrar un falso "+infinito%".
+    const compararFactor = (actualVal, anteriorVal) => {
+      if (anteriorVal === null || actualVal === null) return { cambioPorcentaje: null, puntaje: 0 };
+      if (anteriorVal === 0) {
+        // 0 en ambos períodos no es "0% de cambio" real — es que no hubo
+        // actividad en ninguno de los dos, no hay tendencia que calcular.
+        if (actualVal === 0) return { cambioPorcentaje: null, puntaje: 0 };
+        return { cambioPorcentaje: null, puntaje: 1 }; // pasó de 0 a algo: mejora, pero no hay % real que mostrar
+      }
+      const cambioPorcentaje = ((actualVal - anteriorVal) / anteriorVal) * 100;
+      let puntaje = 0;
+      if (cambioPorcentaje > 5) puntaje = 1;
+      else if (cambioPorcentaje < -5) puntaje = -1;
+      return { cambioPorcentaje, puntaje };
+    };
+
+    const factorVentas = compararFactor(actual.ventasMonto, anterior.ventasMonto);
+    const factorMargen = compararFactor(actual.margen, anterior.margen);
+    const factorTicket = compararFactor(actual.ticketPromedio, anterior.ticketPromedio);
+
+    const factoresConDatos = [factorVentas, factorMargen, factorTicket].filter(f => f.cambioPorcentaje !== null || f.puntaje !== 0);
+    const puntajeTotal = factorVentas.puntaje + factorMargen.puntaje + factorTicket.puntaje;
+
+    let conclusion = 'sin_datos';
+    if (anterior.ventasCantidad > 0 || actual.ventasCantidad > 0) {
+      if (puntajeTotal >= 2) conclusion = 'creciendo';
+      else if (puntajeTotal <= -2) conclusion = 'empeorando';
+      else conclusion = 'estable';
+    }
+
+    res.json({
+      periodo: {
+        inicio_actual: moment(inicioActual).utcOffset(-300).format('YYYY-MM-DD'),
+        fin_actual: moment(finActual).utcOffset(-300).format('YYYY-MM-DD'),
+        inicio_anterior: moment(inicioAnterior).utcOffset(-300).format('YYYY-MM-DD'),
+        fin_anterior: moment(finAnterior).utcOffset(-300).format('YYYY-MM-DD')
+      },
+      conclusion,
+      tieneDatosSuficientes: factoresConDatos.length > 0,
+      factores: {
+        ventas: { actual: actual.ventasMonto, anterior: anterior.ventasMonto, ...factorVentas },
+        margen: { actual: actual.margen, anterior: anterior.margen, ...factorMargen },
+        ticketPromedio: { actual: actual.ticketPromedio, anterior: anterior.ticketPromedio, ...factorTicket }
+      },
+      stockCritico: {
+        total: Number(stockCriticoResult.rows[0].total),
+        agotados: Number(stockCriticoResult.rows[0].agotados)
+      }
+    });
+  } catch (error) {
+    console.error('Error calculando tendencia del negocio:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
 // Evolución de ventas período a período, SIN acumular — cada punto es lo
 // vendido EN ese bucket. A diferencia de evolucion-balance/egresos (que son
 // de todo el negocio, vía movimientos_caja), esta es del módulo activo

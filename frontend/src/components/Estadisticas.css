@@ -1114,3 +1114,114 @@
     font-size: 18px;
   }
 }
+/* ============================================================
+   TENDENCIA DEL NEGOCIO (card en la pestaña Evolución)
+   ============================================================ */
+.tendencia-negocio-card h3 {
+  margin: 0 0 16px;
+}
+
+.tendencia-conclusion {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 20px;
+  border-radius: var(--radius-md, 16px);
+  margin-bottom: 20px;
+}
+
+.tendencia-conclusion .tendencia-icono {
+  font-size: 36px;
+  flex-shrink: 0;
+}
+
+.tendencia-conclusion strong {
+  display: block;
+  font-size: 17px;
+  margin-bottom: 2px;
+}
+
+.tendencia-conclusion p {
+  margin: 0;
+  font-size: 13px;
+  opacity: 0.85;
+}
+
+.tendencia-creciendo {
+  background: #f0fff4;
+  color: #22543d;
+  border: 1px solid #c6f6d5;
+}
+
+.tendencia-empeorando {
+  background: #fff5f5;
+  color: #742a2a;
+  border: 1px solid #fed7d7;
+}
+
+.tendencia-estable {
+  background: #fdf3ea;
+  color: var(--primary-dark, #7c3220);
+  border: 1px solid #f0ddc9;
+}
+
+.tendencia-factores {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 14px;
+}
+
+.tendencia-factor-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 14px 16px;
+  background: #fbf6ef;
+  border: 1px solid #f0ddc9;
+  border-radius: var(--radius-sm, 10px);
+}
+
+.tendencia-factor-label {
+  font-size: 12px;
+  color: #6b5745;
+  font-weight: 600;
+}
+
+.tendencia-factor-valor {
+  font-size: 18px;
+  font-weight: 700;
+  color: #3b2a20;
+}
+
+.tendencia-factor-cambio {
+  font-size: 13px;
+  font-weight: 600;
+  width: fit-content;
+  padding: 2px 8px;
+  border-radius: 20px;
+}
+
+.tendencia-factor-cambio.positivo {
+  background: #f0fff4;
+  color: #22543d;
+}
+
+.tendencia-factor-cambio.negativo {
+  background: #fff5f5;
+  color: #742a2a;
+}
+
+.tendencia-factor-cambio.neutral {
+  background: #edf2f7;
+  color: #4a5568;
+}
+
+.tendencia-stock-aviso {
+  margin: 16px 0 0;
+  padding: 10px 14px;
+  background: #fffaf0;
+  border: 1px solid #feebc8;
+  border-radius: var(--radius-sm, 10px);
+  font-size: 13px;
+  color: #9c4221;
+}
