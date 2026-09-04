@@ -1,37 +1,44 @@
 /* ============================================================
-   LOGIN - VERSIÓN PREMIUM
+   LOGIN - IDENTIDAD "FINCA" (foto real del negocio de fondo)
+   Paleta tomada de la foto: rojo teja del techo, madera/tierra,
+   verdes del paisaje y luz cálida de atardecer.
    ============================================================ */
+:root {
+  --login-primary: #a8452f;
+  --login-primary-dark: #7c3220;
+  --login-accent: #d98e3b;
+  --login-text: #3b2a20;
+  --login-text-soft: #6b5745;
+}
 
-/* Contenedor principal con gradiente animado */
+/* Contenedor principal: la foto del negocio a pantalla completa, con un
+   degradado oscuro encima (misma lógica que el hero del menú público)
+   para que la tarjeta y el texto siempre se lean bien sin importar qué
+   tan clara sea la zona de la foto detrás. */
 .login-container {
   display: flex;
   justify-content: center;
   align-items: center;
   min-height: 100vh;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  background-size: 400% 400%;
-  animation: gradientShift 15s ease infinite;
+  background:
+    linear-gradient(160deg, rgba(59, 34, 22, 0.55) 0%, rgba(59, 34, 22, 0.25) 45%, rgba(20, 12, 8, 0.75) 100%),
+    url('/login-bg.jpg');
+  background-size: cover;
+  background-position: center;
   padding: 20px;
-}
-
-/* Animación del gradiente de fondo */
-@keyframes gradientShift {
-  0% { background-position: 0% 50%; }
-  50% { background-position: 100% 50%; }
-  100% { background-position: 0% 50%; }
 }
 
 /* ============================================================
    TARJETA DE LOGIN
    ============================================================ */
 .login-card {
-  background: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(10px);
+  background: rgba(253, 248, 242, 0.94);
+  backdrop-filter: blur(12px);
   padding: 40px 36px;
   border-radius: 20px;
-  box-shadow: 
-    0 20px 60px rgba(0, 0, 0, 0.3),
-    0 0 0 1px rgba(255, 255, 255, 0.1) inset;
+  box-shadow:
+    0 20px 60px rgba(20, 12, 8, 0.45),
+    0 0 0 1px rgba(255, 255, 255, 0.15) inset;
   width: 100%;
   max-width: 420px;
   animation: slideUp 0.6s ease-out;
@@ -59,7 +66,7 @@
   left: 0;
   right: 0;
   height: 4px;
-  background: linear-gradient(90deg, #667eea, #764ba2, #667eea);
+  background: linear-gradient(90deg, var(--login-primary), var(--login-accent), var(--login-primary));
   background-size: 200% 100%;
   animation: shimmer 3s linear infinite;
 }
@@ -81,16 +88,25 @@
   text-align: center;
   font-size: 28px;
   font-weight: 700;
-  color: #2d3748;
+  color: var(--login-text);
   margin: 0 0 4px 0;
   letter-spacing: -0.5px;
+}
+
+.login-card h2 {
+  text-align: center;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--login-primary);
+  margin: 0 0 20px 0;
 }
 
 .login-card .subtitle {
   text-align: center;
   font-size: 14px;
-  color: #718096;
-  margin-bottom: 24px;
+  color: var(--login-text-soft);
+  margin-top: 20px;
+  margin-bottom: 0;
   font-weight: 400;
 }
 
@@ -134,7 +150,7 @@
   display: block;
   font-size: 14px;
   font-weight: 600;
-  color: #2d3748;
+  color: var(--login-text);
   margin-bottom: 6px;
 }
 
@@ -146,19 +162,19 @@
 .form-group input {
   width: 100%;
   padding: 12px 16px;
-  border: 2px solid #e2e8f0;
+  border: 2px solid #e8ddd0;
   border-radius: 10px;
   font-size: 15px;
-  color: #2d3748;
-  background: #f7fafc;
+  color: var(--login-text);
+  background: #fbf6ef;
   transition: all 0.3s ease;
   outline: none;
 }
 
 .form-group input:focus {
-  border-color: #667eea;
+  border-color: var(--login-primary);
   background: white;
-  box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.15);
+  box-shadow: 0 0 0 4px rgba(168, 69, 47, 0.15);
 }
 
 .form-group input::placeholder {
@@ -187,7 +203,7 @@
 .btn-login {
   width: 100%;
   padding: 14px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, var(--login-primary) 0%, var(--login-primary-dark) 100%);
   color: white;
   border: none;
   border-radius: 10px;
@@ -202,7 +218,7 @@
 
 .btn-login:hover:not(:disabled) {
   transform: translateY(-2px);
-  box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
+  box-shadow: 0 8px 25px rgba(168, 69, 47, 0.45);
 }
 
 .btn-login:active:not(:disabled) {
@@ -272,19 +288,19 @@
 .login-options .remember-me input[type="checkbox"] {
   width: 16px;
   height: 16px;
-  accent-color: #667eea;
+  accent-color: var(--login-primary);
   cursor: pointer;
 }
 
 .login-options a {
-  color: #667eea;
+  color: var(--login-primary);
   text-decoration: none;
   font-weight: 500;
   transition: color 0.2s;
 }
 
 .login-options a:hover {
-  color: #5a6fd8;
+  color: var(--login-primary-dark);
   text-decoration: underline;
 }
 
@@ -321,7 +337,7 @@
 }
 
 .login-credentials .credential-item .email {
-  color: #667eea;
+  color: var(--login-primary);
   font-weight: 500;
 }
 
@@ -341,7 +357,7 @@
 }
 
 .login-footer a {
-  color: #667eea;
+  color: var(--login-primary);
   text-decoration: none;
 }
 
@@ -415,30 +431,34 @@
    ============================================================ */
 @media (prefers-color-scheme: dark) {
   .login-card {
-    background: rgba(26, 32, 44, 0.95);
+    background: rgba(38, 27, 20, 0.94);
   }
 
   .login-card h1 {
     color: white;
   }
 
+  .login-card h2 {
+    color: var(--login-accent);
+  }
+
   .login-card .subtitle {
-    color: #a0aec0;
+    color: #d8c8b8;
   }
 
   .form-group label {
-    color: #e2e8f0;
+    color: #f0e6da;
   }
 
   .form-group input {
-    background: #2d3748;
-    border-color: #4a5568;
+    background: #3b2a20;
+    border-color: #5c4432;
     color: white;
   }
 
   .form-group input:focus {
-    border-color: #667eea;
-    background: #2d3748;
+    border-color: var(--login-accent);
+    background: #3b2a20;
   }
 
   .form-group input::placeholder {
