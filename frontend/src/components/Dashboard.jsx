@@ -120,11 +120,12 @@ const Dashboard = ({ user, onLogout }) => {
   };
 
   // Obtener items según el rol
-  const items = user?.rol === 'super_admin' 
-    ? menuItems.super_admin 
-    : user?.rol === 'admin' 
-      ? menuItems.admin 
-      : menuItems.trabajador;
+  const items = (user?.rol === 'super_admin'
+    ? menuItems.super_admin
+    : user?.rol === 'admin'
+      ? menuItems.admin
+      : menuItems.trabajador
+  ).filter(item => item.path !== '/ruta-entregas' || moduloActivo?.tiene_domicilio !== false);
 
   // Contar notificaciones no leídas
   const notificacionesNoLeidas = notificaciones.filter(n => !n.leido).length;

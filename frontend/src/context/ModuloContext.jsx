@@ -29,13 +29,11 @@ export const ModuloProvider = ({ children, user }) => {
         const moduloGuardado = localStorage.getItem('moduloActivo');
         if (moduloGuardado) {
           const modulo = JSON.parse(moduloGuardado);
-          // Verificar que el módulo guardado aún está en la lista
-          const existe = user.modulos.some(m => m.id === modulo.id);
-          if (existe) {
-            setModuloActivo(modulo);
-          } else {
-            setModuloActivo(user.modulos[0]);
-          }
+          // Usar los datos frescos de user.modulos (no el objeto cacheado),
+          // así campos como tiene_domicilio quedan al día aunque el
+          // localStorage venga de una sesión anterior.
+          const fresco = user.modulos.find(m => m.id === modulo.id);
+          setModuloActivo(fresco || user.modulos[0]);
         } else {
           setModuloActivo(user.modulos[0]);
         }

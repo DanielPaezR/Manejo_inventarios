@@ -110,13 +110,13 @@ app.post('/api/login', async (req, res) => {
       
       if (user.rol === 'admin') {
         const modulosResult = await pool.query(
-          'SELECT id, nombre, descripcion, activo FROM modulos WHERE negocio_id = $1 AND activo = true ORDER BY nombre',
+          'SELECT id, nombre, descripcion, activo, tiene_domicilio FROM modulos WHERE negocio_id = $1 AND activo = true ORDER BY nombre',
           [user.negocio_id]
         );
         modulos = modulosResult.rows;
       } else if (user.rol === 'trabajador') {
         const modulosResult = await pool.query(
-          `SELECT m.id, m.nombre, m.descripcion, m.activo 
+          `SELECT m.id, m.nombre, m.descripcion, m.activo, m.tiene_domicilio
            FROM modulos m
            JOIN usuario_modulos um ON m.id = um.modulo_id
            WHERE um.usuario_id = $1 AND m.activo = true
@@ -214,13 +214,13 @@ app.get('/api/perfil', authenticateToken, async (req, res) => {
       
       if (user.rol === 'admin') {
         const modulosResult = await pool.query(
-          'SELECT id, nombre, descripcion, activo FROM modulos WHERE negocio_id = $1 AND activo = true ORDER BY nombre',
+          'SELECT id, nombre, descripcion, activo, tiene_domicilio FROM modulos WHERE negocio_id = $1 AND activo = true ORDER BY nombre',
           [user.negocio_id]
         );
         modulos = modulosResult.rows;
       } else if (user.rol === 'trabajador') {
         const modulosResult = await pool.query(
-          `SELECT m.id, m.nombre, m.descripcion, m.activo 
+          `SELECT m.id, m.nombre, m.descripcion, m.activo, m.tiene_domicilio
            FROM modulos m
            JOIN usuario_modulos um ON m.id = um.modulo_id
            WHERE um.usuario_id = $1 AND m.activo = true
