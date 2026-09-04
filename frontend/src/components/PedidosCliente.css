@@ -125,6 +125,12 @@
   opacity: 0.75;
 }
 
+.config-menu-checkbox-domicilio {
+  display: block;
+  margin: 0 0 14px;
+  font-size: 13px;
+}
+
 .config-menu-nombre-input {
   display: block;
   background: rgba(255, 255, 255, 0.15);

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import apiPublico from '../services/apiPublico';
 import { IconoHoja, obtenerColorPlaceholder } from '../utils/menuVisual';
+import SelectorDireccionMapa from './SelectorDireccionMapa';
 import './MenuPublico.css';
 
 // ============================================================
@@ -107,9 +108,14 @@ const MenuPublico = () => {
   const [error, setError] = useState('');
   const [carrito, setCarrito] = useState({}); // { [producto_id]: cantidad }
   const [mesaNombre, setMesaNombre] = useState('');
+  const [telefono, setTelefono] = useState('');
   const [montoRecibido, setMontoRecibido] = useState('');
   const [esDomicilio, setEsDomicilio] = useState(false);
   const [direccionEntrega, setDireccionEntrega] = useState('');
+  // { lat, lng, direccion } de la última ubicación que el cliente confirmó
+  // en el mapa (ver SelectorDireccionMapa) — direccion sirve para saber si
+  // sigue siendo válida o el texto cambió después de confirmar.
+  const [ubicacionDomicilio, setUbicacionDomicilio] = useState(null);
   const [enviando, setEnviando] = useState(false);
   const [errorEnvio, setErrorEnvio] = useState('');
   const [categoriasAbiertas, setCategoriasAbiertas] = useState(new Set());
@@ -229,6 +235,10 @@ const MenuPublico = () => {
       setErrorEnvio('⚠️ Ingresa tu nombre o el número de mesa');
       return;
     }
+    if (!telefono.trim()) {
+      setErrorEnvio('⚠️ Ingresa tu número de teléfono');
+      return;
+    }
     if (itemsCarrito.length === 0) {
       setErrorEnvio('⚠️ Agrega al menos un producto');
       return;
@@ -237,14 +247,21 @@ const MenuPublico = () => {
       setErrorEnvio('⚠️ Ingresa la dirección de entrega');
       return;
     }
+    if (esDomicilio && (!ubicacionDomicilio || ubicacionDomicilio.direccion !== direccionEntrega.trim())) {
+      setErrorEnvio('⚠️ Confirma tu ubicación en el mapa antes de enviar el pedido');
+      return;
+    }
 
     try {
       setEnviando(true);
       const response = await apiPublico.post(`/menu/${moduloId}/pedidos`, {
         mesa_nombre: mesaNombre.trim(),
+        telefono: telefono.trim(),
         monto_recibido: montoRecibido ? Number(montoRecibido) : undefined,
         es_domicilio: esDomicilio,
         direccion_entrega: esDomicilio ? direccionEntrega.trim() : undefined,
+        lat: esDomicilio ? ubicacionDomicilio.lat : undefined,
+        lng: esDomicilio ? ubicacionDomicilio.lng : undefined,
         items: itemsCarrito.map(item => ({
           producto_id: item.producto.id,
           cantidad: item.cantidad
@@ -313,6 +330,13 @@ const MenuPublico = () => {
               className="mp-input"
             />
             <input
+              type="tel"
+              placeholder="Tu número de teléfono *"
+              value={telefono}
+              onChange={(e) => setTelefono(e.target.value)}
+              className="mp-input"
+            />
+            <input
               type="number"
               min="0"
               placeholder="¿Con qué billete vas a pagar? (opcional)"
@@ -321,23 +345,34 @@ const MenuPublico = () => {
               className="mp-input"
             />
 
-            <label className="mp-checkbox">
-              <input
-                type="checkbox"
-                checked={esDomicilio}
-                onChange={(e) => setEsDomicilio(e.target.checked)}
-              />
-              <span>🛵 Es domicilio (necesito que me lo lleven)</span>
-            </label>
+            {modulo?.tiene_domicilio && (
+              <>
+                <label className="mp-checkbox">
+                  <input
+                    type="checkbox"
+                    checked={esDomicilio}
+                    onChange={(e) => setEsDomicilio(e.target.checked)}
+                  />
+                  <span>🛵 Es domicilio (necesito que me lo lleven)</span>
+                </label>
 
-            {esDomicilio && (
-              <input
-                type="text"
-                placeholder="Dirección de entrega *"
-                value={direccionEntrega}
-                onChange={(e) => setDireccionEntrega(e.target.value)}
-                className="mp-input"
-              />
+                {esDomicilio && (
+                  <>
+                    <input
+                      type="text"
+                      placeholder="Dirección de entrega *"
+                      value={direccionEntrega}
+                      onChange={(e) => setDireccionEntrega(e.target.value)}
+                      className="mp-input"
+                    />
+                    <SelectorDireccionMapa
+                      direccion={direccionEntrega}
+                      ubicacion={ubicacionDomicilio}
+                      onConfirmar={setUbicacionDomicilio}
+                    />
+                  </>
+                )}
+              </>
             )}
           </div>
 

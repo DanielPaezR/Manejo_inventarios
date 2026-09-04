@@ -32,7 +32,7 @@ function urlBase64ToUint8Array(base64String) {
 const INTERVALO_POLLING_MS = 30000;
 
 const PedidosCliente = ({ user }) => {
-  const { moduloActivo, cambiarModulo } = useModulo();
+  const { moduloActivo } = useModulo();
   const [pedidos, setPedidos] = useState([]);
   const [loading, setLoading] = useState(false);
   const [mensaje, setMensaje] = useState('');
@@ -60,6 +60,7 @@ const PedidosCliente = ({ user }) => {
   const [nombrePublico, setNombrePublico] = useState('');
   const [fotoPortadaUrl, setFotoPortadaUrl] = useState('');
   const [negocioNombre, setNegocioNombre] = useState('');
+  const [tieneDomicilio, setTieneDomicilio] = useState(true);
   const [guardandoPortada, setGuardandoPortada] = useState(false);
   const [editandoNombrePublico, setEditandoNombrePublico] = useState(false);
   const esAdmin = user?.rol === 'admin' || user?.rol === 'super_admin';
@@ -101,6 +102,7 @@ const PedidosCliente = ({ user }) => {
         setFotoPortadaUrl(response.data.foto_portada_url || '');
         setNombrePublico(response.data.nombre_publico || '');
         setNegocioNombre(response.data.negocio_nombre || '');
+        setTieneDomicilio(response.data.tiene_domicilio !== false);
       })
       .catch(error => console.error('Error cargando configuración del módulo:', error));
   }, [moduloActivo, esAdmin]);
@@ -322,7 +324,8 @@ const PedidosCliente = ({ user }) => {
       setGuardandoPortada(true);
       await api.put(`/modulos/${moduloActivo.id}/portada`, {
         nombre_publico: nombrePublico.trim(),
-        foto_portada_url: fotoPortadaUrl.trim()
+        foto_portada_url: fotoPortadaUrl.trim(),
+        tiene_domicilio: tieneDomicilio
       });
       setMensaje('✅ Menú actualizado');
     } catch (error) {
@@ -482,6 +485,15 @@ const PedidosCliente = ({ user }) => {
             </div>
           </div>
 
+          <label className="checkbox-label config-menu-checkbox-domicilio">
+            <input
+              type="checkbox"
+              checked={tieneDomicilio}
+              onChange={(e) => setTieneDomicilio(e.target.checked)}
+            />
+            🛵 Este módulo tiene domicilio (si lo apagas, el menú solo ofrece pedir para recoger/mesa, sin dirección)
+          </label>
+
           <button
             onClick={guardarConfiguracionMenu}
             disabled={guardandoPortada}
@@ -549,11 +561,6 @@ const PedidosCliente = ({ user }) => {
                 <div className="pedido-cliente-resumen" onClick={() => toggleExpandido(pedido.id)}>
                   <div className="pedido-cliente-resumen-principal">
                     <span className="pedido-cliente-mesa">{pedido.mesa_nombre}</span>
-                    {esAdmin && pedido.modulo_nombre && (
-                      <span className="badge-otro-modulo" title="Módulo al que pertenece este pedido">
-                        📁 {pedido.modulo_nombre}
-                      </span>
-                    )}
                     {pedido.es_domicilio && (
                       <span className="pedido-cliente-domicilio-badge">🛵 Domicilio</span>
                     )}
@@ -688,16 +695,7 @@ const PedidosCliente = ({ user }) => {
                           <p className="pedido-cliente-domicilio">🛵 Domicilio: {pedido.direccion_entrega}</p>
                         )}
 
-                        {esAdmin && pedido.modulo_id !== moduloActivo.id ? (
-                          <div className="pedido-cliente-acciones">
-                            <button
-                              onClick={() => cambiarModulo({ id: pedido.modulo_id, nombre: pedido.modulo_nombre })}
-                              className="btn-editar-pedido-cliente"
-                            >
-                              🔀 Cambiar a "{pedido.modulo_nombre}" para gestionarlo
-                            </button>
-                          </div>
-                        ) : (pedido.estado === 'pendiente' || pedido.estado === 'confirmado' || pedido.estado === 'cancelado') && (
+                        {(pedido.estado === 'pendiente' || pedido.estado === 'confirmado' || pedido.estado === 'cancelado') && (
                           <div className="pedido-cliente-acciones">
                             {pedido.estado === 'pendiente' && (
                               <button

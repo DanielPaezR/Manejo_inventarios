@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 import apiPublico from '../services/apiPublico';
+import SelectorDireccionMapa from './SelectorDireccionMapa';
 import './MenuPedidoConfirmacion.css';
 
 // ============================================================
@@ -63,9 +64,11 @@ const MenuPedidoConfirmacion = () => {
   const [editando, setEditando] = useState(false);
   const [carritoEdit, setCarritoEdit] = useState({});
   const [mesaNombreEdit, setMesaNombreEdit] = useState('');
+  const [telefonoEdit, setTelefonoEdit] = useState('');
   const [montoRecibidoEdit, setMontoRecibidoEdit] = useState('');
   const [esDomicilioEdit, setEsDomicilioEdit] = useState(false);
   const [direccionEntregaEdit, setDireccionEntregaEdit] = useState('');
+  const [ubicacionDomicilioEdit, setUbicacionDomicilioEdit] = useState(null);
   const [guardando, setGuardando] = useState(false);
   const [cancelando, setCancelando] = useState(false);
   const [confirmando, setConfirmando] = useState(false);
@@ -102,9 +105,18 @@ const MenuPedidoConfirmacion = () => {
     });
     setCarritoEdit(inicial);
     setMesaNombreEdit(pedido.mesa_nombre);
+    setTelefonoEdit(pedido.telefono || '');
     setMontoRecibidoEdit(pedido.monto_recibido ? String(Number(pedido.monto_recibido)) : '');
     setEsDomicilioEdit(!!pedido.es_domicilio);
     setDireccionEntregaEdit(pedido.direccion_entrega || '');
+    // Si el pedido ya tenía coordenadas guardadas (confirmadas al crearlo,
+    // o rellenadas por el geocoding de respaldo), se muestran como ya
+    // confirmadas en vez de obligar a repetir el paso del mapa.
+    setUbicacionDomicilioEdit(
+      pedido.es_domicilio && pedido.lat !== null && pedido.lat !== undefined && pedido.lng !== null && pedido.lng !== undefined
+        ? { lat: Number(pedido.lat), lng: Number(pedido.lng), direccion: (pedido.direccion_entrega || '').trim() }
+        : null
+    );
     setErrorAccion('');
     setEditando(true);
 
@@ -174,6 +186,10 @@ const MenuPedidoConfirmacion = () => {
       setErrorAccion('⚠️ Ingresa tu nombre o el número de mesa');
       return;
     }
+    if (!telefonoEdit.trim()) {
+      setErrorAccion('⚠️ Ingresa tu número de teléfono');
+      return;
+    }
     if (itemsEdit.length === 0) {
       setErrorAccion('⚠️ Agrega al menos un producto');
       return;
@@ -182,14 +198,21 @@ const MenuPedidoConfirmacion = () => {
       setErrorAccion('⚠️ Ingresa la dirección de entrega');
       return;
     }
+    if (esDomicilioEdit && (!ubicacionDomicilioEdit || ubicacionDomicilioEdit.direccion !== direccionEntregaEdit.trim())) {
+      setErrorAccion('⚠️ Confirma tu ubicación en el mapa antes de guardar');
+      return;
+    }
 
     try {
       setGuardando(true);
       await apiPublico.put(`/menu/pedido/${token}`, {
         mesa_nombre: mesaNombreEdit.trim(),
+        telefono: telefonoEdit.trim(),
         monto_recibido: montoRecibidoEdit ? Number(montoRecibidoEdit) : undefined,
         es_domicilio: esDomicilioEdit,
         direccion_entrega: esDomicilioEdit ? direccionEntregaEdit.trim() : undefined,
+        lat: esDomicilioEdit ? ubicacionDomicilioEdit.lat : undefined,
+        lng: esDomicilioEdit ? ubicacionDomicilioEdit.lng : undefined,
         items: itemsEdit
       });
       // Se recarga por GET en vez de usar la respuesta del PUT directamente:
@@ -419,6 +442,13 @@ const MenuPedidoConfirmacion = () => {
               className="mp-input"
             />
             <input
+              type="tel"
+              placeholder="Tu número de teléfono *"
+              value={telefonoEdit}
+              onChange={(e) => setTelefonoEdit(e.target.value)}
+              className="mp-input"
+            />
+            <input
               type="number"
               min="0"
               placeholder="¿Con qué billete vas a pagar? (opcional)"
@@ -427,23 +457,34 @@ const MenuPedidoConfirmacion = () => {
               className="mp-input"
             />
 
-            <label className="mp-checkbox">
-              <input
-                type="checkbox"
-                checked={esDomicilioEdit}
-                onChange={(e) => setEsDomicilioEdit(e.target.checked)}
-              />
-              <span>🛵 Es domicilio (necesito que me lo lleven)</span>
-            </label>
+            {pedido.tiene_domicilio && (
+              <>
+                <label className="mp-checkbox">
+                  <input
+                    type="checkbox"
+                    checked={esDomicilioEdit}
+                    onChange={(e) => setEsDomicilioEdit(e.target.checked)}
+                  />
+                  <span>🛵 Es domicilio (necesito que me lo lleven)</span>
+                </label>
 
-            {esDomicilioEdit && (
-              <input
-                type="text"
-                placeholder="Dirección de entrega *"
-                value={direccionEntregaEdit}
-                onChange={(e) => setDireccionEntregaEdit(e.target.value)}
-                className="mp-input"
-              />
+                {esDomicilioEdit && (
+                  <>
+                    <input
+                      type="text"
+                      placeholder="Dirección de entrega *"
+                      value={direccionEntregaEdit}
+                      onChange={(e) => setDireccionEntregaEdit(e.target.value)}
+                      className="mp-input"
+                    />
+                    <SelectorDireccionMapa
+                      direccion={direccionEntregaEdit}
+                      ubicacion={ubicacionDomicilioEdit}
+                      onConfirmar={setUbicacionDomicilioEdit}
+                    />
+                  </>
+                )}
+              </>
             )}
           </div>
 

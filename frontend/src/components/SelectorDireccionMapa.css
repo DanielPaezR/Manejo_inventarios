@@ -1,0 +1,75 @@
+.sdm-btn-buscar {
+  width: 100%;
+  justify-content: center;
+}
+
+.sdm-mapa-wrapper {
+  margin: 4px 0;
+}
+
+.sdm-mapa {
+  height: 220px;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.sdm-mapa .leaflet-container {
+  height: 100%;
+  width: 100%;
+}
+
+.sdm-hint {
+  margin: 6px 0;
+  font-size: 12px;
+  color: #718096;
+  text-align: center;
+}
+
+.sdm-aviso {
+  margin: 0 0 8px;
+  font-size: 13px;
+  color: #9c4221;
+  background: #feebc8;
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+
+.sdm-btn-confirmar {
+  width: 100%;
+  justify-content: center;
+}
+
+.sdm-confirmado {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 14px;
+  background: #f0fff4;
+  border: 1px solid #c6f6d5;
+  border-radius: 10px;
+  font-size: 13px;
+  color: #22543d;
+}
+
+.sdm-btn-ajustar {
+  background: none;
+  border: none;
+  color: #2c5282;
+  font-size: 13px;
+  cursor: pointer;
+  text-decoration: underline;
+  padding: 0;
+}
+
+/* Pin arrastrable — mismo truco que RutaEntregas.css: L.divIcon en vez de
+   los íconos por defecto de Leaflet, que no cargan bien con Vite. */
+.sdm-pin-gota {
+  width: 26px;
+  height: 26px;
+  border-radius: 50% 50% 50% 0;
+  transform: rotate(-45deg);
+  background: #e53e3e;
+  border: 2px solid white;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+}

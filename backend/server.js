@@ -565,8 +565,8 @@ app.get('/api/modulos/:id', authenticateToken, checkAccess, async (req, res) => 
     // PedidosCliente.jsx (el subtítulo bajo el nombre público, igual que
     // en el menú real que ve el cliente).
     const result = await pool.query(
-      `SELECT m.id, m.nombre, m.nombre_publico, m.descripcion, m.activo, m.foto_portada_url, m.frecuencia_entrega_dias,
-              n.nombre as negocio_nombre
+      `SELECT m.id, m.nombre, m.nombre_publico, m.descripcion, m.activo, m.foto_portada_url,
+              m.frecuencia_entrega_dias, m.tiene_domicilio, n.nombre as negocio_nombre
        FROM modulos m
        JOIN negocios n ON m.negocio_id = n.id
        WHERE m.id = $1 AND m.negocio_id = $2`,
@@ -585,12 +585,14 @@ app.get('/api/modulos/:id', authenticateToken, checkAccess, async (req, res) => 
 });
 
 // Configurar la personalización del menú público de este módulo: nombre de
-// marca visible al cliente, foto de portada (hero de MenuPublico.jsx) y
+// marca visible al cliente, foto de portada (hero de MenuPublico.jsx),
 // frecuencia de entrega a domicilio (informativa, la usa la Ruta de
-// Entregas). Ruta dedicada en vez de un PUT /api/modulos/:id genérico
-// porque hoy no existe ninguna ruta general de edición de módulo. Los 3
-// campos son independientes entre sí: cada uno se actualiza SOLO si vino
-// explícito en el body, para que editar uno no borre los demás.
+// Entregas) y si este módulo ofrece domicilio o no (tiene_domicilio — si
+// está apagado, MenuPublico.jsx ni siquiera muestra la opción). Ruta
+// dedicada en vez de un PUT /api/modulos/:id genérico porque hoy no existe
+// ninguna ruta general de edición de módulo. Los campos son independientes
+// entre sí: cada uno se actualiza SOLO si vino explícito en el body, para
+// que editar uno no borre los demás.
 app.put('/api/modulos/:id/portada', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
@@ -627,6 +629,11 @@ app.put('/api/modulos/:id/portada', authenticateToken, checkAccess, requireAdmin
       values.push(frecuenciaValida);
     }
 
+    if ('tiene_domicilio' in req.body) {
+      sets.push(`tiene_domicilio = $${paramIndex++}`);
+      values.push(!!req.body.tiene_domicilio);
+    }
+
     if (sets.length === 0) {
       return res.status(400).json({ error: 'No hay nada para actualizar' });
     }
@@ -636,7 +643,7 @@ app.put('/api/modulos/:id/portada', authenticateToken, checkAccess, requireAdmin
     const result = await pool.query(
       `UPDATE modulos SET ${sets.join(', ')}
        WHERE id = $${paramIndex++} AND negocio_id = $${paramIndex}
-       RETURNING id, nombre, nombre_publico, descripcion, activo, foto_portada_url, frecuencia_entrega_dias`,
+       RETURNING id, nombre, nombre_publico, descripcion, activo, foto_portada_url, frecuencia_entrega_dias, tiene_domicilio`,
       values
     );
 
@@ -4310,53 +4317,29 @@ app.delete('/api/usuarios/:id', authenticateToken, requireAdmin, async (req, res
 // authenticateToken + checkAccess pero SIN requireAdmin: tanto admin
 // como trabajador deben poder gestionarlos, igual que ya operan el POS.
 
-// Lista los pedidos. El admin/super_admin ve los de TODOS los módulos de su
-// negocio a la vez (con el nombre del módulo en cada fila, para que el
-// frontend pinte el badge) — así no se le pierde un pedido pendiente de un
-// módulo que no tiene activo en este momento. El trabajador sigue viendo
-// solo los del módulo activo, igual que el resto de la app.
-// 'pendiente'/'confirmado' primero (son los que necesitan acción), luego
-// 'completado'/'cancelado' al final — cada grupo por fecha_creacion
-// descendente.
+// Lista los pedidos del módulo activo. 'pendiente'/'confirmado' primero
+// (son los que necesitan acción), luego 'completado'/'cancelado' al
+// final — cada grupo por fecha_creacion descendente.
 app.get('/api/pedidos-cliente', authenticateToken, checkAccess, async (req, res) => {
   try {
     const moduloId = req.moduloId;
-    const negocioId = req.negocioId;
-    const esAdmin = req.user.rol === 'admin' || req.user.rol === 'super_admin';
 
     if (!moduloId) {
       return res.status(400).json({ error: 'Se requiere un módulo' });
     }
 
-    const pedidosResult = esAdmin && negocioId
-      ? await pool.query(
-          `SELECT pc.*, m.nombre as modulo_nombre
-           FROM pedidos_cliente pc
-           JOIN modulos m ON pc.modulo_id = m.id
-           WHERE m.negocio_id = $1
-           ORDER BY
-             CASE pc.estado
-               WHEN 'pendiente' THEN 0
-               WHEN 'confirmado' THEN 0
-               ELSE 1
-             END,
-             pc.fecha_creacion DESC`,
-          [negocioId]
-        )
-      : await pool.query(
-          `SELECT pc.*, m.nombre as modulo_nombre
-           FROM pedidos_cliente pc
-           JOIN modulos m ON pc.modulo_id = m.id
-           WHERE pc.modulo_id = $1
-           ORDER BY
-             CASE pc.estado
-               WHEN 'pendiente' THEN 0
-               WHEN 'confirmado' THEN 0
-               ELSE 1
-             END,
-             pc.fecha_creacion DESC`,
-          [moduloId]
-        );
+    const pedidosResult = await pool.query(
+      `SELECT * FROM pedidos_cliente
+       WHERE modulo_id = $1
+       ORDER BY
+         CASE estado
+           WHEN 'pendiente' THEN 0
+           WHEN 'confirmado' THEN 0
+           ELSE 1
+         END,
+         fecha_creacion DESC`,
+      [moduloId]
+    );
 
     const pedidos = pedidosResult.rows;
     if (pedidos.length === 0) {
@@ -4972,6 +4955,36 @@ app.delete('/api/push/suscribir', authenticateToken, checkAccess, async (req, re
 // "Menú QR" — la Tanda 3 (panel del negocio, completar pedido con
 // descuento de stock real) viene en un cambio aparte.
 
+// Geocodifica una dirección escrita a mano en el checkout del menú público,
+// para que el cliente pueda confirmar/ajustar el pin en un mapa ANTES de
+// enviar el pedido (a diferencia de geocodificarYGuardarPedido más abajo,
+// que corre después y en silencio). Proxy delgado al mismo geocodificar()
+// — necesario porque Nominatim exige un User-Agent identificable que un
+// fetch de navegador no puede fijar, y así se respeta la misma cola/
+// rate-limit ya construida ahí en vez de duplicarla en el frontend.
+// IMPORTANTE: esta ruta debe ir ANTES de '/api/menu/:moduloId' — si no,
+// Express la matchea contra esa ruta con moduloId="geocodificar" primero
+// y nunca llega aquí (probado en carne propia: devolvía 404 "Menú no
+// disponible" en vez de geocodificar).
+app.get('/api/menu/geocodificar', async (req, res) => {
+  try {
+    const { direccion } = req.query;
+    if (!direccion || !direccion.trim()) {
+      return res.status(400).json({ error: 'Falta la dirección' });
+    }
+
+    const coords = await geocodificar(direccion.trim());
+    if (!coords) {
+      return res.status(404).json({ error: 'No se pudo ubicar esa dirección' });
+    }
+
+    res.json(coords);
+  } catch (error) {
+    console.error('Error geocodificando dirección (menú público):', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
 // Menú público: solo productos activos con stock disponible, sin datos
 // internos (precio_compra, codigo_ean, etc.)
 app.get('/api/menu/:moduloId', async (req, res) => {
@@ -4983,7 +4996,7 @@ app.get('/api/menu/:moduloId', async (req, res) => {
     }
 
     const moduloResult = await pool.query(
-      `SELECT m.id, m.nombre, m.nombre_publico, m.activo, m.foto_portada_url, n.nombre as negocio_nombre
+      `SELECT m.id, m.nombre, m.nombre_publico, m.activo, m.foto_portada_url, m.tiene_domicilio, n.nombre as negocio_nombre
        FROM modulos m
        JOIN negocios n ON m.negocio_id = n.id
        WHERE m.id = $1`,
@@ -5013,7 +5026,8 @@ app.get('/api/menu/:moduloId', async (req, res) => {
         // nombre interno de gestión — así el menú nunca queda sin título.
         nombre_publico: moduloResult.rows[0].nombre_publico || moduloResult.rows[0].nombre,
         negocio_nombre: moduloResult.rows[0].negocio_nombre,
-        foto_portada_url: moduloResult.rows[0].foto_portada_url
+        foto_portada_url: moduloResult.rows[0].foto_portada_url,
+        tiene_domicilio: moduloResult.rows[0].tiene_domicilio
       },
       productos: productosResult.rows
     });
@@ -5106,7 +5120,7 @@ app.post('/api/menu/:moduloId/pedidos', async (req, res) => {
     await client.query('BEGIN');
 
     const { moduloId } = req.params;
-    const { mesa_nombre, monto_recibido, items, es_domicilio, direccion_entrega } = req.body;
+    const { mesa_nombre, telefono, monto_recibido, items, es_domicilio, direccion_entrega, lat, lng } = req.body;
 
     if (!/^\d+$/.test(moduloId)) {
       await client.query('ROLLBACK');
@@ -5114,7 +5128,7 @@ app.post('/api/menu/:moduloId/pedidos', async (req, res) => {
     }
 
     const moduloResult = await client.query(
-      'SELECT id, activo FROM modulos WHERE id = $1',
+      'SELECT id, activo, tiene_domicilio FROM modulos WHERE id = $1',
       [moduloId]
     );
     if (moduloResult.rows.length === 0 || moduloResult.rows[0].activo === false) {
@@ -5125,6 +5139,16 @@ app.post('/api/menu/:moduloId/pedidos', async (req, res) => {
     if (!mesa_nombre || !mesa_nombre.trim()) {
       await client.query('ROLLBACK');
       return res.status(400).json({ error: 'Ingresa tu nombre o el número de mesa' });
+    }
+
+    if (!telefono || !telefono.trim()) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'Ingresa un número de teléfono' });
+    }
+
+    if (es_domicilio && !moduloResult.rows[0].tiene_domicilio) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'Este menú no tiene domicilio disponible' });
     }
 
     if (!Array.isArray(items) || items.length === 0) {
@@ -5143,15 +5167,30 @@ app.post('/api/menu/:moduloId/pedidos', async (req, res) => {
     }
 
     // Si es domicilio, la dirección es obligatoria (sin ella el negocio no
-    // sabe dónde llevarlo).
+    // sabe dónde llevarlo). lat/lng vienen del pin que el cliente confirmó
+    // en el mapa del checkout (SelectorDireccionMapa) — si por lo que sea
+    // no llegan (frontend viejo en caché, mapa no cargó, etc.), quedan en
+    // null y las rellena el geocodificarYGuardarPedido de respaldo más
+    // abajo, igual que antes de este cambio.
     const esDomicilio = !!es_domicilio;
     let direccionEntregaValida = null;
+    let latValida = null;
+    let lngValida = null;
     if (esDomicilio) {
       if (!direccion_entrega || !direccion_entrega.trim()) {
         await client.query('ROLLBACK');
         return res.status(400).json({ error: 'La dirección de entrega es requerida para pedidos a domicilio' });
       }
       direccionEntregaValida = direccion_entrega.trim();
+
+      if (lat !== undefined && lat !== null && lng !== undefined && lng !== null) {
+        const latNum = Number(lat);
+        const lngNum = Number(lng);
+        if (Number.isFinite(latNum) && Number.isFinite(lngNum)) {
+          latValida = latNum;
+          lngValida = lngNum;
+        }
+      }
     }
 
     const detallesValidados = [];
@@ -5201,10 +5240,10 @@ app.post('/api/menu/:moduloId/pedidos', async (req, res) => {
     const tokenPublico = crypto.randomBytes(24).toString('hex');
 
     const pedidoResult = await client.query(
-      `INSERT INTO pedidos_cliente (modulo_id, token_publico, mesa_nombre, monto_recibido, subtotal, total, es_domicilio, direccion_entrega)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      `INSERT INTO pedidos_cliente (modulo_id, token_publico, mesa_nombre, telefono, monto_recibido, subtotal, total, es_domicilio, direccion_entrega, lat, lng)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
        RETURNING *`,
-      [moduloId, tokenPublico, mesa_nombre.trim(), montoRecibidoValido, subtotal, total, esDomicilio, direccionEntregaValida]
+      [moduloId, tokenPublico, mesa_nombre.trim(), telefono.trim(), montoRecibidoValido, subtotal, total, esDomicilio, direccionEntregaValida, latValida, lngValida]
     );
 
     const pedido = pedidoResult.rows[0];
@@ -5224,7 +5263,7 @@ app.post('/api/menu/:moduloId/pedidos', async (req, res) => {
       console.error('Error inesperado enviando notificaciones push:', err)
     );
 
-    if (esDomicilio && direccionEntregaValida) {
+    if (esDomicilio && direccionEntregaValida && latValida === null) {
       geocodificarYGuardarPedido(pedido.id, direccionEntregaValida).catch(err =>
         console.error('Error inesperado geocodificando dirección:', err)
       );
@@ -5250,7 +5289,7 @@ app.get('/api/menu/pedido/:token', async (req, res) => {
     const { token } = req.params;
 
     const pedidoResult = await pool.query(
-      `SELECT pc.*, n.telefono as negocio_telefono, n.nombre as negocio_nombre
+      `SELECT pc.*, n.telefono as negocio_telefono, n.nombre as negocio_nombre, m.tiene_domicilio
        FROM pedidos_cliente pc
        JOIN modulos m ON pc.modulo_id = m.id
        JOIN negocios n ON m.negocio_id = n.id
@@ -5286,12 +5325,15 @@ app.put('/api/menu/pedido/:token', async (req, res) => {
     await client.query('BEGIN');
 
     const { token } = req.params;
-    const { mesa_nombre, monto_recibido, items, es_domicilio, direccion_entrega } = req.body;
+    const { mesa_nombre, telefono, monto_recibido, items, es_domicilio, direccion_entrega, lat, lng } = req.body;
 
     // FOR UPDATE: evita que una edición y, por ejemplo, una cancelación
     // simultánea del mismo pedido se pisen entre sí.
     const pedidoResult = await client.query(
-      'SELECT * FROM pedidos_cliente WHERE token_publico = $1 FOR UPDATE',
+      `SELECT pc.*, m.tiene_domicilio
+       FROM pedidos_cliente pc
+       JOIN modulos m ON pc.modulo_id = m.id
+       WHERE pc.token_publico = $1 FOR UPDATE OF pc`,
       [token]
     );
 
@@ -5314,6 +5356,16 @@ app.put('/api/menu/pedido/:token', async (req, res) => {
       return res.status(400).json({ error: 'Ingresa tu nombre o el número de mesa' });
     }
 
+    if (!telefono || !telefono.trim()) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'Ingresa un número de teléfono' });
+    }
+
+    if (es_domicilio && !pedido.tiene_domicilio) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'Este menú no tiene domicilio disponible' });
+    }
+
     if (!Array.isArray(items) || items.length === 0) {
       await client.query('ROLLBACK');
       return res.status(400).json({ error: 'El pedido debe tener al menos un producto' });
@@ -5332,12 +5384,23 @@ app.put('/api/menu/pedido/:token', async (req, res) => {
     // Mismo criterio que POST /api/menu/:moduloId/pedidos.
     const esDomicilio = !!es_domicilio;
     let direccionEntregaValida = null;
+    let latValida = null;
+    let lngValida = null;
     if (esDomicilio) {
       if (!direccion_entrega || !direccion_entrega.trim()) {
         await client.query('ROLLBACK');
         return res.status(400).json({ error: 'La dirección de entrega es requerida para pedidos a domicilio' });
       }
       direccionEntregaValida = direccion_entrega.trim();
+
+      if (lat !== undefined && lat !== null && lng !== undefined && lng !== null) {
+        const latNum = Number(lat);
+        const lngNum = Number(lng);
+        if (Number.isFinite(latNum) && Number.isFinite(lngNum)) {
+          latValida = latNum;
+          lngValida = lngNum;
+        }
+      }
     }
 
     const detallesValidados = [];
@@ -5396,16 +5459,16 @@ app.put('/api/menu/pedido/:token', async (req, res) => {
 
     const actualizado = await client.query(
       `UPDATE pedidos_cliente
-       SET mesa_nombre = $1, monto_recibido = $2, subtotal = $3, total = $4, fecha_actualizacion = NOW(),
-           es_domicilio = $5, direccion_entrega = $6
-       WHERE id = $7
+       SET mesa_nombre = $1, telefono = $2, monto_recibido = $3, subtotal = $4, total = $5, fecha_actualizacion = NOW(),
+           es_domicilio = $6, direccion_entrega = $7, lat = $8, lng = $9
+       WHERE id = $10
        RETURNING *`,
-      [mesa_nombre.trim(), montoRecibidoValido, subtotal, total, esDomicilio, direccionEntregaValida, pedido.id]
+      [mesa_nombre.trim(), telefono.trim(), montoRecibidoValido, subtotal, total, esDomicilio, direccionEntregaValida, latValida, lngValida, pedido.id]
     );
 
     await client.query('COMMIT');
 
-    if (esDomicilio && direccionEntregaValida) {
+    if (esDomicilio && direccionEntregaValida && latValida === null) {
       geocodificarYGuardarPedido(pedido.id, direccionEntregaValida).catch(err =>
         console.error('Error inesperado geocodificando dirección:', err)
       );
