@@ -299,11 +299,10 @@ app.get('/api/negocios', authenticateToken, requireSuperAdmin, async (req, res) 
   }
 });
 
-// Activar/desactivar un negocio. No hay borrado real: con todo lo que
-// depende de un negocio (módulos, productos, ventas, clientes, historial
-// financiero), un borrado sería demasiado riesgoso — desactivar ya
-// bloquea el login de sus usuarios (ver POST /api/login, que filtra
-// WHERE activo = true) de forma segura y reversible.
+// Activar/desactivar un negocio — bloquea el login de sus usuarios (ver
+// POST /api/login, que filtra WHERE activo = true) de forma reversible.
+// Para un borrado real y definitivo ver DELETE /api/negocios/:id, que solo
+// procede si el negocio no tiene módulos ni usuarios asociados.
 app.put('/api/negocios/:id/estado', authenticateToken, requireSuperAdmin, async (req, res) => {
   try {
     const { id } = req.params;
@@ -330,6 +329,57 @@ app.put('/api/negocios/:id/estado', authenticateToken, requireSuperAdmin, async 
     res.json(result.rows[0]);
   } catch (error) {
     console.error('Error actualizando estado del negocio:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// Borrado real solo si el negocio está genuinamente vacío (sin módulos ni
+// usuarios) — mismo criterio de seguridad que DELETE /api/modulos/:id: con
+// todo lo que puede depender de un negocio a través de sus módulos
+// (productos, ventas, clientes, historial financiero), un borrado con
+// datos sería demasiado riesgoso, así que se desactiva en su lugar.
+app.delete('/api/negocios/:id', authenticateToken, requireSuperAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const negocioResult = await pool.query('SELECT id, nombre FROM negocios WHERE id = $1', [id]);
+
+    if (negocioResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Negocio no encontrado' });
+    }
+
+    const negocio = negocioResult.rows[0];
+
+    const [modulos, usuarios] = await Promise.all([
+      pool.query('SELECT COUNT(*) FROM modulos WHERE negocio_id = $1', [id]),
+      pool.query('SELECT COUNT(*) FROM usuarios WHERE negocio_id = $1', [id])
+    ]);
+
+    const conteos = {
+      módulos: parseInt(modulos.rows[0].count, 10),
+      usuarios: parseInt(usuarios.rows[0].count, 10)
+    };
+    const tieneDatos = Object.values(conteos).some(c => c > 0);
+
+    if (tieneDatos) {
+      await pool.query('UPDATE negocios SET activo = false WHERE id = $1', [id]);
+
+      const detalle = Object.entries(conteos)
+        .filter(([, c]) => c > 0)
+        .map(([tabla, c]) => `${c} ${tabla}`)
+        .join(', ');
+
+      return res.json({
+        eliminado: false,
+        message: `El negocio "${negocio.nombre}" tenía datos asociados (${detalle}), así que se desactivó en vez de eliminarse.`
+      });
+    }
+
+    await pool.query('DELETE FROM negocios WHERE id = $1', [id]);
+
+    res.json({ eliminado: true, message: `Negocio "${negocio.nombre}" eliminado correctamente.` });
+  } catch (error) {
+    console.error('Error eliminando negocio:', error);
     res.status(500).json({ error: 'Error interno del servidor' });
   }
 });
@@ -362,23 +412,17 @@ app.get('/api/negocios/:id/modulos', authenticateToken, async (req, res) => {
   }
 });
 
-app.post('/api/negocios/:id/modulos', authenticateToken, requireAdmin, async (req, res) => {
+// Crear módulos es función exclusiva de super_admin: antes un admin podía
+// crear módulos para su propio negocio, pero eso quedó centralizado para
+// que la estructura del negocio (qué módulos existen) la controle una sola
+// autoridad.
+app.post('/api/negocios/:id/modulos', authenticateToken, requireSuperAdmin, async (req, res) => {
   try {
     const { id } = req.params;
     const { nombre, descripcion } = req.body;
 
     if (!nombre || !nombre.trim()) {
       return res.status(400).json({ error: 'El nombre es requerido' });
-    }
-
-    if (req.user.rol !== 'super_admin') {
-      const userResult = await pool.query(
-        'SELECT negocio_id FROM usuarios WHERE id = $1',
-        [req.user.id]
-      );
-      if (userResult.rows[0]?.negocio_id !== parseInt(id)) {
-        return res.status(403).json({ error: 'No tienes acceso a este negocio' });
-      }
     }
 
     const result = await pool.query(
@@ -438,13 +482,10 @@ app.get('/api/usuarios/modulos', authenticateToken, async (req, res) => {
 
 // ==================== RUTAS DE GESTIÓN DE USUARIOS EN MÓDULOS ====================
 
-// requireAdmin + chequeo de negocio: antes solo validaba que el usuario y
-// el módulo objetivo fueran del MISMO negocio entre sí, pero no que el
-// que llama (req.user) tuviera algo que ver con ese negocio — cualquier
-// usuario autenticado podía asignar/desasignar módulos de un negocio
-// ajeno adivinando ids. Mismo patrón de auto-scoping que el resto de
-// rutas de módulos/usuarios.
-app.post('/api/usuarios/:usuarioId/modulos/:moduloId', authenticateToken, requireAdmin, async (req, res) => {
+// Asignar/desasignar acceso a módulos es función exclusiva de super_admin:
+// antes un admin podía dar/quitar acceso de sus propios trabajadores, pero
+// eso quedó centralizado junto con la creación de módulos.
+app.post('/api/usuarios/:usuarioId/modulos/:moduloId', authenticateToken, requireSuperAdmin, async (req, res) => {
   try {
     const { usuarioId, moduloId } = req.params;
 
@@ -474,13 +515,6 @@ app.post('/api/usuarios/:usuarioId/modulos/:moduloId', authenticateToken, requir
       return res.status(400).json({ error: 'El usuario no pertenece al negocio del módulo' });
     }
 
-    if (req.user.rol !== 'super_admin') {
-      const callerResult = await pool.query('SELECT negocio_id FROM usuarios WHERE id = $1', [req.user.id]);
-      if (callerResult.rows[0]?.negocio_id !== moduloResult.rows[0].negocio_id) {
-        return res.status(403).json({ error: 'No tienes acceso a este negocio' });
-      }
-    }
-
     await pool.query(
       'INSERT INTO usuario_modulos (usuario_id, modulo_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
       [usuarioId, moduloId]
@@ -493,7 +527,7 @@ app.post('/api/usuarios/:usuarioId/modulos/:moduloId', authenticateToken, requir
   }
 });
 
-app.delete('/api/usuarios/:usuarioId/modulos/:moduloId', authenticateToken, requireAdmin, async (req, res) => {
+app.delete('/api/usuarios/:usuarioId/modulos/:moduloId', authenticateToken, requireSuperAdmin, async (req, res) => {
   try {
     const { usuarioId, moduloId } = req.params;
 
@@ -508,13 +542,6 @@ app.delete('/api/usuarios/:usuarioId/modulos/:moduloId', authenticateToken, requ
 
     if (usuarioResult.rows[0].rol === 'super_admin') {
       return res.status(400).json({ error: 'No se puede desasignar un super admin' });
-    }
-
-    if (req.user.rol !== 'super_admin') {
-      const callerResult = await pool.query('SELECT negocio_id FROM usuarios WHERE id = $1', [req.user.id]);
-      if (callerResult.rows[0]?.negocio_id !== usuarioResult.rows[0].negocio_id) {
-        return res.status(403).json({ error: 'No tienes acceso a este negocio' });
-      }
     }
 
     await pool.query(
@@ -658,13 +685,12 @@ app.put('/api/modulos/:id/portada', authenticateToken, checkAccess, requireAdmin
   }
 });
 
-// Borrado real solo si el módulo está genuinamente vacío (sin productos,
-// ventas, clientes ni proveedores) — mismo criterio de seguridad que
-// Negocios: si tiene datos, se desactiva en vez de borrarse, porque un
-// borrado perdería historial real. Mismo patrón de auto-scoping ("solo tu
-// propio negocio si no eres super_admin") que POST /api/negocios/:id/modulos
-// y DELETE /api/usuarios/:id.
-app.delete('/api/modulos/:id', authenticateToken, requireAdmin, async (req, res) => {
+// Eliminar módulos es función exclusiva de super_admin (antes admin podía
+// borrar los suyos). Borrado real solo si el módulo está genuinamente
+// vacío (sin productos, ventas, clientes ni proveedores) — mismo criterio
+// de seguridad que Negocios: si tiene datos, se desactiva en vez de
+// borrarse, porque un borrado perdería historial real.
+app.delete('/api/modulos/:id', authenticateToken, requireSuperAdmin, async (req, res) => {
   let client;
   try {
     const { id } = req.params;
@@ -679,13 +705,6 @@ app.delete('/api/modulos/:id', authenticateToken, requireAdmin, async (req, res)
     }
 
     const modulo = moduloResult.rows[0];
-
-    if (req.user.rol !== 'super_admin') {
-      const callerResult = await pool.query('SELECT negocio_id FROM usuarios WHERE id = $1', [req.user.id]);
-      if (callerResult.rows[0]?.negocio_id !== modulo.negocio_id) {
-        return res.status(403).json({ error: 'No tienes acceso a este negocio' });
-      }
-    }
 
     const [productos, ventas, clientes, proveedores] = await Promise.all([
       pool.query('SELECT COUNT(*) FROM productos WHERE modulo_id = $1', [id]),
@@ -4300,24 +4319,13 @@ app.post('/api/inventario/ajustar-stock', authenticateToken, checkAccess, requir
 });
 
 // ==================== RUTAS DE USUARIOS ====================
-// Crear/eliminar usuarios sigue siendo solo super admin. Listar usuarios
-// de un negocio (para la pantalla de admin que asigna módulos a sus
-// trabajadores) también se permite a admin, pero solo de su propio
-// negocio — mismo patrón de auto-scoping que /api/negocios/:id/modulos.
+// Crear/listar/eliminar usuarios y su acceso a módulos es función
+// exclusiva de super_admin — un admin normal ya no gestiona usuarios ni
+// módulos, ni siquiera los de su propio negocio.
 
-app.get('/api/negocios/:id/usuarios', authenticateToken, requireAdmin, async (req, res) => {
+app.get('/api/negocios/:id/usuarios', authenticateToken, requireSuperAdmin, async (req, res) => {
   try {
     const { id } = req.params;
-
-    if (req.user.rol !== 'super_admin') {
-      const userResult = await pool.query(
-        'SELECT negocio_id FROM usuarios WHERE id = $1',
-        [req.user.id]
-      );
-      if (userResult.rows[0]?.negocio_id !== parseInt(id)) {
-        return res.status(403).json({ error: 'No tienes acceso a este negocio' });
-      }
-    }
 
     // modulos_asignados va con id además de nombre (no solo nombre, como
     // antes) para poder marcar los checkboxes de la pantalla de asignación
@@ -4393,7 +4401,7 @@ app.post('/api/negocios/:id/usuarios', authenticateToken, requireSuperAdmin, asy
   }
 });
 
-app.delete('/api/usuarios/:id', authenticateToken, requireAdmin, async (req, res) => {
+app.delete('/api/usuarios/:id', authenticateToken, requireSuperAdmin, async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -4408,18 +4416,6 @@ app.delete('/api/usuarios/:id', authenticateToken, requireAdmin, async (req, res
 
     if (usuario.rows[0].rol === 'super_admin') {
       return res.status(400).json({ error: 'No se puede eliminar un super administrador' });
-    }
-
-    // Mismo patrón de auto-scoping que GET /api/negocios/:id/usuarios: un
-    // admin normal solo puede eliminar usuarios de su propio negocio.
-    if (req.user.rol !== 'super_admin') {
-      const adminResult = await pool.query(
-        'SELECT negocio_id FROM usuarios WHERE id = $1',
-        [req.user.id]
-      );
-      if (adminResult.rows[0]?.negocio_id !== usuario.rows[0].negocio_id) {
-        return res.status(403).json({ error: 'No tienes acceso a este negocio' });
-      }
     }
 
     await pool.query('UPDATE usuarios SET activo = false WHERE id = $1', [id]);

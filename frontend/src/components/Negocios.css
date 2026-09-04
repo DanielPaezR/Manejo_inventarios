@@ -147,7 +147,8 @@
 }
 
 .btn-desactivar,
-.btn-reactivar {
+.btn-reactivar,
+.btn-eliminar-negocio {
   flex: 1;
   padding: 0.75rem;
   border: none;
@@ -156,6 +157,16 @@
   font-size: 0.9rem;
   transition: all 0.25s ease;
   min-width: 120px;
+}
+
+.btn-eliminar-negocio {
+  background: #e74c3c;
+  color: white;
+}
+
+.btn-eliminar-negocio:hover {
+  background: #c0392b;
+  transform: translateY(-1px);
 }
 
 .btn-desactivar {
@@ -176,36 +187,6 @@
 .btn-reactivar:hover {
   background: #229954;
   transform: translateY(-1px);
-}
-
-/* MODAL VER MÓDULOS */
-.modulos-ver-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-  gap: 1rem;
-}
-
-.modulo-ver-card {
-  background: #f8f9fa;
-  border-radius: 8px;
-  padding: 1rem;
-}
-
-.modulo-ver-card h4 {
-  margin: 0 0 0.5rem 0;
-  color: #2c3e50;
-}
-
-.modulo-ver-desc {
-  margin: 0 0 0.5rem 0;
-  font-size: 0.85rem;
-  color: #7f8c8d;
-}
-
-.modulo-ver-meta {
-  margin: 0.25rem 0;
-  font-size: 0.85rem;
-  color: #555;
 }
 
 .empty-state {

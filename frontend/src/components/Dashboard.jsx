@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import SelectorModulo from './SelectorModulo';
 import CambiarPassword from './CambiarPassword';
-import GestionModulos from './GestionModulos';
 import { useModulo } from '../hooks/useModulo';
 import './Dashboard.css';
 
@@ -11,9 +10,7 @@ const Dashboard = ({ user, onLogout }) => {
   const navigate = useNavigate();
   const { moduloActivo, modulos, cambiarModulo } = useModulo();
   const [showCambiarPassword, setShowCambiarPassword] = useState(false);
-  const [showGestionModulos, setShowGestionModulos] = useState(false);
   const [showModuloMenu, setShowModuloMenu] = useState(false);
-  const puedeGestionarModulos = user?.rol === 'admin';
   // Solo tiene sentido mostrar un selector si hay más de un módulo entre
   // los que elegir — con uno solo, el badge de siempre es más simple.
   const puedeCambiarModulo = modulos.length > 1;
@@ -304,15 +301,6 @@ const Dashboard = ({ user, onLogout }) => {
             )}
           </div>
           <SelectorModulo />
-          {puedeGestionarModulos && (
-            <button
-              className="btn-gestionar-modulos"
-              onClick={() => setShowGestionModulos(true)}
-              title="Crear módulos y dar acceso a usuarios"
-            >
-              🧩 Gestionar módulos
-            </button>
-          )}
         </div>
       )}
 
@@ -398,10 +386,6 @@ const Dashboard = ({ user, onLogout }) => {
 
       {showCambiarPassword && (
         <CambiarPassword onClose={() => setShowCambiarPassword(false)} />
-      )}
-
-      {showGestionModulos && (
-        <GestionModulos user={user} onClose={() => setShowGestionModulos(false)} />
       )}
     </div>
   );

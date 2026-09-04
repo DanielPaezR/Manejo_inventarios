@@ -1,16 +1,14 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import api from '../services/api';
-import { useModulo } from '../hooks/useModulo';
 import './GestionModulos.css';
 
-// Modal de administración de módulos, accesible para admin: crear módulos
-// nuevos y dar/quitar acceso de los usuarios del negocio (trabajadores y
-// otros admins) a cada módulo. Antes no existía ninguna pantalla para
-// esto — el backend ya tenía las rutas, solo faltaba la UI.
-const GestionModulos = ({ user, onClose }) => {
-  const { refrescarModulos } = useModulo();
-  const negocioId = user?.negocio_id;
-
+// Modal de administración de módulos de un negocio: crear módulos nuevos,
+// eliminarlos y dar/quitar acceso de los trabajadores a cada uno. Es
+// función exclusiva de super_admin (ver Negocios.jsx, que la abre pasando
+// el negocio elegido) — un admin normal ya no puede gestionar sus propios
+// módulos, para que la creación de módulos y el acceso a ellos quede
+// centralizado en super_admin.
+const GestionModulos = ({ negocioId, negocioNombre, onClose }) => {
   const [modulos, setModulos] = useState([]);
   const [usuarios, setUsuarios] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -55,12 +53,8 @@ const GestionModulos = ({ user, onClose }) => {
       });
       const nuevoModulo = response.data;
 
-      // Acceso automático para quien lo creó, y lo deja activo de una vez.
-      await api.post(`/usuarios/${user.id}/modulos/${nuevoModulo.id}`);
-      await refrescarModulos(nuevoModulo.id);
-
       setFormNuevoModulo({ nombre: '', descripcion: '' });
-      setMensaje(`✅ Módulo "${nuevoModulo.nombre}" creado y activado`);
+      setMensaje(`✅ Módulo "${nuevoModulo.nombre}" creado`);
       await cargarDatos();
     } catch (error) {
       console.error('Error creando módulo:', error);
@@ -86,7 +80,6 @@ const GestionModulos = ({ user, onClose }) => {
     try {
       const response = await api.delete(`/modulos/${modulo.id}`);
       setMensaje(response.data.eliminado ? `✅ ${response.data.message}` : `⚠️ ${response.data.message}`);
-      await refrescarModulos();
       await cargarDatos();
     } catch (error) {
       console.error('Error eliminando módulo:', error);
@@ -119,12 +112,6 @@ const GestionModulos = ({ user, onClose }) => {
             : [...u.modulos_asignados, { id: modulo.id, nombre: modulo.nombre }]
         };
       }));
-
-      // Si el usuario que cambió acceso es el mismo que está usando la
-      // app ahora mismo, refleja el cambio en el selector de módulos.
-      if (usuario.id === user.id) {
-        await refrescarModulos();
-      }
     } catch (error) {
       console.error('Error cambiando acceso a módulo:', error);
       setMensaje(error.response?.data?.error || '❌ Error al cambiar el acceso');
@@ -142,7 +129,7 @@ const GestionModulos = ({ user, onClose }) => {
     <div className="gestion-modulos-overlay" onClick={onClose}>
       <div className="gestion-modulos-modal" onClick={(e) => e.stopPropagation()}>
         <div className="gestion-modulos-header">
-          <h3>🧩 Gestión de módulos</h3>
+          <h3>🧩 Gestión de módulos{negocioNombre ? ` — ${negocioNombre}` : ''}</h3>
           <button className="gestion-modulos-cerrar" onClick={onClose}>×</button>
         </div>
 
@@ -221,19 +208,25 @@ const GestionModulos = ({ user, onClose }) => {
                           {usuario.nombre}
                           <span className={`gestion-modulos-rol-badge ${usuario.rol}`}>{usuario.rol}</span>
                         </td>
-                        {modulos.map(modulo => {
-                          const key = `${usuario.id}-${modulo.id}`;
-                          return (
-                            <td key={modulo.id} className="gestion-modulos-checkbox-celda">
-                              <input
-                                type="checkbox"
-                                checked={tieneAcceso(usuario, modulo.id)}
-                                disabled={!!checkboxesEnVuelo[key]}
-                                onChange={() => toggleAcceso(usuario, modulo)}
-                              />
-                            </td>
-                          );
-                        })}
+                        {usuario.rol === 'admin' ? (
+                          <td colSpan={modulos.length} className="gestion-modulos-admin-nota">
+                            Administrador: acceso a todos los módulos del negocio
+                          </td>
+                        ) : (
+                          modulos.map(modulo => {
+                            const key = `${usuario.id}-${modulo.id}`;
+                            return (
+                              <td key={modulo.id} className="gestion-modulos-checkbox-celda">
+                                <input
+                                  type="checkbox"
+                                  checked={tieneAcceso(usuario, modulo.id)}
+                                  disabled={!!checkboxesEnVuelo[key]}
+                                  onChange={() => toggleAcceso(usuario, modulo)}
+                                />
+                              </td>
+                            );
+                          })
+                        )}
                       </tr>
                     ))}
                   </tbody>

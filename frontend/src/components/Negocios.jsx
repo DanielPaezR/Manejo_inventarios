@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import api from '../services/api';
+import GestionModulos from './GestionModulos';
 import './Negocios.css';
 
 const Negocios = ({ user }) => {
@@ -7,7 +8,7 @@ const Negocios = ({ user }) => {
   const [showForm, setShowForm] = useState(false);
   const [showGestionUsuarios, setShowGestionUsuarios] = useState(false);
   const [showEstadisticas, setShowEstadisticas] = useState(false);
-  const [showVerModulos, setShowVerModulos] = useState(false);
+  const [showGestionModulos, setShowGestionModulos] = useState(false);
   const [negocioSeleccionado, setNegocioSeleccionado] = useState(null);
   const [usuarios, setUsuarios] = useState([]);
   // Módulos del negocio seleccionado — se usa tanto en el modal "Ver
@@ -176,23 +177,9 @@ const Negocios = ({ user }) => {
     await cargarEstadisticasNegocio(negocio.id);
   };
 
-  // Para el conteo de "usuarios con acceso" reutiliza los mismos datos que
-  // el checklist de Gestión de Usuarios (usuarios + modulos_asignados) en
-  // vez de llamar a GET /api/modulos/:id/usuarios una vez por módulo.
-  const abrirVerModulos = async (negocio) => {
+  const abrirGestionModulos = (negocio) => {
     setNegocioSeleccionado(negocio);
-    setShowVerModulos(true);
-    await Promise.all([cargarModulosNegocio(negocio.id), cargarUsuariosNegocio(negocio.id)]);
-  };
-
-  // Los admin ven TODOS los módulos activos de su negocio al iniciar
-  // sesión (no pasan por usuario_modulos, ver POST /api/login) — así que
-  // para el conteo real de acceso cuentan como que tienen acceso a todos,
-  // aunque no tengan una fila en usuario_modulos.
-  const contarUsuariosConAcceso = (moduloId) => {
-    return usuarios.filter(
-      u => u.rol === 'admin' || u.modulos_asignados?.some(m => m.id === moduloId)
-    ).length;
+    setShowGestionModulos(true);
   };
 
   const toggleAccesoModulo = async (usuarioId, moduloId, tieneAcceso) => {
@@ -244,6 +231,26 @@ const Negocios = ({ user }) => {
       } finally {
         setTimeout(() => setMensaje(''), 4000);
       }
+    }
+  };
+
+  // El backend decide si borra de verdad o solo desactiva (según si el
+  // negocio tiene módulos o usuarios asociados) — mismo patrón que
+  // handleEliminarModulo en GestionModulos.jsx.
+  const eliminarNegocio = async (negocio) => {
+    if (!window.confirm(`¿Eliminar el negocio "${negocio.nombre}"?\n\nSi tiene módulos o usuarios asociados, se desactivará en vez de eliminarse.`)) {
+      return;
+    }
+
+    try {
+      const response = await api.delete(`/negocios/${negocio.id}`);
+      setMensaje(response.data.eliminado ? `✅ ${response.data.message}` : `⚠️ ${response.data.message}`);
+      cargarNegocios();
+    } catch (error) {
+      console.error('Error eliminando negocio:', error);
+      setMensaje(error.response?.data?.error || '❌ Error al eliminar el negocio');
+    } finally {
+      setTimeout(() => setMensaje(''), 6000);
     }
   };
 
@@ -443,33 +450,13 @@ const Negocios = ({ user }) => {
         </div>
       )}
 
-      {/* Modal Ver Módulos */}
-      {showVerModulos && (
-        <div className="modal-overlay">
-          <div className="modal-container">
-            <div className="modal-header">
-              <h2>📁 Módulos de {negocioSeleccionado?.nombre}</h2>
-              <button className="btn-close" onClick={() => setShowVerModulos(false)}>×</button>
-            </div>
-
-            <div className="modal-content">
-              {modulosDelNegocio.length === 0 ? (
-                <p>Este negocio no tiene módulos.</p>
-              ) : (
-                <div className="modulos-ver-grid">
-                  {modulosDelNegocio.map(modulo => (
-                    <div key={modulo.id} className="modulo-ver-card">
-                      <h4>{modulo.nombre}</h4>
-                      {modulo.descripcion && <p className="modulo-ver-desc">{modulo.descripcion}</p>}
-                      <p className="modulo-ver-meta">📅 Creado: {new Date(modulo.fecha_creacion).toLocaleDateString()}</p>
-                      <p className="modulo-ver-meta">👥 {contarUsuariosConAcceso(modulo.id)} usuario(s) con acceso</p>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
+      {/* Modal Gestión de Módulos (crear/eliminar módulos y acceso de trabajadores) */}
+      {showGestionModulos && (
+        <GestionModulos
+          negocioId={negocioSeleccionado?.id}
+          negocioNombre={negocioSeleccionado?.nombre}
+          onClose={() => setShowGestionModulos(false)}
+        />
       )}
 
       {/* Contenido Principal */}
@@ -614,10 +601,10 @@ const Negocios = ({ user }) => {
                 👥 Gestionar Usuarios
               </button>
               <button
-                onClick={() => abrirVerModulos(negocio)}
+                onClick={() => abrirGestionModulos(negocio)}
                 className="btn-ver-modulos"
               >
-                📁 Ver módulos
+                🧩 Gestionar módulos
               </button>
               <button
                 onClick={() => abrirEstadisticas(negocio)}
@@ -630,6 +617,12 @@ const Negocios = ({ user }) => {
                 className={negocio.activo ? 'btn-desactivar' : 'btn-reactivar'}
               >
                 {negocio.activo ? '🚫 Desactivar' : '✅ Reactivar'}
+              </button>
+              <button
+                onClick={() => eliminarNegocio(negocio)}
+                className="btn-eliminar-negocio"
+              >
+                🗑️ Eliminar
               </button>
             </div>
           </div>
