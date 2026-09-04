@@ -221,13 +221,6 @@
   cursor: pointer;
 }
 
-.gestion-modulos-admin-nota {
-  color: #718096;
-  font-style: italic;
-  white-space: normal;
-  text-align: left;
-}
-
 .gestion-modulos-footer {
   padding: 16px 24px;
   border-top: 1px solid #e2e8f0;

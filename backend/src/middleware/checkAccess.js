@@ -23,61 +23,16 @@ const checkAccess = async (req, res, next) => {
       return next();
     }
 
-    // --- ADMINISTRADOR ---
-    if (userRol === 'admin') {
-      // Obtener el negocio del admin
-      const adminResult = await pool.query(
-        'SELECT negocio_id FROM usuarios WHERE id = $1 AND activo = true',
-        [userId]
-      );
-      
-      if (adminResult.rows.length === 0) {
-        return res.status(404).json({ error: 'Usuario no encontrado' });
-      }
-      
-      const negocioId = adminResult.rows[0].negocio_id;
-      req.negocioId = negocioId;
-
-      // 🚨 NUEVO: Si no se envió un módulo, obtener el primero del negocio
+    // --- ADMINISTRADOR / TRABAJADOR ---
+    // El acceso a módulos se controla igual para los dos roles: solo los
+    // módulos asignados en usuario_modulos (ver GestionModulos.jsx) —
+    // admin ya no tiene acceso automático a todos los módulos de su
+    // negocio, super_admin decide el acceso de cada credencial.
+    if (userRol === 'admin' || userRol === 'trabajador') {
       if (!moduloId) {
-        const moduloResult = await pool.query(
-          'SELECT id FROM modulos WHERE negocio_id = $1 AND activo = true ORDER BY id LIMIT 1',
-          [negocioId]
-        );
-        
-        if (moduloResult.rows.length > 0) {
-          moduloId = moduloResult.rows[0].id;
-          console.log(`🔄 Admin sin módulo. Asignando módulo automático: ${moduloId}`);
-        } else {
-          console.log('⚠️ Admin sin módulos en su negocio.');
-          return res.status(400).json({ error: 'El negocio no tiene módulos activos' });
-        }
-      } else {
-        // Si envió un módulo, verificar que pertenezca a su negocio
-        const moduloResult = await pool.query(
-          'SELECT negocio_id FROM modulos WHERE id = $1 AND activo = true',
-          [moduloId]
-        );
-        
-        if (moduloResult.rows.length === 0) {
-          return res.status(404).json({ error: 'Módulo no encontrado' });
-        }
-        
-        if (moduloResult.rows[0].negocio_id !== negocioId) {
-          return res.status(403).json({ error: 'No tienes acceso a este módulo' });
-        }
-      }
-
-      req.moduloId = moduloId;
-      return next();
-    }
-
-    // --- TRABAJADOR ---
-    if (userRol === 'trabajador') {
-      if (!moduloId) {
-        // Si un trabajador no envía módulo, obtener el primero que tenga asignado
+        // Sin módulo explícito: usar el primero que tenga asignado.
         const modulosResult = await pool.query(
-          `SELECT m.id FROM modulos m
+          `SELECT m.id, m.negocio_id FROM modulos m
            JOIN usuario_modulos um ON m.id = um.modulo_id
            WHERE um.usuario_id = $1 AND m.activo = true
            ORDER BY m.id LIMIT 1`,
@@ -89,9 +44,10 @@ const checkAccess = async (req, res, next) => {
         }
 
         moduloId = modulosResult.rows[0].id;
-        console.log(`🔄 Trabajador sin módulo. Asignando módulo automático: ${moduloId}`);
+        req.negocioId = modulosResult.rows[0].negocio_id;
+        console.log(`🔄 ${userRol} sin módulo. Asignando módulo automático: ${moduloId}`);
       } else {
-        // Verificar que el trabajador tenga acceso al módulo que envió
+        // Verificar que tenga acceso asignado al módulo que envió.
         const accesoResult = await pool.query(
           `SELECT um.*, m.negocio_id, m.nombre as modulo_nombre
            FROM usuario_modulos um

@@ -108,13 +108,11 @@ app.post('/api/login', async (req, res) => {
       );
       negocioInfo = negocioResult.rows[0];
       
-      if (user.rol === 'admin') {
-        const modulosResult = await pool.query(
-          'SELECT id, nombre, descripcion, activo, tiene_domicilio FROM modulos WHERE negocio_id = $1 AND activo = true ORDER BY nombre',
-          [user.negocio_id]
-        );
-        modulos = modulosResult.rows;
-      } else if (user.rol === 'trabajador') {
+      if (user.rol === 'admin' || user.rol === 'trabajador') {
+        // El acceso a módulos de admin y trabajador se controla igual: solo
+        // los módulos asignados explícitamente en usuario_modulos (ver
+        // GestionModulos.jsx) — admin ya no ve automáticamente todos los
+        // módulos de su negocio, super_admin decide el acceso de cada uno.
         const modulosResult = await pool.query(
           `SELECT m.id, m.nombre, m.descripcion, m.activo, m.tiene_domicilio
            FROM modulos m
@@ -212,13 +210,11 @@ app.get('/api/perfil', authenticateToken, async (req, res) => {
       );
       negocioInfo = negocioResult.rows[0];
       
-      if (user.rol === 'admin') {
-        const modulosResult = await pool.query(
-          'SELECT id, nombre, descripcion, activo, tiene_domicilio FROM modulos WHERE negocio_id = $1 AND activo = true ORDER BY nombre',
-          [user.negocio_id]
-        );
-        modulos = modulosResult.rows;
-      } else if (user.rol === 'trabajador') {
+      if (user.rol === 'admin' || user.rol === 'trabajador') {
+        // El acceso a módulos de admin y trabajador se controla igual: solo
+        // los módulos asignados explícitamente en usuario_modulos (ver
+        // GestionModulos.jsx) — admin ya no ve automáticamente todos los
+        // módulos de su negocio, super_admin decide el acceso de cada uno.
         const modulosResult = await pool.query(
           `SELECT m.id, m.nombre, m.descripcion, m.activo, m.tiene_domicilio
            FROM modulos m

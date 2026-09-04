@@ -356,32 +356,27 @@ const Negocios = ({ user }) => {
                         </div>
                       </div>
 
-                      {/* Acceso a módulos: los admin ven todos los módulos
-                          al iniciar sesión sin pasar por usuario_modulos
-                          (ver POST /api/login), así que el checklist —que
-                          sí controla el acceso real— solo aplica a
-                          trabajador. */}
-                      {usuario.rol === 'trabajador' ? (
-                        modulosDelNegocio.length > 0 && (
-                          <div className="usuario-modulos-checklist">
-                            <span className="usuario-modulos-label">Acceso a módulos:</span>
-                            {modulosDelNegocio.map(modulo => {
-                              const tieneAcceso = usuario.modulos_asignados?.some(m => m.id === modulo.id);
-                              return (
-                                <label key={modulo.id} className="usuario-modulo-check">
-                                  <input
-                                    type="checkbox"
-                                    checked={!!tieneAcceso}
-                                    onChange={() => toggleAccesoModulo(usuario.id, modulo.id, tieneAcceso)}
-                                  />
-                                  {modulo.nombre}
-                                </label>
-                              );
-                            })}
-                          </div>
-                        )
-                      ) : (
-                        <p className="usuario-modulos-nota">Administrador: acceso a todos los módulos del negocio</p>
+                      {/* Acceso a módulos: se controla igual para admin y
+                          trabajador vía usuario_modulos — super_admin
+                          decide explícitamente a cuáles tiene acceso cada
+                          credencial (ver POST /api/login). */}
+                      {modulosDelNegocio.length > 0 && (
+                        <div className="usuario-modulos-checklist">
+                          <span className="usuario-modulos-label">Acceso a módulos:</span>
+                          {modulosDelNegocio.map(modulo => {
+                            const tieneAcceso = usuario.modulos_asignados?.some(m => m.id === modulo.id);
+                            return (
+                              <label key={modulo.id} className="usuario-modulo-check">
+                                <input
+                                  type="checkbox"
+                                  checked={!!tieneAcceso}
+                                  onChange={() => toggleAccesoModulo(usuario.id, modulo.id, tieneAcceso)}
+                                />
+                                {modulo.nombre}
+                              </label>
+                            );
+                          })}
+                        </div>
                       )}
                     </div>
                   ))}

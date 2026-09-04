@@ -208,25 +208,19 @@ const GestionModulos = ({ negocioId, negocioNombre, onClose }) => {
                           {usuario.nombre}
                           <span className={`gestion-modulos-rol-badge ${usuario.rol}`}>{usuario.rol}</span>
                         </td>
-                        {usuario.rol === 'admin' ? (
-                          <td colSpan={modulos.length} className="gestion-modulos-admin-nota">
-                            Administrador: acceso a todos los módulos del negocio
-                          </td>
-                        ) : (
-                          modulos.map(modulo => {
-                            const key = `${usuario.id}-${modulo.id}`;
-                            return (
-                              <td key={modulo.id} className="gestion-modulos-checkbox-celda">
-                                <input
-                                  type="checkbox"
-                                  checked={tieneAcceso(usuario, modulo.id)}
-                                  disabled={!!checkboxesEnVuelo[key]}
-                                  onChange={() => toggleAcceso(usuario, modulo)}
-                                />
-                              </td>
-                            );
-                          })
-                        )}
+                        {modulos.map(modulo => {
+                          const key = `${usuario.id}-${modulo.id}`;
+                          return (
+                            <td key={modulo.id} className="gestion-modulos-checkbox-celda">
+                              <input
+                                type="checkbox"
+                                checked={tieneAcceso(usuario, modulo.id)}
+                                disabled={!!checkboxesEnVuelo[key]}
+                                onChange={() => toggleAcceso(usuario, modulo)}
+                              />
+                            </td>
+                          );
+                        })}
                       </tr>
                     ))}
                   </tbody>
