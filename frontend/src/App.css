@@ -45,8 +45,14 @@
   width: 100%;
   padding: 0.75rem;
   border: 1px solid #ddd;
-  border-radius: 5px;
+  border-radius: var(--radius-sm, 10px);
   font-size: 1rem;
+  transition: border-color 0.2s ease;
+}
+
+.form-group input:focus {
+  outline: none;
+  border-color: var(--primary);
 }
 
 .btn {
@@ -55,14 +61,20 @@
   background: var(--primary);
   color: white;
   border: none;
-  border-radius: 5px;
+  border-radius: var(--radius-sm, 10px);
   font-size: 1rem;
   cursor: pointer;
-  transition: background 0.3s;
+  transition: all 0.25s ease;
 }
 
 .btn:hover {
   background: var(--primary-dark);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(168, 69, 47, 0.3);
+}
+
+.btn:active {
+  transform: translateY(0);
 }
 
 /* Dashboard */
@@ -115,27 +127,29 @@
 .header {
   background: white;
   padding: 1rem;
-  border-radius: 5px;
+  border-radius: var(--radius-md, 16px);
   margin-bottom: 1rem;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+  box-shadow: 0 2px 8px rgba(59, 42, 32, 0.08);
 }
 
-/* Componentes específicos */
+/* Componentes específicos — .card se usa en casi toda la app (Ruta de
+   Entregas, Finanzas, Pedidos, etc.), así que este radio/sombra más suave
+   se nota en todas partes con un solo cambio acá. */
 .card {
   background: white;
   padding: 1.5rem;
-  border-radius: 5px;
-  box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+  border-radius: var(--radius-md, 16px);
+  box-shadow: 0 2px 12px rgba(59, 42, 32, 0.08);
   margin-bottom: 1rem;
 }
 
 .alertas {
   background: #fff3cd;
   border: 1px solid #ffeaa7;
-  border-radius: 5px;
+  border-radius: var(--radius-sm, 10px);
   padding: 1rem;
   margin-bottom: 1rem;
 }

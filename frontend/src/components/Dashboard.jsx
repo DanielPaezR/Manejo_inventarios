@@ -373,7 +373,13 @@ const Dashboard = ({ user, onLogout }) => {
 
         {/* Contenido principal */}
         <main className="main-content">
-          <Outlet />
+          {/* key={pathname}: fuerza a React a remontar este div en cada
+              cambio de ruta, para que la animación de entrada (definida en
+              Dashboard.css) se dispare de nuevo cada vez — sin esto, al
+              cambiar de página el contenido solo se reemplaza de golpe. */}
+          <div key={location.pathname} className="page-transition">
+            <Outlet />
+          </div>
         </main>
       </div>
 

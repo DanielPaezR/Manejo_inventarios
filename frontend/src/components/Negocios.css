@@ -15,7 +15,7 @@
 .mensaje {
   padding: 1rem;
   margin-bottom: 1rem;
-  border-radius: 5px;
+  border-radius: var(--radius-sm, 10px);
   background: #d4edda;
   color: #155724;
   border: 1px solid #c3e6cb;
@@ -47,7 +47,7 @@
   color: #c0392b;
   background: #fdf2f0;
   padding: 0.5rem 0.75rem;
-  border-radius: 5px;
+  border-radius: var(--radius-sm, 10px);
 }
 
 .negocio-header {
@@ -101,10 +101,10 @@
   flex: 1;
   padding: 0.75rem;
   border: none;
-  border-radius: 5px;
+  border-radius: var(--radius-sm, 10px);
   cursor: pointer;
   font-size: 0.9rem;
-  transition: background 0.3s;
+  transition: all 0.25s ease;
   min-width: 120px;
 }
 
@@ -115,6 +115,7 @@
 
 .btn-gestion-usuarios:hover {
   background: var(--primary-dark);
+  transform: translateY(-1px);
 }
 
 .btn-estadisticas {
@@ -124,16 +125,17 @@
 
 .btn-estadisticas:hover {
   background: #8e44ad;
+  transform: translateY(-1px);
 }
 
 .btn-ver-modulos {
   flex: 1;
   padding: 0.75rem;
   border: none;
-  border-radius: 5px;
+  border-radius: var(--radius-sm, 10px);
   cursor: pointer;
   font-size: 0.9rem;
-  transition: background 0.3s;
+  transition: all 0.25s ease;
   min-width: 120px;
   background: #f39c12;
   color: white;
@@ -141,6 +143,7 @@
 
 .btn-ver-modulos:hover {
   background: #d68910;
+  transform: translateY(-1px);
 }
 
 .btn-desactivar,
@@ -148,10 +151,10 @@
   flex: 1;
   padding: 0.75rem;
   border: none;
-  border-radius: 5px;
+  border-radius: var(--radius-sm, 10px);
   cursor: pointer;
   font-size: 0.9rem;
-  transition: background 0.3s;
+  transition: all 0.25s ease;
   min-width: 120px;
 }
 
@@ -162,6 +165,7 @@
 
 .btn-desactivar:hover {
   background: #c0392b;
+  transform: translateY(-1px);
 }
 
 .btn-reactivar {
@@ -171,6 +175,7 @@
 
 .btn-reactivar:hover {
   background: #229954;
+  transform: translateY(-1px);
 }
 
 /* MODAL VER MÓDULOS */
@@ -324,7 +329,7 @@
 .form-group select {
   padding: 0.75rem;
   border: 1px solid #ddd;
-  border-radius: 5px;
+  border-radius: var(--radius-sm, 10px);
   font-size: 1rem;
 }
 
@@ -437,7 +442,7 @@
   color: white;
   border: none;
   padding: 0.5rem 0.75rem;
-  border-radius: 4px;
+  border-radius: var(--radius-sm, 10px);
   cursor: pointer;
   font-size: 0.8rem;
 }
@@ -499,7 +504,7 @@
   align-items: center;
   padding: 0.5rem;
   background: white;
-  border-radius: 4px;
+  border-radius: var(--radius-sm, 10px);
 }
 
 .ranking {
@@ -604,13 +609,16 @@
   color: white;
   border: none;
   padding: 0.75rem 1.5rem;
-  border-radius: 5px;
+  border-radius: var(--radius-sm, 10px);
   cursor: pointer;
   font-size: 1rem;
+  transition: all 0.25s ease;
 }
 
 .btn-primary:hover:not(:disabled) {
   background: var(--primary-dark);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(168, 69, 47, 0.3);
 }
 
 .btn-primary:disabled {
@@ -623,13 +631,15 @@
   color: white;
   border: none;
   padding: 0.75rem 1.5rem;
-  border-radius: 5px;
+  border-radius: var(--radius-sm, 10px);
   cursor: pointer;
   font-size: 1rem;
+  transition: all 0.25s ease;
 }
 
 .btn-secondary:hover {
   background: #7f8c8d;
+  transform: translateY(-1px);
 }
 
 /* RESPONSIVE */

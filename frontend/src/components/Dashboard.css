@@ -14,8 +14,8 @@
      este archivo que ya las usa) aunque el VALOR ya no sea azul. */
   --bg-app: #f5efe6;
 
-  --navbar-grad-1: #2a1d14;
-  --navbar-grad-2: #4a3527;
+  --navbar-grad-1: rgba(42, 29, 20, 0.88);
+  --navbar-grad-2: rgba(74, 53, 39, 0.88);
 
   --text-on-dark: #ffffff;
   --text-on-dark-muted: rgba(255, 255, 255, 0.7);
@@ -39,6 +39,12 @@
   --border-soft: #fbf6ef;
 
   --focus-ring: #a8452f;
+
+  /* Radios de borde compartidos — "menos cuadrado" en toda la app.
+     sm para inputs/botones chicos, md para cards, lg para modales/hero. */
+  --radius-sm: 10px;
+  --radius-md: 16px;
+  --radius-lg: 22px;
 }
 
 .dashboard {
@@ -58,6 +64,12 @@
   padding: 0 24px;
   height: 68px;
   background: linear-gradient(135deg, var(--navbar-grad-1) 0%, var(--navbar-grad-2) 50%, var(--navbar-grad-1) 100%);
+  /* Efecto vidrio, igual criterio que la tarjeta del login: el gradiente
+     de fondo ahora lleva algo de transparencia (ver --navbar-grad-1/-2 en
+     :root) y backdrop-filter difumina lo que quede debajo al hacer scroll,
+     ya que el navbar es sticky. */
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
   color: var(--text-on-dark);
   position: sticky;
   top: 0;
@@ -76,11 +88,12 @@
   background: rgba(255, 255, 255, 0.08);
   border: none;
   color: var(--text-on-dark);
-  font-size: 20px;
+  font-size: 18px;
   cursor: pointer;
-  padding: 8px 12px;
-  border-radius: 10px;
-  transition: all 0.3s ease;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  transition: all 0.25s ease;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -88,11 +101,11 @@
 
 .btn-toggle-sidebar:hover {
   background: rgba(255, 255, 255, 0.18);
-  transform: scale(1.05);
+  transform: scale(1.08) rotate(90deg);
 }
 
 .btn-toggle-sidebar:active {
-  transform: scale(0.95);
+  transform: scale(0.92) rotate(90deg);
 }
 
 .navbar-brand {
@@ -155,7 +168,10 @@
   position: absolute;
   top: calc(100% + 8px);
   left: 0;
-  background: #ffffff;
+  /* Mismo vidrio esmerilado que la tarjeta del login. */
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
   border-radius: 12px;
   box-shadow: 0 12px 48px rgba(0, 0, 0, 0.2);
   min-width: 220px;
@@ -279,7 +295,12 @@
   position: absolute;
   top: calc(100% + 8px);
   right: 0;
-  background: #ffffff !important; /* Forzado blanco */
+  /* Mismo vidrio esmerilado que la tarjeta del login — los hijos de abajo
+     (header, items, "sin notificaciones") van transparent a propósito
+     para que se vea uniforme en vez de un rectángulo blanco opaco encima. */
+  background: rgba(255, 255, 255, 0.85) !important;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
   border-radius: 14px;
   box-shadow: 0 12px 48px rgba(0, 0, 0, 0.2);
   min-width: 340px;
@@ -321,7 +342,11 @@
   color: #1a202c !important; /* Forzado oscuro */
   position: sticky;
   top: 0;
-  background: #ffffff !important;
+  /* Sticky: necesita tapar el contenido que pasa debajo al hacer scroll,
+     por eso lleva su propio blur en vez de quedar transparent como los
+     demás hijos del dropdown. */
+  background: rgba(255, 255, 255, 0.92) !important;
+  backdrop-filter: blur(16px);
   border-radius: 14px 14px 0 0;
   z-index: 1;
 }
@@ -351,11 +376,11 @@
   transition: background 0.2s;
   cursor: default;
   color: #1a202c !important; /* Forzado oscuro */
-  background: #ffffff !important;
+  background: transparent !important;
 }
 
 .notificacion-item:hover {
-  background: #f7fafc !important;
+  background: rgba(253, 243, 234, 0.7) !important;
 }
 
 .notificacion-item.leido {
@@ -376,7 +401,7 @@
   text-align: center;
   color: #4a5568 !important;
   font-size: 14px;
-  background: #ffffff !important;
+  background: transparent !important;
 }
 
 /* ============================================================
@@ -453,7 +478,9 @@
   position: absolute;
   top: calc(100% + 8px);
   right: 0;
-  background: white;
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
   border-radius: 14px;
   box-shadow: 0 12px 48px rgba(0, 0, 0, 0.2);
   min-width: 280px;
@@ -774,6 +801,24 @@
   padding: 24px;
   overflow-y: auto;
   min-height: calc(100vh - 68px - 58px);
+}
+
+/* Transición al cambiar de página — Dashboard.jsx le pone key={pathname}
+   a este div para que se remonte (y por lo tanto vuelva a animar) en cada
+   navegación. */
+.page-transition {
+  animation: pageFadeIn 0.28s ease;
+}
+
+@keyframes pageFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 /* ============================================================
