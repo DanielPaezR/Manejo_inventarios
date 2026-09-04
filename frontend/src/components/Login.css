@@ -32,8 +32,8 @@
    TARJETA DE LOGIN
    ============================================================ */
 .login-card {
-  background: rgba(253, 248, 242, 0.94);
-  backdrop-filter: blur(12px);
+  background: rgba(253, 248, 242, 0.55);
+  backdrop-filter: blur(14px);
   padding: 40px 36px;
   border-radius: 20px;
   box-shadow:
@@ -431,7 +431,7 @@
    ============================================================ */
 @media (prefers-color-scheme: dark) {
   .login-card {
-    background: rgba(38, 27, 20, 0.94);
+    background: rgba(38, 27, 20, 0.55);
   }
 
   .login-card h1 {
