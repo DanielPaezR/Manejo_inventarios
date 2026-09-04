@@ -31,12 +31,12 @@
 .badge {
   display: inline-block;
   padding: 4px 14px;
-  background: #ebf8ff;
-  color: #2b6cb0;
+  background: #fdf3ea;
+  color: var(--primary-dark);
   border-radius: 20px;
   font-size: 13px;
   font-weight: 600;
-  border: 1px solid #bee3f8;
+  border: 1px solid #f0ddc9;
 }
 
 /* ============================================================
@@ -108,9 +108,9 @@
 .form-group select:focus,
 .form-group input:focus {
   outline: none;
-  border-color: #4299e1;
+  border-color: var(--primary);
   background: white;
-  box-shadow: 0 0 0 4px rgba(66, 153, 225, 0.1);
+  box-shadow: 0 0 0 4px rgba(168, 69, 47, 0.1);
 }
 
 .form-group select {
@@ -140,7 +140,7 @@
 .btn-generar {
   width: 100%;
   padding: 14px 24px;
-  background: linear-gradient(135deg, #4299e1 0%, #3182ce 100%);
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
   color: white;
   border: none;
   border-radius: 10px;
@@ -155,7 +155,7 @@
 
 .btn-generar:hover:not(:disabled) {
   transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(66, 153, 225, 0.35);
+  box-shadow: 0 6px 20px rgba(168, 69, 47, 0.35);
 }
 
 .btn-generar:active:not(:disabled) {
@@ -283,7 +283,7 @@
 
 .info-section ul li::before {
   content: '•';
-  color: #4299e1;
+  color: var(--primary);
   font-weight: 700;
   margin-right: 4px;
 }

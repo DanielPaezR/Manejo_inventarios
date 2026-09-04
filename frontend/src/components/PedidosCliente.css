@@ -285,12 +285,12 @@
 }
 
 .btn-confirmar-pedido-cliente {
-  background: #ebf8ff;
-  color: #2b6cb0;
+  background: #fdf3ea;
+  color: var(--primary-dark);
 }
 
 .btn-confirmar-pedido-cliente:hover:not(:disabled) {
-  background: #bee3f8;
+  background: #f0ddc9;
 }
 
 .btn-editar-pedido-cliente {

@@ -37,12 +37,12 @@
 .badge {
   display: inline-block;
   padding: 4px 14px;
-  background: #ebf8ff;
-  color: #2b6cb0;
+  background: #fdf3ea;
+  color: var(--primary-dark);
   border-radius: 20px;
   font-size: 13px;
   font-weight: 600;
-  border: 1px solid #bee3f8;
+  border: 1px solid #f0ddc9;
 }
 
 .btn-agregar {
@@ -84,8 +84,8 @@
 
 .busqueda-input-clientes:focus {
   outline: none;
-  border-color: #4299e1;
-  box-shadow: 0 0 0 4px rgba(66, 153, 225, 0.1);
+  border-color: var(--primary);
+  box-shadow: 0 0 0 4px rgba(168, 69, 47, 0.1);
 }
 
 /* ============================================================
@@ -117,7 +117,7 @@
   left: 0;
   right: 0;
   height: 4px;
-  background: linear-gradient(90deg, #4299e1, #48bb78, #4299e1);
+  background: linear-gradient(90deg, var(--primary), #48bb78, var(--primary));
   background-size: 200% 100%;
   opacity: 0;
   transition: opacity 0.3s ease;
@@ -185,11 +185,11 @@
 }
 
 .cliente-actions .btn-editar {
-  color: #4299e1;
+  color: var(--primary);
 }
 
 .cliente-actions .btn-editar:hover {
-  background: #ebf8ff;
+  background: #fdf3ea;
   transform: scale(1.1);
 }
 
@@ -251,8 +251,8 @@
 .btn-historial {
   width: 100%;
   padding: 8px 14px;
-  background: #ebf8ff;
-  color: #2b6cb0;
+  background: #fdf3ea;
+  color: var(--primary-dark);
   border: none;
   border-radius: 8px;
   cursor: pointer;
@@ -262,7 +262,7 @@
 }
 
 .btn-historial:hover {
-  background: #bee3f8;
+  background: #f0ddc9;
 }
 
 /* ============================================================
@@ -285,7 +285,7 @@
 
 .btn-agregar-primero {
   padding: 10px 24px;
-  background: linear-gradient(135deg, #4299e1 0%, #3182ce 100%);
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
   color: white;
   border: none;
   border-radius: 10px;
@@ -297,7 +297,7 @@
 
 .btn-agregar-primero:hover {
   transform: translateY(-2px);
-  box-shadow: 0 4px 16px rgba(66, 153, 225, 0.3);
+  box-shadow: 0 4px 16px rgba(168, 69, 47, 0.3);
 }
 
 /* ============================================================
@@ -416,9 +416,9 @@
 
 .form-group input:focus {
   outline: none;
-  border-color: #4299e1;
+  border-color: var(--primary);
   background: white;
-  box-shadow: 0 0 0 4px rgba(66, 153, 225, 0.1);
+  box-shadow: 0 0 0 4px rgba(168, 69, 47, 0.1);
 }
 
 .form-group input::placeholder {
@@ -439,7 +439,7 @@
 .btn-guardar {
   flex: 1;
   padding: 12px 24px;
-  background: linear-gradient(135deg, #4299e1 0%, #3182ce 100%);
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
   color: white;
   border: none;
   border-radius: 10px;
@@ -451,7 +451,7 @@
 
 .btn-guardar:hover:not(:disabled) {
   transform: translateY(-2px);
-  box-shadow: 0 4px 16px rgba(66, 153, 225, 0.35);
+  box-shadow: 0 4px 16px rgba(168, 69, 47, 0.35);
 }
 
 .btn-guardar:disabled {
@@ -515,7 +515,7 @@
 
 .historial-total {
   font-weight: 700;
-  color: #2b6cb0;
+  color: var(--primary-dark);
   font-size: 15px;
 }
 
@@ -611,7 +611,7 @@
 
 .abono-form input:focus {
   outline: none;
-  border-color: #4299e1;
+  border-color: var(--primary);
 }
 
 .btn-registrar-abono {

@@ -37,12 +37,12 @@
 .badge {
   display: inline-block;
   padding: 4px 14px;
-  background: #ebf8ff;
-  color: #2b6cb0;
+  background: #fdf3ea;
+  color: var(--primary-dark);
   border-radius: 20px;
   font-size: 13px;
   font-weight: 600;
-  border: 1px solid #bee3f8;
+  border: 1px solid #f0ddc9;
 }
 
 .badge-otro-modulo {
@@ -115,8 +115,8 @@
 }
 
 .busqueda-input:focus-within {
-  border-color: #4299e1;
-  box-shadow: 0 0 0 4px rgba(66, 153, 225, 0.1);
+  border-color: var(--primary);
+  box-shadow: 0 0 0 4px rgba(168, 69, 47, 0.1);
 }
 
 .busqueda-input input {
@@ -211,10 +211,10 @@
 .scanner-info {
   margin-top: 10px;
   padding: 12px 16px;
-  background: #ebf8ff;
-  border: 1px solid #bee3f8;
+  background: #fdf3ea;
+  border: 1px solid #f0ddc9;
   border-radius: 10px;
-  color: #2b6cb0;
+  color: var(--primary-dark);
   font-size: 14px;
   display: flex;
   justify-content: space-between;
@@ -387,7 +387,7 @@
 .producto-card:hover:not(.agotado) {
   transform: translateY(-3px);
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.08);
-  border-color: #4299e1;
+  border-color: var(--primary);
 }
 
 .producto-card.agotado {
@@ -411,7 +411,7 @@
 .producto-precio {
   font-size: 16px;
   font-weight: 700;
-  color: #2b6cb0;
+  color: var(--primary-dark);
   margin: 4px 0;
 }
 
@@ -440,7 +440,7 @@
   height: 32px;
   border-radius: 50%;
   border: none;
-  background: #4299e1;
+  background: var(--primary);
   color: white;
   font-size: 18px;
   font-weight: 700;
@@ -452,7 +452,7 @@
 }
 
 .btn-agregar-carrito-item:hover:not(:disabled) {
-  background: #3182ce;
+  background: var(--primary-dark);
   transform: scale(1.1);
 }
 
@@ -524,9 +524,9 @@
 }
 
 .cuenta-pill.active {
-  background: #ebf8ff;
-  border-color: #4299e1;
-  color: #2b6cb0;
+  background: #fdf3ea;
+  border-color: var(--primary);
+  color: var(--primary-dark);
   font-weight: 600;
 }
 
@@ -537,7 +537,7 @@
 .cuenta-pill-input {
   width: 90px;
   padding: 2px 6px;
-  border: 1px solid #4299e1;
+  border: 1px solid var(--primary);
   border-radius: 6px;
   font-size: 13px;
 }
@@ -567,14 +567,14 @@
   border-radius: 20px;
   font-size: 13px;
   font-weight: 600;
-  color: #4299e1;
+  color: var(--primary);
   cursor: pointer;
   transition: all 0.2s ease;
 }
 
 .cuenta-pill-nueva:hover {
-  border-color: #4299e1;
-  background: #ebf8ff;
+  border-color: var(--primary);
+  background: #fdf3ea;
 }
 
 /* Cliente form */
@@ -595,8 +595,8 @@
 
 .cliente-input:focus {
   outline: none;
-  border-color: #4299e1;
-  box-shadow: 0 0 0 3px rgba(66, 153, 225, 0.1);
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(168, 69, 47, 0.1);
 }
 
 /* Autocomplete de clientes */
@@ -709,8 +709,8 @@
 }
 
 .btn-registrar-cliente {
-  background: #ebf8ff;
-  color: #2b6cb0;
+  background: #fdf3ea;
+  color: var(--primary-dark);
   border: none;
   padding: 4px 12px;
   border-radius: 6px;
@@ -721,7 +721,7 @@
 }
 
 .btn-registrar-cliente:hover {
-  background: #bee3f8;
+  background: #f0ddc9;
 }
 
 /* Mini-modal de registro rápido de cliente desde el POS */
@@ -795,8 +795,8 @@
 
 .cliente-form-group input:focus {
   outline: none;
-  border-color: #4299e1;
-  box-shadow: 0 0 0 3px rgba(66, 153, 225, 0.1);
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(168, 69, 47, 0.1);
 }
 
 .cliente-form-actions {
@@ -909,7 +909,7 @@
 
 .btn-cantidad:hover:not(:disabled) {
   background: #f7fafc;
-  border-color: #4299e1;
+  border-color: var(--primary);
 }
 
 .btn-cantidad:disabled {
@@ -963,7 +963,7 @@
   border-top: 1px solid #e2e8f0;
   padding-top: 8px;
   margin-top: 4px;
-  color: #2b6cb0;
+  color: var(--primary-dark);
 }
 
 .metodo-pago {
@@ -994,7 +994,7 @@
 
 .metodo-pago select:focus {
   outline: none;
-  border-color: #4299e1;
+  border-color: var(--primary);
 }
 
 .calculadora-cambio {
@@ -1023,7 +1023,7 @@
 
 .calculadora-cambio input:focus {
   outline: none;
-  border-color: #4299e1;
+  border-color: var(--primary);
 }
 
 .cambio-resultado {
@@ -1394,8 +1394,8 @@
   }
 
   .ventas-mobile-tab.active {
-    background: #4299e1;
-    border-color: #4299e1;
+    background: var(--primary);
+    border-color: var(--primary);
     color: white;
   }
 

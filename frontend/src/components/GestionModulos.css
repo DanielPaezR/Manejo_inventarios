@@ -52,10 +52,10 @@
 .gestion-modulos-mensaje {
   margin: 16px 24px 0;
   padding: 10px 14px;
-  background: #ebf8ff;
-  border: 1px solid #bee3f8;
+  background: #fdf3ea;
+  border: 1px solid #f0ddc9;
   border-radius: 8px;
-  color: #2b6cb0;
+  color: var(--primary-dark);
   font-size: 14px;
 }
 
@@ -95,12 +95,12 @@
 
 .gestion-modulos-form input[type="text"]:focus {
   outline: none;
-  border-color: #4299e1;
+  border-color: var(--primary);
 }
 
 .gestion-modulos-btn-crear {
   padding: 8px 18px;
-  background: #4299e1;
+  background: var(--primary);
   color: white;
   border: none;
   border-radius: 8px;
@@ -110,7 +110,7 @@
 }
 
 .gestion-modulos-btn-crear:hover:not(:disabled) {
-  background: #3182ce;
+  background: var(--primary-dark);
 }
 
 .gestion-modulos-btn-crear:disabled {
@@ -206,8 +206,8 @@
 }
 
 .gestion-modulos-rol-badge.admin {
-  background: #ebf8ff;
-  color: #2b6cb0;
+  background: #fdf3ea;
+  color: var(--primary-dark);
 }
 
 .gestion-modulos-rol-badge.trabajador {

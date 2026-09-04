@@ -31,12 +31,12 @@
 .badge {
   display: inline-block;
   padding: 4px 14px;
-  background: #ebf8ff;
-  color: #2b6cb0;
+  background: #fdf3ea;
+  color: var(--primary-dark);
   border-radius: 20px;
   font-size: 13px;
   font-weight: 600;
-  border: 1px solid #bee3f8;
+  border: 1px solid #f0ddc9;
 }
 
 .badge-otro-modulo {
@@ -84,9 +84,9 @@
 
 .search-box input:focus {
   outline: none;
-  border-color: #4299e1;
+  border-color: var(--primary);
   background: white;
-  box-shadow: 0 0 0 4px rgba(66, 153, 225, 0.1);
+  box-shadow: 0 0 0 4px rgba(168, 69, 47, 0.1);
 }
 
 .search-box input::placeholder {
@@ -95,7 +95,7 @@
 
 .btn-buscar {
   padding: 10px 24px;
-  background: #4299e1;
+  background: var(--primary);
   color: white;
   border: none;
   border-radius: 10px;
@@ -107,9 +107,9 @@
 }
 
 .btn-buscar:hover {
-  background: #3182ce;
+  background: var(--primary-dark);
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(66, 153, 225, 0.3);
+  box-shadow: 0 4px 12px rgba(168, 69, 47, 0.3);
 }
 
 .btn-limpiar {
@@ -220,11 +220,11 @@
   padding: 4px 8px;
   border-radius: 6px;
   transition: all 0.2s;
-  color: #4299e1;
+  color: var(--primary);
 }
 
 .productos-table .btn-editar:hover {
-  background: #ebf8ff;
+  background: #fdf3ea;
   transform: scale(1.1);
 }
 
@@ -375,9 +375,9 @@
 .form-group select:focus,
 .form-group textarea:focus {
   outline: none;
-  border-color: #4299e1;
+  border-color: var(--primary);
   background: white;
-  box-shadow: 0 0 0 4px rgba(66, 153, 225, 0.1);
+  box-shadow: 0 0 0 4px rgba(168, 69, 47, 0.1);
 }
 
 .form-group input::placeholder,
@@ -430,7 +430,7 @@
 .btn-guardar {
   flex: 1;
   padding: 12px 24px;
-  background: linear-gradient(135deg, #4299e1 0%, #3182ce 100%);
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
   color: white;
   border: none;
   border-radius: 10px;
@@ -442,7 +442,7 @@
 
 .btn-guardar:hover {
   transform: translateY(-2px);
-  box-shadow: 0 4px 16px rgba(66, 153, 225, 0.35);
+  box-shadow: 0 4px 16px rgba(168, 69, 47, 0.35);
 }
 
 .btn-cancelar {
@@ -479,7 +479,7 @@
 .btn-gestionar-categorias {
   background: none;
   border: none;
-  color: #4299e1;
+  color: var(--primary);
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
@@ -518,7 +518,7 @@
 .categoria-item input {
   flex: 1;
   padding: 6px 10px;
-  border: 2px solid #4299e1;
+  border: 2px solid var(--primary);
   border-radius: 6px;
   font-size: 14px;
 }
@@ -552,8 +552,8 @@
 
 .categoria-form-agregar input:focus {
   outline: none;
-  border-color: #4299e1;
-  box-shadow: 0 0 0 4px rgba(66, 153, 225, 0.1);
+  border-color: var(--primary);
+  box-shadow: 0 0 0 4px rgba(168, 69, 47, 0.1);
 }
 
 .categoria-form-agregar .btn-guardar {

@@ -37,12 +37,12 @@
 .badge {
   display: inline-block;
   padding: 4px 14px;
-  background: #ebf8ff;
-  color: #2b6cb0;
+  background: #fdf3ea;
+  color: var(--primary-dark);
   border-radius: 20px;
   font-size: 13px;
   font-weight: 600;
-  border: 1px solid #bee3f8;
+  border: 1px solid #f0ddc9;
 }
 
 .header-right {
@@ -69,10 +69,10 @@
 }
 
 .btn-vista.active {
-  background: #4299e1;
+  background: var(--primary);
   color: white;
-  border-color: #4299e1;
-  box-shadow: 0 4px 12px rgba(66, 153, 225, 0.3);
+  border-color: var(--primary);
+  box-shadow: 0 4px 12px rgba(168, 69, 47, 0.3);
 }
 
 /* ============================================================
@@ -114,10 +114,10 @@
 }
 
 .btn-periodo.active {
-  background: #ebf8ff;
-  color: #2b6cb0;
+  background: #fdf3ea;
+  color: var(--primary-dark);
   font-weight: 600;
-  box-shadow: 0 0 0 2px #bee3f8;
+  box-shadow: 0 0 0 2px #f0ddc9;
 }
 
 .fechas-personalizadas {
@@ -138,9 +138,9 @@
 
 .input-fecha:focus {
   outline: none;
-  border-color: #4299e1;
+  border-color: var(--primary);
   background: white;
-  box-shadow: 0 0 0 3px rgba(66, 153, 225, 0.1);
+  box-shadow: 0 0 0 3px rgba(168, 69, 47, 0.1);
 }
 
 .fecha-separador {
@@ -216,7 +216,7 @@
   width: 48px;
   height: 48px;
   border: 4px solid #e2e8f0;
-  border-top: 4px solid #4299e1;
+  border-top: 4px solid var(--primary);
   border-radius: 50%;
   animation: spin 1s linear infinite;
 }
@@ -379,7 +379,7 @@
 .barra {
   width: 100%;
   max-width: 40px;
-  background: linear-gradient(180deg, #4299e1 0%, #3182ce 100%);
+  background: linear-gradient(180deg, var(--primary) 0%, var(--primary-dark) 100%);
   border-radius: 6px 6px 0 0;
   min-height: 8px;
   transition: height 0.6s ease;
@@ -456,7 +456,7 @@
   justify-content: center;
   width: 28px;
   height: 28px;
-  background: #4299e1;
+  background: var(--primary);
   color: white;
   border-radius: 50%;
   font-size: 13px;
@@ -621,8 +621,8 @@
 .porcentaje-badge {
   display: inline-block;
   padding: 2px 12px;
-  background: #ebf8ff;
-  color: #2b6cb0;
+  background: #fdf3ea;
+  color: var(--primary-dark);
   border-radius: 12px;
   font-size: 12px;
   font-weight: 600;

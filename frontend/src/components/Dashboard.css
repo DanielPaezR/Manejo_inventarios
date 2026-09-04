@@ -6,33 +6,39 @@
    TOKENS DE COLOR
    ---------------------------------------------------------- */
 :root {
-  --bg-app: #f0f4f8;
+  /* Paleta "campo/madera" (PROTOTIPO, en validación con el usuario antes
+     de extenderla al resto de la app) — mismos tonos que el fondo del
+     login: terracota del techo, marrón cálido de la madera, crema de la
+     luz de fondo. Los NOMBRES de variable no cambian (siguen siendo
+     --accent-blue, --focus-ring, etc. por compatibilidad con el resto de
+     este archivo que ya las usa) aunque el VALOR ya no sea azul. */
+  --bg-app: #f5efe6;
 
-  --navbar-grad-1: #1a202c;
-  --navbar-grad-2: #2d3748;
+  --navbar-grad-1: #2a1d14;
+  --navbar-grad-2: #4a3527;
 
   --text-on-dark: #ffffff;
   --text-on-dark-muted: rgba(255, 255, 255, 0.7);
   --text-on-dark-faint: rgba(255, 255, 255, 0.45);
 
-  --text-strong: #1a202c;
-  --text-default: #2d3748;
-  --text-muted: #4a5568;
-  --text-muted-soft: #5a6678;
+  --text-strong: #2a1d14;
+  --text-default: #3b2a20;
+  --text-muted: #6b5745;
+  --text-muted-soft: #7d6a58;
 
-  --link: #2b6cb0;
-  --link-bg-hover: #ebf8ff;
+  --link: #a8452f;
+  --link-bg-hover: #fdf3ea;
 
-  --accent-blue: #1a56db;
-  --accent-blue-soft: #4299e1;
+  --accent-blue: #a8452f;
+  --accent-blue-soft: #d98e3b;
 
   --danger: #c53030;
   --danger-soft-bg: #fff5f5;
 
-  --border: #e2e8f0;
-  --border-soft: #f7fafc;
+  --border: #e8ddd0;
+  --border-soft: #fbf6ef;
 
-  --focus-ring: #4299e1;
+  --focus-ring: #a8452f;
 }
 
 .dashboard {
@@ -182,7 +188,7 @@
 .dropdown-modulo-item.active {
   color: var(--link);
   font-weight: 700;
-  background: #ebf8ff;
+  background: #fdf3ea;
 }
 
 /* ============================================================
@@ -218,7 +224,7 @@
   background: rgba(255, 255, 255, 0.18);
   border-color: rgba(255, 255, 255, 0.3);
   width: 260px;
-  box-shadow: 0 0 0 3px rgba(66, 153, 225, 0.4);
+  box-shadow: 0 0 0 3px rgba(168, 69, 47, 0.4);
 }
 
 .navbar-search::before {
@@ -405,11 +411,11 @@
   width: 36px;
   height: 36px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #4299e1, #667eea);
+  background: linear-gradient(135deg, var(--accent-blue-soft), var(--accent-blue));
   color: white;
   font-weight: 700;
   font-size: 16px;
-  box-shadow: 0 2px 8px rgba(66, 153, 225, 0.3);
+  box-shadow: 0 2px 8px rgba(168, 69, 47, 0.3);
 }
 
 .user-info {
@@ -473,11 +479,11 @@
   width: 52px;
   height: 52px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #4299e1, #667eea);
+  background: linear-gradient(135deg, var(--accent-blue-soft), var(--accent-blue));
   color: white;
   font-weight: 700;
   font-size: 22px;
-  box-shadow: 0 2px 12px rgba(66, 153, 225, 0.3);
+  box-shadow: 0 2px 12px rgba(168, 69, 47, 0.3);
 }
 
 .user-info-large {
@@ -497,7 +503,7 @@
 
 .user-rol-badge {
   display: inline-block;
-  background: #ebf8ff;
+  background: #fdf3ea;
   padding: 2px 10px;
   border-radius: 12px;
   font-size: 10px;
@@ -603,11 +609,11 @@
 .modulo-nombre {
   font-weight: 700;
   font-size: 15px;
-  background: #ebf8ff;
+  background: #fdf3ea;
   padding: 4px 16px;
   border-radius: 20px;
   color: var(--link);
-  border: 1px solid #bee3f8;
+  border: 1px solid #f0ddc9;
 }
 
 .modulo-descripcion {
@@ -620,7 +626,7 @@
   padding: 6px 14px;
   background: white;
   color: var(--link);
-  border: 1px solid #bee3f8;
+  border: 1px solid #f0ddc9;
   border-radius: 8px;
   cursor: pointer;
   font-size: 13px;
@@ -630,7 +636,7 @@
 }
 
 .btn-gestionar-modulos:hover {
-  background: #ebf8ff;
+  background: #fdf3ea;
 }
 
 /* ============================================================
@@ -694,8 +700,8 @@
 }
 
 .nav-item.active a {
-  background: #ebf8ff !important;
-  color: #1a56db !important;
+  background: #fdf3ea !important;
+  color: var(--accent-blue) !important;
   font-weight: 600;
 }
 
@@ -712,7 +718,7 @@
 }
 
 .nav-item.active a .nav-icon {
-  color: #1a56db !important;
+  color: var(--accent-blue) !important;
 }
 
 .nav-label {

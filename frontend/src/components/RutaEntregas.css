@@ -53,7 +53,7 @@
   height: 28px;
   border-radius: 50% 50% 50% 0;
   transform: rotate(-45deg);
-  background: #4299e1;
+  background: var(--primary);
   border: 2px solid white;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
   display: flex;
@@ -156,8 +156,8 @@
 .ruta-entregas-resumen-cantidad {
   min-width: 32px;
   padding: 2px 8px;
-  background: #ebf8ff;
-  color: #2b6cb0;
+  background: #fdf3ea;
+  color: var(--primary-dark);
   border-radius: 12px;
   font-weight: 700;
   text-align: center;
@@ -203,7 +203,7 @@
 }
 
 .ruta-entregas-btn-mover:hover:not(:disabled) {
-  background: #ebf8ff;
+  background: #fdf3ea;
 }
 
 .ruta-entregas-btn-mover:disabled {
@@ -266,12 +266,12 @@
 }
 
 .ruta-entregas-btn-como-llegar {
-  background: #ebf8ff;
-  color: #2b6cb0;
+  background: #fdf3ea;
+  color: var(--primary-dark);
 }
 
 .ruta-entregas-btn-como-llegar:hover {
-  background: #bee3f8;
+  background: #f0ddc9;
 }
 
 .ruta-entregas-btn-completar {

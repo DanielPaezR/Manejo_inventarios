@@ -27,8 +27,8 @@
 
 .modulo-select:focus {
   outline: none;
-  border-color: #4299e1;
-  box-shadow: 0 0 0 3px rgba(66, 153, 225, 0.3);
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(168, 69, 47, 0.3);
 }
 
 @media (max-width: 768px) {

@@ -1,3 +1,16 @@
+/* Paleta "campo/madera" compartida por toda la app — mismos tonos que el
+   fondo del login (terracota del techo, marrón cálido, crema de luz de
+   fondo). PROTOTIPO: por ahora solo la consumen Dashboard.css (sus
+   propias variables --accent-blue/--focus-ring/etc. redefinidas con
+   estos valores) y Ventas.css, mientras se valida con el usuario antes
+   de migrar el resto de los .css (que hoy tienen el azul #4299e1
+   hardcodeado, sin variables). */
+:root {
+  --primary: #a8452f;
+  --primary-dark: #7c3220;
+  --accent: #d98e3b;
+}
+
 /* Estilos generales */
 .app {
   min-height: 100vh;
@@ -39,7 +52,7 @@
 .btn {
   width: 100%;
   padding: 0.75rem;
-  background: #667eea;
+  background: var(--primary);
   color: white;
   border: none;
   border-radius: 5px;
@@ -49,7 +62,7 @@
 }
 
 .btn:hover {
-  background: #5a6fd8;
+  background: var(--primary-dark);
 }
 
 /* Dashboard */
