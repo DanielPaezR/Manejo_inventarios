@@ -766,18 +766,31 @@ app.get('/api/productos', authenticateToken, checkAccess, async (req, res) => {
     }
 
     // Un producto siempre pertenece a su módulo dueño (p.modulo_id), pero si
-    // quedó marcado compartido = true, también aparece en el listado de
-    // cualquier otro módulo del MISMO negocio (ej. productos en consignación
-    // de otro módulo que se venden desde este). m_dueno.negocio_id acota el
-    // cruce al negocio del usuario, nunca fuera de él.
+    // el dueño lo compartió explícitamente con este módulo (fila en
+    // producto_modulo_compartido), también aparece en su listado — a
+    // diferencia del compartido=true de antes, ahora es por módulo
+    // específico, no automático a todo el negocio.
+    // compartido_con trae los módulos con los que el dueño lo compartió (para
+    // que el modal de edición ya tenga la selección actual sin otra llamada).
     let query = `
       SELECT p.*, c.nombre as categoria_nombre,
-             m_dueno.nombre as modulo_dueno_nombre
+             m_dueno.nombre as modulo_dueno_nombre,
+             COALESCE(
+               (SELECT array_agg(pmc.modulo_id) FROM producto_modulo_compartido pmc WHERE pmc.producto_id = p.id),
+               '{}'
+             ) as compartido_con
       FROM productos p
       LEFT JOIN categorias c ON p.categoria_id = c.id
       JOIN modulos m_dueno ON p.modulo_id = m_dueno.id
       WHERE p.activo = true
-      AND (p.modulo_id = $1 OR (p.compartido = true AND m_dueno.negocio_id = $2))
+      AND (
+        p.modulo_id = $1
+        OR EXISTS (
+          SELECT 1 FROM producto_modulo_compartido pmc
+          JOIN modulos m_otro ON pmc.modulo_id = m_otro.id
+          WHERE pmc.producto_id = p.id AND pmc.modulo_id = $1 AND m_otro.negocio_id = $2
+        )
+      )
     `;
     let params = [moduloId, negocioId];
 
@@ -800,7 +813,38 @@ app.get('/api/productos', authenticateToken, checkAccess, async (req, res) => {
   }
 });
 
+// compartido_con: array de modulo_id (del mismo negocio, distintos al
+// dueño) con los que este producto también se puede vender — reemplaza al
+// viejo booleano compartido (que era todo-o-nada con el negocio completo).
+// Se valida y se escriben las filas de producto_modulo_compartido dentro
+// de la misma transacción de creación/edición del producto.
+const guardarCompartidoCon = async (client, productoId, moduloDuenoId, negocioId, compartidoCon) => {
+  const moduloIds = Array.isArray(compartidoCon)
+    ? [...new Set(compartidoCon.map(Number).filter(id => Number.isFinite(id) && id !== moduloDuenoId))]
+    : [];
+
+  await client.query('DELETE FROM producto_modulo_compartido WHERE producto_id = $1', [productoId]);
+
+  if (moduloIds.length === 0) return;
+
+  // Solo módulos activos del MISMO negocio — ids que no cumplan (de otro
+  // negocio, inactivos, inexistentes) se descartan en silencio en vez de
+  // fallar, igual que categoria_id/pedido_id inválidos en otras rutas.
+  const validos = await client.query(
+    'SELECT id FROM modulos WHERE id = ANY($1) AND negocio_id = $2 AND activo = true',
+    [moduloIds, negocioId]
+  );
+
+  for (const row of validos.rows) {
+    await client.query(
+      'INSERT INTO producto_modulo_compartido (producto_id, modulo_id) VALUES ($1, $2)',
+      [productoId, row.id]
+    );
+  }
+};
+
 app.post('/api/productos', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+  let client;
   try {
     const {
       codigo_ean,
@@ -814,10 +858,11 @@ app.post('/api/productos', authenticateToken, checkAccess, requireAdmin, async (
       es_novedad,
       foto_url,
       ignora_stock,
-      compartido
+      compartido_con
     } = req.body;
 
     const moduloId = req.moduloId;
+    const negocioId = req.negocioId;
 
     if (!moduloId) {
       return res.status(400).json({ error: 'Se requiere un módulo' });
@@ -826,22 +871,34 @@ app.post('/api/productos', authenticateToken, checkAccess, requireAdmin, async (
     // '' (sin categoría) no es un entero válido para esta columna
     const categoriaIdValor = categoria_id === '' || categoria_id === undefined ? null : categoria_id;
 
-    const result = await pool.query(
+    client = await pool.connect();
+    await client.query('BEGIN');
+
+    const result = await client.query(
       `INSERT INTO productos
-       (modulo_id, codigo_ean, nombre, descripcion, precio_compra, precio_venta, stock_actual, stock_minimo, categoria_id, es_novedad, foto_url, ignora_stock, compartido)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+       (modulo_id, codigo_ean, nombre, descripcion, precio_compra, precio_venta, stock_actual, stock_minimo, categoria_id, es_novedad, foto_url, ignora_stock)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
        RETURNING *`,
-      [moduloId, codigo_ean, nombre, descripcion, precio_compra, precio_venta, stock_actual, stock_minimo, categoriaIdValor, !!es_novedad, foto_url?.trim() || null, !!ignora_stock, !!compartido]
+      [moduloId, codigo_ean, nombre, descripcion, precio_compra, precio_venta, stock_actual, stock_minimo, categoriaIdValor, !!es_novedad, foto_url?.trim() || null, !!ignora_stock]
     );
 
+    await guardarCompartidoCon(client, result.rows[0].id, moduloId, negocioId, compartido_con);
+
+    await client.query('COMMIT');
     res.status(201).json(result.rows[0]);
   } catch (error) {
+    if (client) {
+      await client.query('ROLLBACK').catch(() => {});
+    }
     console.error('Error creando producto:', error);
     res.status(500).json({ error: 'Error interno del servidor' });
+  } finally {
+    if (client) client.release();
   }
 });
 
 app.put('/api/productos/:id', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+  let client;
   try {
     const { id } = req.params;
     const {
@@ -856,10 +913,11 @@ app.put('/api/productos/:id', authenticateToken, checkAccess, requireAdmin, asyn
       es_novedad,
       foto_url,
       ignora_stock,
-      compartido
+      compartido_con
     } = req.body;
 
     const moduloId = req.moduloId;
+    const negocioId = req.negocioId;
 
     if (!moduloId) {
       return res.status(400).json({ error: 'Se requiere un módulo' });
@@ -870,10 +928,13 @@ app.put('/api/productos/:id', authenticateToken, checkAccess, requireAdmin, asyn
     // (invalid input syntax for type integer).
     const categoriaIdValor = categoria_id === '' || categoria_id === undefined ? null : categoria_id;
 
+    client = await pool.connect();
+    await client.query('BEGIN');
+
     // WHERE ... AND modulo_id = $13 (dueño): un módulo que solo tiene acceso
     // de VENTA a este producto por ser compartido no puede editarlo — solo
-    // el módulo dueño puede tocar precio/stock/nombre/compartido.
-    const result = await pool.query(
+    // el módulo dueño puede tocar precio/stock/nombre/con quién se comparte.
+    const result = await client.query(
       `UPDATE productos
        SET codigo_ean = $1,
            nombre = $2,
@@ -886,21 +947,31 @@ app.put('/api/productos/:id', authenticateToken, checkAccess, requireAdmin, asyn
            es_novedad = $9,
            foto_url = $10,
            ignora_stock = $11,
-           compartido = $12,
            fecha_actualizacion = NOW()
-       WHERE id = $13 AND modulo_id = $14
+       WHERE id = $12 AND modulo_id = $13
        RETURNING *`,
-      [codigo_ean, nombre, descripcion, precio_compra, precio_venta, stock_actual, stock_minimo, categoriaIdValor, !!es_novedad, foto_url?.trim() || null, !!ignora_stock, !!compartido, id, moduloId]
+      [codigo_ean, nombre, descripcion, precio_compra, precio_venta, stock_actual, stock_minimo, categoriaIdValor, !!es_novedad, foto_url?.trim() || null, !!ignora_stock, id, moduloId]
     );
 
     if (result.rows.length === 0) {
+      await client.query('ROLLBACK');
       return res.status(404).json({ error: 'Producto no encontrado' });
     }
 
+    if (compartido_con !== undefined) {
+      await guardarCompartidoCon(client, id, moduloId, negocioId, compartido_con);
+    }
+
+    await client.query('COMMIT');
     res.json(result.rows[0]);
   } catch (error) {
+    if (client) {
+      await client.query('ROLLBACK').catch(() => {});
+    }
     console.error('Error actualizando producto:', error);
     res.status(500).json({ error: 'Error interno del servidor' });
+  } finally {
+    if (client) client.release();
   }
 });
 
@@ -941,7 +1012,14 @@ app.get('/api/productos/buscar/:ean', authenticateToken, checkAccess, async (req
        LEFT JOIN categorias c ON p.categoria_id = c.id
        JOIN modulos m_dueno ON p.modulo_id = m_dueno.id
        WHERE p.activo = true
-       AND (p.modulo_id = $1 OR (p.compartido = true AND m_dueno.negocio_id = $3))
+       AND (
+         p.modulo_id = $1
+         OR EXISTS (
+           SELECT 1 FROM producto_modulo_compartido pmc
+           JOIN modulos m_otro ON pmc.modulo_id = m_otro.id
+           WHERE pmc.producto_id = p.id AND pmc.modulo_id = $1 AND m_otro.negocio_id = $3
+         )
+       )
        AND p.codigo_ean = $2`,
       [moduloId, ean, negocioId]
     );
@@ -1176,15 +1254,25 @@ app.post('/api/ventas', authenticateToken, checkAccess, async (req, res) => {
       // transacción: dos ventas concurrentes del mismo producto ya no
       // pueden leer el mismo stock antes de que ninguna confirme.
       // El producto es vendible desde este módulo si es suyo (modulo_id =
-      // moduloId) o si su dueño lo marcó compartido = true dentro del MISMO
-      // negocio (join a modulos para confirmarlo) — así se puede vender
-      // mercancía en consignación de otro módulo sin salir del negocio.
+      // moduloId) o si su dueño lo compartió explícitamente con este módulo
+      // (producto_modulo_compartido) — así se puede vender mercancía en
+      // consignación de otro módulo sin salir del negocio. La verificación
+      // de módulo compartido va en un EXISTS aparte (no un JOIN) a propósito:
+      // un JOIN dentro de este FOR UPDATE bloquearía también la fila de
+      // modulos, lo que puede chocar con otras transacciones que necesiten
+      // esa misma fila (ver generarNumeroFactura).
       const stockResult = await client.query(
         `SELECT p.id, p.nombre, p.stock_actual, p.ignora_stock, p.modulo_id
          FROM productos p
-         JOIN modulos m_dueno ON p.modulo_id = m_dueno.id
          WHERE p.id = $1 AND p.activo = true
-         AND (p.modulo_id = $2 OR (p.compartido = true AND m_dueno.negocio_id = $3))
+         AND (
+           p.modulo_id = $2
+           OR EXISTS (
+             SELECT 1 FROM producto_modulo_compartido pmc
+             JOIN modulos m_otro ON pmc.modulo_id = m_otro.id
+             WHERE pmc.producto_id = p.id AND pmc.modulo_id = $2 AND m_otro.negocio_id = $3
+           )
+         )
          FOR UPDATE`,
         [detalle.producto_id, moduloId, negocioId]
       );

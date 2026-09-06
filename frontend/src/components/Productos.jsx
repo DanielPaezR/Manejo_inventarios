@@ -24,8 +24,12 @@ const Productos = ({ user }) => {
     es_novedad: false,
     foto_url: '',
     ignora_stock: false,
-    compartido: false
+    compartido_con: []
   });
+  // Otros módulos del mismo negocio (para elegir con cuáles compartir este
+  // producto) — no son necesariamente los módulos a los que ESTE usuario
+  // tiene acceso, así que se piden aparte en vez de reusar useModulo().
+  const [otrosModulos, setOtrosModulos] = useState([]);
   // Gestión de categorías (solo desde este modal, no hay página aparte)
   const [showCategoriasModal, setShowCategoriasModal] = useState(false);
   const [nuevaCategoriaNombre, setNuevaCategoriaNombre] = useState('');
@@ -38,8 +42,19 @@ const Productos = ({ user }) => {
     if (moduloActivo) {
       cargarProductos();
       cargarCategorias();
+      cargarOtrosModulos();
     }
   }, [moduloActivo]);
+
+  const cargarOtrosModulos = async () => {
+    if (!user?.negocio_id) return;
+    try {
+      const response = await api.get(`/negocios/${user.negocio_id}/modulos`);
+      setOtrosModulos(response.data.filter(m => m.id !== moduloActivo?.id));
+    } catch (error) {
+      console.error('Error cargando otros módulos del negocio:', error);
+    }
+  };
 
   const cargarProductos = async () => {
     try {
@@ -165,7 +180,7 @@ const Productos = ({ user }) => {
         es_novedad: false,
         foto_url: '',
         ignora_stock: false,
-        compartido: false
+        compartido_con: []
       });
       cargarProductos();
     } catch (error) {
@@ -201,7 +216,7 @@ const Productos = ({ user }) => {
       es_novedad: producto.es_novedad || false,
       foto_url: producto.foto_url || '',
       ignora_stock: producto.ignora_stock || false,
-      compartido: producto.compartido || false
+      compartido_con: producto.compartido_con || []
     });
     setShowModal(true);
   };
@@ -247,7 +262,7 @@ const Productos = ({ user }) => {
         </div>
         
         {puedeEditar && (
-          <button onClick={() => { setEditProducto(null); setFormData({ codigo_ean: '', nombre: '', descripcion: '', precio_compra: '', precio_venta: '', stock_actual: '', stock_minimo: '', categoria_id: '', es_novedad: false, foto_url: '', ignora_stock: false, compartido: false }); setShowModal(true); }} className="btn-agregar">
+          <button onClick={() => { setEditProducto(null); setFormData({ codigo_ean: '', nombre: '', descripcion: '', precio_compra: '', precio_venta: '', stock_actual: '', stock_minimo: '', categoria_id: '', es_novedad: false, foto_url: '', ignora_stock: false, compartido_con: [] }); setShowModal(true); }} className="btn-agregar">
             + Nuevo Producto
           </button>
         )}
@@ -447,16 +462,26 @@ const Productos = ({ user }) => {
                 </label>
               </div>
 
-              <div className="form-group form-group-checkbox">
-                <label className="checkbox-label">
-                  <input
-                    type="checkbox"
-                    checked={formData.compartido}
-                    onChange={(e) => setFormData({ ...formData, compartido: e.target.checked })}
-                  />
-                  🔗 Compartir con otros módulos (se puede ver, vender y descontar stock desde cualquier módulo del negocio, pero solo tú puedes editarlo)
-                </label>
-              </div>
+              {otrosModulos.length > 0 && (
+                <div className="form-group">
+                  <label>🔗 Compartir con módulos (se puede ver, vender y descontar stock desde ahí, pero solo tú puedes editarlo):</label>
+                  {otrosModulos.map(modulo => (
+                    <label key={modulo.id} className="checkbox-label">
+                      <input
+                        type="checkbox"
+                        checked={formData.compartido_con.includes(modulo.id)}
+                        onChange={(e) => {
+                          const compartidoCon = e.target.checked
+                            ? [...formData.compartido_con, modulo.id]
+                            : formData.compartido_con.filter(id => id !== modulo.id);
+                          setFormData({ ...formData, compartido_con: compartidoCon });
+                        }}
+                      />
+                      {modulo.nombre}
+                    </label>
+                  ))}
+                </div>
+              )}
 
               <div className="form-actions">
                 <button type="submit" className="btn-guardar">
