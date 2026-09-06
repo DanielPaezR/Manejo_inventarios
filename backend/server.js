@@ -25,6 +25,30 @@ const { checkAccess } = require('./src/middleware/checkAccess');
 const { generarNumeroFactura } = require('./src/helpers/generarNumeroFactura');
 const { generarNumeroCliente } = require('./src/helpers/generarNumeroCliente');
 const { geocodificar } = require('./src/helpers/geocodificar');
+
+// Divide el ingreso de una venta entre los módulos dueños reales de cada
+// línea vendida (duenoPorProducto), no todo al módulo que hizo la venta —
+// así Finanzas de cada módulo solo refleja el dinero de sus propios
+// productos, sin importar desde qué módulo se vendieron. El reporte de
+// "cuánto vendí de productos ajenos" sigue existiendo aparte en
+// GET /api/estadisticas/ventas-cruzadas, que no cambia con esto.
+const registrarIngresosVenta = async (client, { negocioId, ventaId, numeroFactura, usuarioId, detalles, duenoPorProducto }) => {
+  const montoPorDueno = new Map();
+  for (const detalle of detalles) {
+    const duenoId = duenoPorProducto.get(detalle.producto_id);
+    const subtotal = detalle.cantidad * detalle.precio_unitario;
+    montoPorDueno.set(duenoId, (montoPorDueno.get(duenoId) || 0) + subtotal);
+  }
+
+  for (const [duenoId, monto] of montoPorDueno) {
+    await client.query(
+      `INSERT INTO movimientos_caja
+       (negocio_id, modulo_id, tipo, origen, monto, concepto, venta_id, usuario_id)
+       VALUES ($1, $2, 'ingreso', 'venta', $3, $4, $5, $6)`,
+      [negocioId, duenoId, monto, `Venta #${numeroFactura}`, ventaId, usuarioId]
+    );
+  }
+};
 const { JWT_SECRET } = require('./src/config/jwtSecret');
 
 // ==================== IMPORTS DE REPORTES ====================
@@ -1343,12 +1367,14 @@ app.post('/api/ventas', authenticateToken, checkAccess, async (req, res) => {
     // cuando el cliente abona), y consumo propio no es efectivo real en
     // absoluto (mercancía retirada para uso personal, no una venta).
     if (metodo_pago !== 'credito' && metodo_pago !== 'consumo_propio') {
-      await client.query(
-        `INSERT INTO movimientos_caja
-         (negocio_id, modulo_id, tipo, origen, monto, concepto, venta_id, usuario_id)
-         VALUES ($1, $2, 'ingreso', 'venta', $3, $4, $5, $6)`,
-        [negocioId, moduloId, total, `Venta #${numero_factura}`, venta.id, usuario_id]
-      );
+      await registrarIngresosVenta(client, {
+        negocioId,
+        ventaId: venta.id,
+        numeroFactura: numero_factura,
+        usuarioId: usuario_id,
+        detalles,
+        duenoPorProducto
+      });
     }
 
     await client.query('COMMIT');
@@ -1915,13 +1941,20 @@ app.get('/api/estadisticas', authenticateToken, checkAccess, requireAdmin, async
     const startDateAnterior = new Date(startDate.getTime() - duracionMs);
     const endDateAnterior = new Date(startDate.getTime() - 1);
 
+    // Atribuido por dueño real del producto (dv.modulo_dueno_id), no por
+    // quién hizo la venta (v.modulo_id) — si otro módulo vendió un
+    // producto compartido tuyo, ese ingreso es tuyo, no de quien lo vendió
+    // (ver GET /api/estadisticas/ventas-cruzadas para ese otro reporte).
+    // "total" cuenta la venta como propia si tiene AL MENOS una línea tuya,
+    // aunque la venta completa mezcle productos de varios dueños.
     const ventasPeriodo = await pool.query(
-      `SELECT COUNT(*) as total, COALESCE(SUM(total), 0) as monto
-       FROM ventas
-       WHERE modulo_id = $1
-       AND fecha_venta BETWEEN $2 AND $3
-       AND es_ajuste_manual = false
-       AND metodo_pago != 'consumo_propio'`,
+      `SELECT COUNT(DISTINCT v.id) as total, COALESCE(SUM(dv.subtotal), 0) as monto
+       FROM detalle_venta dv
+       JOIN ventas v ON dv.venta_id = v.id
+       WHERE dv.modulo_dueno_id = $1
+       AND v.fecha_venta BETWEEN $2 AND $3
+       AND v.es_ajuste_manual = false
+       AND v.metodo_pago != 'consumo_propio'`,
       [moduloId, startDate, endDate]
     );
 
@@ -1937,15 +1970,15 @@ app.get('/api/estadisticas', authenticateToken, checkAccess, requireAdmin, async
     );
 
     const topProductos = await pool.query(
-      `SELECT 
+      `SELECT
           p.id,
-          p.nombre, 
+          p.nombre,
           SUM(dv.cantidad) as total_vendido,
           SUM(dv.subtotal) as monto_total
        FROM detalle_venta dv
        JOIN productos p ON dv.producto_id = p.id
        JOIN ventas v ON dv.venta_id = v.id
-       WHERE v.modulo_id = $1
+       WHERE dv.modulo_dueno_id = $1
        AND v.fecha_venta BETWEEN $2 AND $3
        AND v.es_ajuste_manual = false
        AND v.metodo_pago != 'consumo_propio'
@@ -1964,14 +1997,15 @@ app.get('/api/estadisticas', authenticateToken, checkAccess, requireAdmin, async
     // tenga que volver a interpretar una zona horaria al parsearla.
     const ventasPorDia = await pool.query(
       `SELECT
-          to_char(fecha_venta AT TIME ZONE 'UTC' AT TIME ZONE 'America/Bogota', 'YYYY-MM-DD') as fecha,
-          COUNT(*) as cantidad,
-          SUM(total) as total
-       FROM ventas
-       WHERE modulo_id = $1
-       AND fecha_venta BETWEEN $2 AND $3
-       AND es_ajuste_manual = false
-       AND metodo_pago != 'consumo_propio'
+          to_char(v.fecha_venta AT TIME ZONE 'UTC' AT TIME ZONE 'America/Bogota', 'YYYY-MM-DD') as fecha,
+          COUNT(DISTINCT v.id) as cantidad,
+          SUM(dv.subtotal) as total
+       FROM detalle_venta dv
+       JOIN ventas v ON dv.venta_id = v.id
+       WHERE dv.modulo_dueno_id = $1
+       AND v.fecha_venta BETWEEN $2 AND $3
+       AND v.es_ajuste_manual = false
+       AND v.metodo_pago != 'consumo_propio'
        GROUP BY 1
        ORDER BY fecha ASC`,
       [moduloId, startDate, endDate]
@@ -1981,35 +2015,53 @@ app.get('/api/estadisticas', authenticateToken, checkAccess, requireAdmin, async
     // de Postgres está en UTC (confirmado con current_setting('TIMEZONE')),
     // así que para reportar hora/día del negocio en Colombia hay que
     // convertir explícitamente UTC -> America/Bogota antes de extraer.
+    // El bucket por hora/dueño se arma en una subconsulta aparte (no un
+    // LEFT JOIN directo a generate_series) para que una venta sin ninguna
+    // línea de este dueño no cuente igual: si el LEFT JOIN a detalle_venta
+    // fuera directo, v.id seguiría sin ser NULL aunque dv.modulo_dueno_id
+    // no coincida, e inflaría total_ventas.
     const ventasPorHora = await pool.query(
       `SELECT h.hora,
-              COALESCE(COUNT(v.id), 0) as total_ventas,
-              COALESCE(SUM(v.total), 0) as monto
+              COALESCE(bucket.total_ventas, 0) as total_ventas,
+              COALESCE(bucket.monto, 0) as monto
        FROM generate_series(0, 23) as h(hora)
-       LEFT JOIN ventas v
-         ON EXTRACT(HOUR FROM v.fecha_venta AT TIME ZONE 'UTC' AT TIME ZONE 'America/Bogota') = h.hora
-         AND v.modulo_id = $1
+       LEFT JOIN (
+         SELECT
+           EXTRACT(HOUR FROM v.fecha_venta AT TIME ZONE 'UTC' AT TIME ZONE 'America/Bogota') as hora,
+           COUNT(DISTINCT v.id) as total_ventas,
+           SUM(dv.subtotal) as monto
+         FROM detalle_venta dv
+         JOIN ventas v ON dv.venta_id = v.id
+         WHERE dv.modulo_dueno_id = $1
          AND v.fecha_venta BETWEEN $2 AND $3
          AND v.es_ajuste_manual = false
          AND v.metodo_pago != 'consumo_propio'
-       GROUP BY h.hora
+         GROUP BY 1
+       ) bucket ON bucket.hora = h.hora
        ORDER BY h.hora`,
       [moduloId, startDate, endDate]
     );
 
-    // EXTRACT(DOW ...) devuelve 0=domingo, 1=lunes, ..., 6=sábado.
+    // EXTRACT(DOW ...) devuelve 0=domingo, 1=lunes, ..., 6=sábado. Mismo
+    // patrón de subconsulta que ventasPorHora, y por el mismo motivo.
     const ventasPorDiaSemana = await pool.query(
       `SELECT dia.numero,
-              COALESCE(COUNT(v.id), 0) as total_ventas,
-              COALESCE(SUM(v.total), 0) as monto
+              COALESCE(bucket.total_ventas, 0) as total_ventas,
+              COALESCE(bucket.monto, 0) as monto
        FROM generate_series(0, 6) as dia(numero)
-       LEFT JOIN ventas v
-         ON EXTRACT(DOW FROM v.fecha_venta AT TIME ZONE 'UTC' AT TIME ZONE 'America/Bogota') = dia.numero
-         AND v.modulo_id = $1
+       LEFT JOIN (
+         SELECT
+           EXTRACT(DOW FROM v.fecha_venta AT TIME ZONE 'UTC' AT TIME ZONE 'America/Bogota') as numero,
+           COUNT(DISTINCT v.id) as total_ventas,
+           SUM(dv.subtotal) as monto
+         FROM detalle_venta dv
+         JOIN ventas v ON dv.venta_id = v.id
+         WHERE dv.modulo_dueno_id = $1
          AND v.fecha_venta BETWEEN $2 AND $3
          AND v.es_ajuste_manual = false
          AND v.metodo_pago != 'consumo_propio'
-       GROUP BY dia.numero
+         GROUP BY 1
+       ) bucket ON bucket.numero = dia.numero
        ORDER BY dia.numero`,
       [moduloId, startDate, endDate]
     );
@@ -2049,7 +2101,11 @@ app.get('/api/estadisticas', authenticateToken, checkAccess, requireAdmin, async
       [moduloId, startDate, endDate]
     );
 
-    // Productos activos sin ninguna venta en el período actual
+    // Productos activos sin ninguna venta en el período actual. Antes exigía
+    // "v.modulo_id = $1" (que la venta COMPLETA fuera de este módulo) — un
+    // producto compartido vendido desde otro módulo quedaba marcado "sin
+    // venta" aunque sí se hubiera vendido. Ahora exige dv.modulo_dueno_id,
+    // que es lo que realmente importa: si es tuyo, no importa quién lo vendió.
     const productosSinVenta = await pool.query(
       `SELECT p.id, p.nombre, p.stock_actual, c.nombre as categoria_nombre
        FROM productos p
@@ -2059,7 +2115,7 @@ app.get('/api/estadisticas', authenticateToken, checkAccess, requireAdmin, async
          SELECT 1 FROM detalle_venta dv
          JOIN ventas v ON dv.venta_id = v.id
          WHERE dv.producto_id = p.id
-         AND v.modulo_id = $1
+         AND dv.modulo_dueno_id = $1
          AND v.fecha_venta BETWEEN $2 AND $3
          AND v.es_ajuste_manual = false
          AND v.metodo_pago != 'consumo_propio'
@@ -2069,14 +2125,16 @@ app.get('/api/estadisticas', authenticateToken, checkAccess, requireAdmin, async
       [moduloId, startDate, endDate]
     );
 
-    // Ventas del período anterior equivalente, para comparar
+    // Ventas del período anterior equivalente, para comparar. Mismo criterio
+    // de atribución por dueño que ventasPeriodo.
     const ventasPeriodoAnterior = await pool.query(
-      `SELECT COUNT(*) as total, COALESCE(SUM(total), 0) as monto
-       FROM ventas
-       WHERE modulo_id = $1
-       AND fecha_venta BETWEEN $2 AND $3
-       AND es_ajuste_manual = false
-       AND metodo_pago != 'consumo_propio'`,
+      `SELECT COUNT(DISTINCT v.id) as total, COALESCE(SUM(dv.subtotal), 0) as monto
+       FROM detalle_venta dv
+       JOIN ventas v ON dv.venta_id = v.id
+       WHERE dv.modulo_dueno_id = $1
+       AND v.fecha_venta BETWEEN $2 AND $3
+       AND v.es_ajuste_manual = false
+       AND v.metodo_pago != 'consumo_propio'`,
       [moduloId, startDateAnterior, endDateAnterior]
     );
 
@@ -4889,11 +4947,17 @@ app.put('/api/pedidos-cliente/:id/completar', authenticateToken, checkAccess, as
 
     const venta = ventaResult.rows[0];
 
+    // modulo_dueno_id = moduloId siempre aquí: el lookup de stock de arriba
+    // exige "AND modulo_id = $2" (sin EXISTS de compartidos como en POST
+    // /api/ventas), así que este flujo todavía no vende productos de otro
+    // módulo — pero igual hay que grabarlo explícito, no dejarlo en NULL,
+    // para que Estadísticas/Finanzas (que atribuyen por modulo_dueno_id)
+    // no pierdan estas ventas.
     for (const detalle of detalles) {
       await client.query(
-        `INSERT INTO detalle_venta (venta_id, producto_id, cantidad, precio_unitario, subtotal)
-         VALUES ($1, $2, $3, $4, $5)`,
-        [venta.id, detalle.producto_id, detalle.cantidad, detalle.precio_unitario, detalle.subtotal]
+        `INSERT INTO detalle_venta (venta_id, producto_id, cantidad, precio_unitario, subtotal, modulo_dueno_id)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [venta.id, detalle.producto_id, detalle.cantidad, detalle.precio_unitario, detalle.subtotal, moduloId]
       );
 
       if (!productosQueIgnoranStock.has(detalle.producto_id)) {
@@ -4910,12 +4974,14 @@ app.put('/api/pedidos-cliente/:id/completar', authenticateToken, checkAccess, as
     // se deja la misma condición por si se completa alguna vez vía API
     // directa con un metodo_pago fuera de los que ofrece la UI.
     if (metodo_pago !== 'credito' && metodo_pago !== 'consumo_propio') {
-      await client.query(
-        `INSERT INTO movimientos_caja
-         (negocio_id, modulo_id, tipo, origen, monto, concepto, venta_id, usuario_id)
-         VALUES ($1, $2, 'ingreso', 'venta', $3, $4, $5, $6)`,
-        [negocioId, moduloId, pedido.total, `Venta #${numero_factura}`, venta.id, usuarioId]
-      );
+      await registrarIngresosVenta(client, {
+        negocioId,
+        ventaId: venta.id,
+        numeroFactura: numero_factura,
+        usuarioId,
+        detalles,
+        duenoPorProducto: new Map(detalles.map(d => [d.producto_id, moduloId]))
+      });
     }
 
     const pedidoCompletado = await client.query(
