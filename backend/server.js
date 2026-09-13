@@ -4322,17 +4322,13 @@ app.get('/api/finanzas-negocio/categorias-simulador', authenticateToken, require
 
 app.post('/api/finanzas-negocio/categorias-simulador', authenticateToken, requireAdmin, resolverNegocioAdmin, async (req, res) => {
   try {
-    const { nombre, tipo, meta_bloques, orden } = req.body;
+    const { nombre, tipo, orden } = req.body;
 
     if (!nombre || !nombre.trim()) {
       return res.status(400).json({ error: 'El nombre es requerido' });
     }
     if (!TIPOS_CATEGORIA_SIMULADOR.includes(tipo)) {
       return res.status(400).json({ error: `tipo debe ser uno de: ${TIPOS_CATEGORIA_SIMULADOR.join(', ')}` });
-    }
-    const metaBloquesNum = meta_bloques !== undefined && meta_bloques !== '' ? parseInt(meta_bloques, 10) : 0;
-    if (!Number.isInteger(metaBloquesNum) || metaBloquesNum < 0) {
-      return res.status(400).json({ error: 'meta_bloques debe ser un entero mayor o igual a cero' });
     }
 
     const existente = await pool.query(
@@ -4344,8 +4340,8 @@ app.post('/api/finanzas-negocio/categorias-simulador', authenticateToken, requir
     }
 
     const result = await pool.query(
-      'INSERT INTO categorias_simulador (negocio_id, nombre, tipo, meta_bloques, orden) VALUES ($1, $2, $3, $4, $5) RETURNING *',
-      [req.negocioId, nombre.trim(), tipo, metaBloquesNum, orden ?? 0]
+      'INSERT INTO categorias_simulador (negocio_id, nombre, tipo, orden) VALUES ($1, $2, $3, $4) RETURNING *',
+      [req.negocioId, nombre.trim(), tipo, orden ?? 0]
     );
 
     res.status(201).json(result.rows[0]);
@@ -4358,17 +4354,13 @@ app.post('/api/finanzas-negocio/categorias-simulador', authenticateToken, requir
 app.put('/api/finanzas-negocio/categorias-simulador/:id', authenticateToken, requireAdmin, resolverNegocioAdmin, async (req, res) => {
   try {
     const { id } = req.params;
-    const { nombre, tipo, meta_bloques, orden } = req.body;
+    const { nombre, tipo, orden } = req.body;
 
     if (!nombre || !nombre.trim()) {
       return res.status(400).json({ error: 'El nombre es requerido' });
     }
     if (!TIPOS_CATEGORIA_SIMULADOR.includes(tipo)) {
       return res.status(400).json({ error: `tipo debe ser uno de: ${TIPOS_CATEGORIA_SIMULADOR.join(', ')}` });
-    }
-    const metaBloquesNum = parseInt(meta_bloques, 10);
-    if (!Number.isInteger(metaBloquesNum) || metaBloquesNum < 0) {
-      return res.status(400).json({ error: 'meta_bloques debe ser un entero mayor o igual a cero' });
     }
 
     const existente = await pool.query(
@@ -4380,8 +4372,8 @@ app.put('/api/finanzas-negocio/categorias-simulador/:id', authenticateToken, req
     }
 
     const result = await pool.query(
-      'UPDATE categorias_simulador SET nombre = $1, tipo = $2, meta_bloques = $3, orden = $4 WHERE id = $5 AND negocio_id = $6 RETURNING *',
-      [nombre.trim(), tipo, metaBloquesNum, orden ?? 0, id, req.negocioId]
+      'UPDATE categorias_simulador SET nombre = $1, tipo = $2, orden = $3 WHERE id = $4 AND negocio_id = $5 RETURNING *',
+      [nombre.trim(), tipo, orden ?? 0, id, req.negocioId]
     );
 
     if (result.rows.length === 0) {
@@ -4577,6 +4569,16 @@ const rangoPeriodoSimulador = (granularidad, periodoInicioStr) => {
   return { inicio, fin };
 };
 
+// Fecha de inicio del período INMEDIATAMENTE anterior, misma granularidad
+// (un día antes / la semana antes / el mes calendario anterior) — para la
+// barra gris de referencia (mismo período pero anterior).
+const periodoAnteriorInicioSimulador = (granularidad, periodoInicioStr) => {
+  const m = moment(periodoInicioStr, 'YYYY-MM-DD');
+  if (granularidad === 'dia') return m.subtract(1, 'day').format('YYYY-MM-DD');
+  if (granularidad === 'semana') return m.subtract(7, 'days').format('YYYY-MM-DD');
+  return m.subtract(1, 'month').format('YYYY-MM-DD'); // ya es día 1, sigue siendo día 1
+};
+
 // 'semana' exige que periodo_inicio sea lunes (mismo criterio que
 // metas_reinversion.semana_inicio); 'mes' exige que sea el día 1.
 const validarPeriodoInicioSimulador = (granularidad, periodoInicioStr) => {
@@ -4607,6 +4609,8 @@ app.get('/api/finanzas-negocio/simulador', authenticateToken, requireAdmin, reso
     }
 
     const { inicio, fin } = rangoPeriodoSimulador(granularidad, periodo_inicio);
+    const periodoAnteriorInicio = periodoAnteriorInicioSimulador(granularidad, periodo_inicio);
+    const { inicio: inicioAnterior, fin: finAnterior } = rangoPeriodoSimulador(granularidad, periodoAnteriorInicio);
 
     const configResult = await pool.query('SELECT valor_bloque FROM negocios WHERE id = $1', [negocioId]);
     const valorBloque = Number(configResult.rows[0]?.valor_bloque);
@@ -4618,7 +4622,7 @@ app.get('/api/finanzas-negocio/simulador', authenticateToken, requireAdmin, reso
     const moduloIds = modulosResult.rows.map(r => r.id);
 
     const categoriasResult = await pool.query(
-      'SELECT id, nombre, tipo, meta_bloques FROM categorias_simulador WHERE negocio_id = $1 AND activo = true ORDER BY orden, nombre',
+      'SELECT id, nombre, tipo FROM categorias_simulador WHERE negocio_id = $1 AND activo = true ORDER BY orden, nombre',
       [negocioId]
     );
 
@@ -4628,52 +4632,71 @@ app.get('/api/finanzas-negocio/simulador', authenticateToken, requireAdmin, reso
     );
     const asignacionesPorCategoria = Object.fromEntries(asignacionesResult.rows.map(r => [r.categoria_simulador_id, r.bloques_asignados]));
 
-    // Ingresos reales del período exacto (día/semana/mes), para la barra de
-    // bloques disponibles — distinto de estado_resultados, que es siempre
-    // por mes calendario.
-    const ingresosResult = await pool.query(
-      `SELECT COALESCE(SUM(total), 0) as total FROM ventas
-       WHERE modulo_id = ANY($1) AND fecha_venta BETWEEN $2 AND $3
-       AND es_ajuste_manual = false AND metodo_pago != 'consumo_propio'`,
-      [moduloIds, inicio.toDate(), fin.toDate()]
-    );
-    const ingresosReales = Number(ingresosResult.rows[0].total);
+    // Ingresos reales + egresos reales por tipo de categoría de gasto, de un
+    // rango de fechas puntual — se llama dos veces (período actual y el
+    // inmediatamente anterior, misma granularidad) para la comparación
+    // gris/verde-rojo/azul del ábaco.
+    const montosRealesPeriodo = async (desde, hasta) => {
+      const ingresosResult = await pool.query(
+        `SELECT COALESCE(SUM(total), 0) as total FROM ventas
+         WHERE modulo_id = ANY($1) AND fecha_venta BETWEEN $2 AND $3
+         AND es_ajuste_manual = false AND metodo_pago != 'consumo_propio'`,
+        [moduloIds, desde, hasta]
+      );
 
-    const egresosResult = await pool.query(
-      `SELECT cg.tipo, COALESCE(SUM(mc.monto), 0) as total
-       FROM movimientos_caja mc
-       JOIN categorias_gasto cg ON mc.categoria_gasto_id = cg.id
-       WHERE mc.negocio_id = $1 AND mc.tipo = 'egreso' AND mc.fecha BETWEEN $2 AND $3
-       GROUP BY cg.tipo`,
-      [negocioId, inicio.toDate(), fin.toDate()]
-    );
-    const egresosPorTipo = Object.fromEntries(egresosResult.rows.map(r => [r.tipo, Number(r.total)]));
+      const egresosResult = await pool.query(
+        `SELECT cg.tipo, COALESCE(SUM(mc.monto), 0) as total
+         FROM movimientos_caja mc
+         JOIN categorias_gasto cg ON mc.categoria_gasto_id = cg.id
+         WHERE mc.negocio_id = $1 AND mc.tipo = 'egreso' AND mc.fecha BETWEEN $2 AND $3
+         GROUP BY cg.tipo`,
+        [negocioId, desde, hasta]
+      );
+
+      return {
+        ingresos: Number(ingresosResult.rows[0].total),
+        egresosPorTipo: Object.fromEntries(egresosResult.rows.map(r => [r.tipo, Number(r.total)]))
+      };
+    };
+
+    const [actual, anterior] = await Promise.all([
+      montosRealesPeriodo(inicio.toDate(), fin.toDate()),
+      montosRealesPeriodo(inicioAnterior.toDate(), finAnterior.toDate())
+    ]);
 
     const categorias = categoriasResult.rows.map(cat => {
-      const montoReal = cat.tipo === 'ingreso' ? ingresosReales : (egresosPorTipo[cat.tipo] || 0);
-      const bloquesReales = montoReal / valorBloque;
-      const bloquesAsignados = asignacionesPorCategoria[cat.id] || 0;
+      const esIngreso = cat.tipo === 'ingreso';
+      const montoReal = esIngreso ? actual.ingresos : (actual.egresosPorTipo[cat.tipo] || 0);
+      const montoAnterior = esIngreso ? anterior.ingresos : (anterior.egresosPorTipo[cat.tipo] || 0);
+      const bloquesAsignados = esIngreso ? 0 : (asignacionesPorCategoria[cat.id] || 0);
       return {
         id: cat.id,
         nombre: cat.nombre,
         tipo: cat.tipo,
-        meta_bloques: cat.meta_bloques,
         bloques_asignados: bloquesAsignados,
         monto_real: montoReal,
-        bloques_reales: bloquesReales,
-        diferencia_bloques: bloquesAsignados - bloquesReales
+        bloques_reales: montoReal / valorBloque,
+        monto_periodo_anterior: montoAnterior,
+        bloques_periodo_anterior: montoAnterior / valorBloque
       };
     });
 
-    const totalBloquesIngresos = Math.round(ingresosReales / valorBloque);
+    const totalBloquesIngresos = Math.round(actual.ingresos / valorBloque);
     const totalBloquesAsignados = categorias
       .filter(c => c.tipo !== 'ingreso')
       .reduce((sum, c) => sum + c.bloques_asignados, 0);
 
     res.json({
-      periodo: { granularidad, periodo_inicio, fecha_fin: fin.format('YYYY-MM-DD') },
+      periodo: {
+        granularidad,
+        periodo_inicio,
+        fecha_fin: fin.format('YYYY-MM-DD'),
+        periodo_anterior_inicio: periodoAnteriorInicio,
+        periodo_anterior_fin: finAnterior.format('YYYY-MM-DD')
+      },
       valor_bloque: valorBloque,
-      ingresos_reales: ingresosReales,
+      ingresos_reales: actual.ingresos,
+      ingresos_periodo_anterior: anterior.ingresos,
       total_bloques_ingresos: totalBloquesIngresos,
       bloques_sin_asignar: totalBloquesIngresos - totalBloquesAsignados,
       categorias

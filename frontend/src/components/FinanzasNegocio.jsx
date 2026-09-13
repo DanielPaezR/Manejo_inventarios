@@ -311,9 +311,25 @@ const Simulador = () => {
     });
   };
 
+  const categoriaIngreso = (data?.categorias || []).find(c => c.tipo === 'ingreso');
   const categoriasEgreso = (data?.categorias || []).filter(c => c.tipo !== 'ingreso');
   const totalAsignado = Object.values(asignaciones).reduce((a, b) => a + b, 0);
   const bloquesSinAsignar = data ? data.total_bloques_ingresos - totalAsignado : 0;
+
+  // Escala compartida por TODO el ábaco (ingreso + cada columna de gasto),
+  // para que las alturas de barra sean comparables entre sí — si cada
+  // barra usara su propio máximo, dos montos iguales se verían distintos.
+  const bloquesIngresoActual = data ? data.ingresos_reales / data.valor_bloque : 0;
+  const bloquesIngresoAnterior = data ? data.ingresos_periodo_anterior / data.valor_bloque : 0;
+  const maxBloques = Math.max(
+    1,
+    bloquesIngresoActual,
+    bloquesIngresoAnterior,
+    ...categoriasEgreso.flatMap(c => [c.bloques_reales, c.bloques_periodo_anterior, asignaciones[c.id] || 0])
+  );
+  const ALTURA_MAX_PX = 180;
+  const pxPorBloque = ALTURA_MAX_PX / maxBloques;
+  const alturaPx = (bloques) => Math.max(0, bloques) * pxPorBloque;
 
   const etiquetaPeriodo = () => {
     if (!data) return '';
@@ -363,11 +379,86 @@ const Simulador = () => {
 
           {mostrarCategorias && <GestionCategoriasSimulador onCambio={cargar} />}
 
+          <div className="fn-abaco-leyenda">
+            <span><i className="fn-swatch fn-swatch-gris" /> Período anterior</span>
+            <span><i className="fn-swatch fn-swatch-verde" /> Ventas reales (hoy)</span>
+            <span><i className="fn-swatch fn-swatch-rojo" /> Gasto real (hoy)</span>
+            <span><i className="fn-swatch fn-swatch-azul" /> Tu simulación (arrastra bloques)</span>
+          </div>
+
           <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+            <div className="fn-abaco">
+              {/* Eje X: la línea que separa ingresos (arriba) de gastos (abajo) */}
+              <div className="fn-abaco-eje-x" />
+
+              {categoriaIngreso && (
+                <div className="fn-abaco-slot fn-abaco-slot-ingreso">
+                  <div className="fn-abaco-zona-arriba">
+                    <div
+                      className="fn-barra fn-barra-gris"
+                      style={{ height: alturaPx(bloquesIngresoAnterior) }}
+                      title={`Período anterior: ${formatearMoneda(data.ingresos_periodo_anterior)}`}
+                    />
+                    <div
+                      className="fn-barra fn-barra-verde"
+                      style={{ height: alturaPx(bloquesIngresoActual) }}
+                      title={`Ventas reales: ${formatearMoneda(data.ingresos_reales)}`}
+                    />
+                  </div>
+                  <div className="fn-abaco-etiqueta">
+                    <strong>💵 Ventas</strong>
+                    <span className="fn-abaco-cifra fn-abaco-cifra-verde">{formatearMoneda(data.ingresos_reales)}</span>
+                    <span className="fn-abaco-cifra fn-abaco-cifra-gris">{formatearMoneda(data.ingresos_periodo_anterior)} antes</span>
+                  </div>
+                  <div className="fn-abaco-zona-abajo" />
+                </div>
+              )}
+
+              {categoriasEgreso.map(cat => {
+                const asignado = asignaciones[cat.id] || 0;
+                return (
+                  <div className="fn-abaco-slot" key={cat.id}>
+                    <div className="fn-abaco-zona-arriba" />
+                    <div className="fn-abaco-etiqueta">
+                      <strong>{cat.nombre}</strong>
+                      <span className="fn-abaco-tipo">{nombreTipo(cat.tipo)}</span>
+                    </div>
+                    {/* La zona de drop cubre TODA la columna (no solo la pila azul):
+                        con 0 bloques asignados, el objetivo de soltar sería casi
+                        invisible si solo fuera del tamaño de la pila actual. */}
+                    <ZonaDrop id={String(cat.id)}>
+                      <div className="fn-abaco-zona-abajo">
+                        <div
+                          className="fn-barra fn-barra-gris"
+                          style={{ height: alturaPx(cat.bloques_periodo_anterior) }}
+                          title={`Período anterior: ${formatearMoneda(cat.monto_periodo_anterior)}`}
+                        />
+                        <div
+                          className="fn-barra fn-barra-rojo"
+                          style={{ height: alturaPx(cat.bloques_reales) }}
+                          title={`Gasto real: ${formatearMoneda(cat.monto_real)}`}
+                        />
+                        <div className="fn-barra-azul-pila" style={{ minHeight: alturaPx(asignado) }}>
+                          {Array.from({ length: asignado }).map((_, i) => (
+                            <Bloque key={`cat-${cat.id}-${i}`} id={`cat-${cat.id}-${i}`} zoneKey={String(cat.id)} altura={pxPorBloque} />
+                          ))}
+                        </div>
+                      </div>
+                    </ZonaDrop>
+                    <div className="fn-abaco-cifras-abajo">
+                      <span className="fn-abaco-cifra-gris">{formatearMoneda(cat.monto_periodo_anterior)}</span>
+                      <span className="fn-abaco-cifra-rojo">{formatearMoneda(cat.monto_real)}</span>
+                      <span className="fn-abaco-cifra-azul">{asignado} bloques</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
             <div className="fn-banco-wrapper">
               <div className="fn-banco-header">
-                <strong>💵 Ingresos: {formatearMoneda(data.ingresos_reales)}</strong>
-                <span>{data.total_bloques_ingresos} bloques de {formatearMoneda(data.valor_bloque)} · {bloquesSinAsignar} sin asignar</span>
+                <strong>🧩 Bloques para simular</strong>
+                <span>{data.total_bloques_ingresos} bloques de {formatearMoneda(data.valor_bloque)} (según las ventas reales de hoy) · {bloquesSinAsignar} sin asignar</span>
               </div>
               <ZonaDrop id="banco">
                 <div className="fn-bloques-fila">
@@ -378,32 +469,6 @@ const Simulador = () => {
                   {bloquesSinAsignar === 0 && <span className="fn-nota">Todo asignado</span>}
                 </div>
               </ZonaDrop>
-            </div>
-
-            <div className="fn-columnas">
-              {categoriasEgreso.map(cat => {
-                const asignado = asignaciones[cat.id] || 0;
-                const sobreMeta = cat.meta_bloques > 0 && asignado > cat.meta_bloques;
-                return (
-                  <div className="fn-columna" key={cat.id}>
-                    <div className="fn-columna-header">
-                      <strong>{cat.nombre}</strong>
-                      <span className="fn-columna-tipo">{nombreTipo(cat.tipo)}</span>
-                    </div>
-                    <ZonaDrop id={String(cat.id)}>
-                      <div className={`fn-columna-bloques ${sobreMeta ? 'sobre-meta' : ''}`}>
-                        {Array.from({ length: asignado }).map((_, i) => (
-                          <Bloque key={`cat-${cat.id}-${i}`} id={`cat-${cat.id}-${i}`} zoneKey={String(cat.id)} />
-                        ))}
-                      </div>
-                    </ZonaDrop>
-                    <div className="fn-columna-info">
-                      <span>Planeado: {asignado}{cat.meta_bloques > 0 ? ` / ${cat.meta_bloques}` : ''}</span>
-                      <span>Real: {cat.bloques_reales.toFixed(1)} ({formatearMoneda(cat.monto_real)})</span>
-                    </div>
-                  </div>
-                );
-              })}
             </div>
           </DndContext>
 
@@ -416,7 +481,10 @@ const Simulador = () => {
   );
 };
 
-const Bloque = ({ id, zoneKey }) => {
+// altura: alto en px de este bloque puntual — en el banco es fijo (cuadrito),
+// dentro de una columna de gasto usa pxPorBloque para que la pila azul
+// quede a la misma escala que las barras gris/rojo de al lado.
+const Bloque = ({ id, zoneKey, altura }) => {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id, data: { zoneKey } });
   const style = transform
     ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`, zIndex: 10 }
@@ -427,7 +495,7 @@ const Bloque = ({ id, zoneKey }) => {
       {...listeners}
       {...attributes}
       className="fn-bloque"
-      style={{ ...style, opacity: isDragging ? 0.4 : 1 }}
+      style={{ ...style, opacity: isDragging ? 0.4 : 1, ...(altura ? { height: Math.max(4, altura - 2), width: '100%' } : {}) }}
     />
   );
 };
@@ -443,7 +511,7 @@ const ZonaDrop = ({ id, children }) => {
 
 const GestionCategoriasSimulador = ({ onCambio }) => {
   const [categorias, setCategorias] = useState([]);
-  const [form, setForm] = useState({ nombre: '', tipo: 'otro', meta_bloques: 0 });
+  const [form, setForm] = useState({ nombre: '', tipo: 'otro' });
   const [editandoId, setEditandoId] = useState(null);
   const [mensaje, setMensaje] = useState('');
 
@@ -467,7 +535,7 @@ const GestionCategoriasSimulador = ({ onCambio }) => {
       } else {
         await api.post('/finanzas-negocio/categorias-simulador', form);
       }
-      setForm({ nombre: '', tipo: 'otro', meta_bloques: 0 });
+      setForm({ nombre: '', tipo: 'otro' });
       setEditandoId(null);
       await cargar();
       onCambio();
@@ -479,7 +547,7 @@ const GestionCategoriasSimulador = ({ onCambio }) => {
 
   const iniciarEdicion = (cat) => {
     setEditandoId(cat.id);
-    setForm({ nombre: cat.nombre, tipo: cat.tipo, meta_bloques: cat.meta_bloques });
+    setForm({ nombre: cat.nombre, tipo: cat.tipo });
   };
 
   const handleEliminar = async (id) => {
@@ -508,21 +576,14 @@ const GestionCategoriasSimulador = ({ onCambio }) => {
         <select value={form.tipo} onChange={(e) => setForm({ ...form, tipo: e.target.value })}>
           {TIPOS_CATEGORIA.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
         </select>
-        <input
-          type="number"
-          min="0"
-          placeholder="Meta (bloques)"
-          value={form.meta_bloques}
-          onChange={(e) => setForm({ ...form, meta_bloques: e.target.value })}
-        />
         <button type="submit">{editandoId ? 'Actualizar' : 'Crear'}</button>
-        {editandoId && <button type="button" onClick={() => { setEditandoId(null); setForm({ nombre: '', tipo: 'otro', meta_bloques: 0 }); }}>Cancelar</button>}
+        {editandoId && <button type="button" onClick={() => { setEditandoId(null); setForm({ nombre: '', tipo: 'otro' }); }}>Cancelar</button>}
       </form>
 
       <ul className="fn-lista-categorias">
         {categorias.map(cat => (
           <li key={cat.id}>
-            <span>{cat.nombre} <em>({nombreTipo(cat.tipo)}, meta {cat.meta_bloques})</em></span>
+            <span>{cat.nombre} <em>({nombreTipo(cat.tipo)})</em></span>
             <span>
               <button onClick={() => iniciarEdicion(cat)}>✏️</button>
               <button onClick={() => handleEliminar(cat.id)}>🗑️</button>
