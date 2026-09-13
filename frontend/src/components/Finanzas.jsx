@@ -15,6 +15,20 @@ const sumarDias = (fechaStr, dias) => {
   return fecha.toISOString().slice(0, 10);
 };
 
+// Mismo set de tipos que el simulador de Finanzas del Negocio
+// (FinanzasNegocio.jsx) — clasificar aquí es lo que le permite a esa vista
+// consolidada saber qué es "gasto fijo" vs "gasto personal" sin depender
+// de que el nombre de la categoría coincida exacto.
+const TIPOS_CATEGORIA_GASTO = [
+  { value: 'mercancia', label: '📦 Mercancía' },
+  { value: 'servicios', label: '💡 Servicios' },
+  { value: 'fijo', label: '🏠 Gasto fijo' },
+  { value: 'personal', label: '👤 Gastos personales' },
+  { value: 'ahorro', label: '🐷 Ahorro' },
+  { value: 'reinversion', label: '📈 Reinversión' },
+  { value: 'otro', label: '🗂️ Otro' }
+];
+
 const formatearRangoSemana = (inicioStr, finStr) => {
   if (!inicioStr || !finStr) return '';
   const [, mi, di] = inicioStr.split('-').map(Number);
@@ -41,9 +55,11 @@ const Finanzas = ({ user }) => {
   const [categoriaGastoId, setCategoriaGastoId] = useState('');
   const [mostrarGestionCategorias, setMostrarGestionCategorias] = useState(false);
   const [nuevaCategoriaNombre, setNuevaCategoriaNombre] = useState('');
+  const [nuevaCategoriaTipo, setNuevaCategoriaTipo] = useState('otro');
   const [guardandoCategoria, setGuardandoCategoria] = useState(false);
   const [categoriaEditandoId, setCategoriaEditandoId] = useState(null);
   const [categoriaEditandoNombre, setCategoriaEditandoNombre] = useState('');
+  const [categoriaEditandoTipo, setCategoriaEditandoTipo] = useState('otro');
 
   // Registro semanal: independiente del resto de Finanzas (su propio
   // loading/reporte), navegable con ← → sin recargar el resto de la página.
@@ -234,8 +250,9 @@ const Finanzas = ({ user }) => {
 
     try {
       setGuardandoCategoria(true);
-      await api.post('/categorias-gasto', { nombre: nuevaCategoriaNombre.trim() });
+      await api.post('/categorias-gasto', { nombre: nuevaCategoriaNombre.trim(), tipo: nuevaCategoriaTipo });
       setNuevaCategoriaNombre('');
+      setNuevaCategoriaTipo('otro');
       const res = await api.get('/categorias-gasto');
       setCategoriasGasto(res.data);
     } catch (error) {
@@ -249,13 +266,14 @@ const Finanzas = ({ user }) => {
   const iniciarEdicionCategoria = (categoria) => {
     setCategoriaEditandoId(categoria.id);
     setCategoriaEditandoNombre(categoria.nombre);
+    setCategoriaEditandoTipo(categoria.tipo || 'otro');
   };
 
   const handleRenombrarCategoria = async (id) => {
     if (!categoriaEditandoNombre.trim()) return;
 
     try {
-      await api.put(`/categorias-gasto/${id}`, { nombre: categoriaEditandoNombre.trim() });
+      await api.put(`/categorias-gasto/${id}`, { nombre: categoriaEditandoNombre.trim(), tipo: categoriaEditandoTipo });
       setCategoriaEditandoId(null);
       setCategoriaEditandoNombre('');
       const res = await api.get('/categorias-gasto');
@@ -369,6 +387,9 @@ const Finanzas = ({ user }) => {
                               onChange={(e) => setCategoriaEditandoNombre(e.target.value)}
                               autoFocus
                             />
+                            <select value={categoriaEditandoTipo} onChange={(e) => setCategoriaEditandoTipo(e.target.value)}>
+                              {TIPOS_CATEGORIA_GASTO.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+                            </select>
                             <button onClick={() => handleRenombrarCategoria(cat.id)} className="btn-icono" title="Guardar">
                               ✅
                             </button>
@@ -378,7 +399,11 @@ const Finanzas = ({ user }) => {
                           </>
                         ) : (
                           <>
-                            <span className="categoria-gasto-nombre">{cat.nombre}</span>
+                            <span className="categoria-gasto-nombre">
+                              {cat.nombre}
+                              {' '}
+                              <em className="categoria-gasto-tipo">({TIPOS_CATEGORIA_GASTO.find(t => t.value === cat.tipo)?.label || 'Otro'})</em>
+                            </span>
                             <button onClick={() => iniciarEdicionCategoria(cat)} className="btn-icono" title="Renombrar">
                               ✏️
                             </button>
@@ -399,6 +424,9 @@ const Finanzas = ({ user }) => {
                     onChange={(e) => setNuevaCategoriaNombre(e.target.value)}
                     placeholder="Ej: Servicios públicos, arriendo..."
                   />
+                  <select value={nuevaCategoriaTipo} onChange={(e) => setNuevaCategoriaTipo(e.target.value)}>
+                    {TIPOS_CATEGORIA_GASTO.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+                  </select>
                   <button type="submit" className="btn-guardar" disabled={guardandoCategoria}>
                     {guardandoCategoria ? 'Agregando...' : '+ Agregar'}
                   </button>

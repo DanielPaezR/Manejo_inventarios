@@ -1254,6 +1254,10 @@ app.post('/api/ventas', authenticateToken, checkAccess, async (req, res) => {
     // módulo del negocio) — se guarda en detalle_venta para poder atribuir
     // la venta a las cuentas del dueño aunque la factura sea de quien vendió.
     const duenoPorProducto = new Map();
+    // Snapshot del costo al momento de la venta, para poder calcular el
+    // costo de mercancía vendida real más adelante sin depender del
+    // precio_compra ACTUAL del producto (que puede cambiar con el tiempo).
+    const costoPorProducto = new Map();
 
     for (const detalle of detalles) {
       // Number.isFinite() NO coerce strings (a diferencia de isFinite()).
@@ -1286,7 +1290,7 @@ app.post('/api/ventas', authenticateToken, checkAccess, async (req, res) => {
       // modulos, lo que puede chocar con otras transacciones que necesiten
       // esa misma fila (ver generarNumeroFactura).
       const stockResult = await client.query(
-        `SELECT p.id, p.nombre, p.stock_actual, p.ignora_stock, p.modulo_id
+        `SELECT p.id, p.nombre, p.stock_actual, p.ignora_stock, p.modulo_id, p.precio_compra
          FROM productos p
          WHERE p.id = $1 AND p.activo = true
          AND (
@@ -1307,6 +1311,7 @@ app.post('/api/ventas', authenticateToken, checkAccess, async (req, res) => {
 
       const producto = stockResult.rows[0];
       duenoPorProducto.set(detalle.producto_id, producto.modulo_id);
+      costoPorProducto.set(detalle.producto_id, producto.precio_compra);
 
       if (producto.ignora_stock) {
         productosQueIgnoranStock.add(detalle.producto_id);
@@ -1343,9 +1348,9 @@ app.post('/api/ventas', authenticateToken, checkAccess, async (req, res) => {
       // producto cambia de dueño después, esta línea histórica sigue
       // atribuida a quien era dueño cuando realmente se vendió.
       await client.query(
-        `INSERT INTO detalle_venta (venta_id, producto_id, cantidad, precio_unitario, subtotal, modulo_dueno_id)
-         VALUES ($1, $2, $3, $4, $5, $6)`,
-        [venta.id, detalle.producto_id, detalle.cantidad, detalle.precio_unitario, detalle.cantidad * detalle.precio_unitario, duenoPorProducto.get(detalle.producto_id)]
+        `INSERT INTO detalle_venta (venta_id, producto_id, cantidad, precio_unitario, subtotal, modulo_dueno_id, costo_unitario)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        [venta.id, detalle.producto_id, detalle.cantidad, detalle.precio_unitario, detalle.cantidad * detalle.precio_unitario, duenoPorProducto.get(detalle.producto_id), costoPorProducto.get(detalle.producto_id)]
       );
 
       if (!productosQueIgnoranStock.has(detalle.producto_id)) {
@@ -3236,10 +3241,12 @@ app.get('/api/categorias-gasto', authenticateToken, checkAccess, requireAdmin, a
   }
 });
 
+const TIPOS_CATEGORIA_GASTO = ['mercancia', 'servicios', 'fijo', 'personal', 'ahorro', 'reinversion', 'otro'];
+
 app.post('/api/categorias-gasto', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
   try {
     const moduloId = req.moduloId;
-    const { nombre } = req.body;
+    const { nombre, tipo } = req.body;
 
     if (!moduloId) {
       return res.status(400).json({ error: 'Se requiere un módulo' });
@@ -3247,6 +3254,14 @@ app.post('/api/categorias-gasto', authenticateToken, checkAccess, requireAdmin, 
 
     if (!nombre || !nombre.trim()) {
       return res.status(400).json({ error: 'El nombre es requerido' });
+    }
+
+    // tipo clasifica el gasto para el estado de resultados consolidado
+    // (Finanzas del negocio) — 'otro' por defecto para no romper categorías
+    // creadas antes de que existiera este campo.
+    const tipoValor = tipo || 'otro';
+    if (!TIPOS_CATEGORIA_GASTO.includes(tipoValor)) {
+      return res.status(400).json({ error: `tipo debe ser uno de: ${TIPOS_CATEGORIA_GASTO.join(', ')}` });
     }
 
     // El UNIQUE(modulo_id, nombre) de la tabla incluye las inactivas, así
@@ -3261,8 +3276,8 @@ app.post('/api/categorias-gasto', authenticateToken, checkAccess, requireAdmin, 
     }
 
     const result = await pool.query(
-      'INSERT INTO categorias_gasto (negocio_id, modulo_id, nombre) VALUES ($1, $2, $3) RETURNING *',
-      [req.negocioId, moduloId, nombre.trim()]
+      'INSERT INTO categorias_gasto (negocio_id, modulo_id, nombre, tipo) VALUES ($1, $2, $3, $4) RETURNING *',
+      [req.negocioId, moduloId, nombre.trim(), tipoValor]
     );
 
     res.status(201).json(result.rows[0]);
@@ -3276,10 +3291,15 @@ app.put('/api/categorias-gasto/:id', authenticateToken, checkAccess, requireAdmi
   try {
     const { id } = req.params;
     const moduloId = req.moduloId;
-    const { nombre } = req.body;
+    const { nombre, tipo } = req.body;
 
     if (!nombre || !nombre.trim()) {
       return res.status(400).json({ error: 'El nombre es requerido' });
+    }
+
+    const tipoValor = tipo || 'otro';
+    if (!TIPOS_CATEGORIA_GASTO.includes(tipoValor)) {
+      return res.status(400).json({ error: `tipo debe ser uno de: ${TIPOS_CATEGORIA_GASTO.join(', ')}` });
     }
 
     const existente = await pool.query(
@@ -3291,8 +3311,8 @@ app.put('/api/categorias-gasto/:id', authenticateToken, checkAccess, requireAdmi
     }
 
     const result = await pool.query(
-      'UPDATE categorias_gasto SET nombre = $1 WHERE id = $2 AND modulo_id = $3 RETURNING *',
-      [nombre.trim(), id, moduloId]
+      'UPDATE categorias_gasto SET nombre = $1, tipo = $2 WHERE id = $3 AND modulo_id = $4 RETURNING *',
+      [nombre.trim(), tipoValor, id, moduloId]
     );
 
     if (result.rows.length === 0) {
@@ -4020,6 +4040,716 @@ app.get('/api/finanzas/evolucion-egresos', authenticateToken, checkAccess, requi
     res.json({ puntos });
   } catch (error) {
     console.error('Error obteniendo evolución de egresos:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// ==================== RUTAS DE FINANZAS DEL NEGOCIO (CONSOLIDADO) ====================
+// A diferencia de /api/finanzas/* (por módulo, para el día a día operativo
+// de cada módulo: "cómo le fue a Empanadas el domingo"), esto es una vista
+// CONSOLIDADA de todo el negocio — suma movimientos_caja/ventas de TODOS
+// los módulos, para planeación financiera familiar/del dueño. No reemplaza
+// ni migra nada de lo existente, solo agrega sobre lo mismo.
+
+// Resuelve negocioId directo del usuario (admin) o por query param
+// (super_admin) — a propósito NO pasa por checkAccess/moduloId: esta vista
+// es del negocio completo, no de un módulo puntual.
+const resolverNegocioAdmin = async (req, res, next) => {
+  try {
+    if (req.user.rol === 'super_admin') {
+      const negocioId = parseInt(req.query.negocio_id, 10);
+      if (!negocioId) {
+        return res.status(400).json({ error: 'Se requiere negocio_id' });
+      }
+      req.negocioId = negocioId;
+      return next();
+    }
+
+    const result = await pool.query(
+      'SELECT negocio_id FROM usuarios WHERE id = $1 AND activo = true',
+      [req.user.id]
+    );
+
+    if (!result.rows[0]?.negocio_id) {
+      return res.status(400).json({ error: 'Usuario sin negocio asignado' });
+    }
+
+    req.negocioId = result.rows[0].negocio_id;
+    next();
+  } catch (error) {
+    console.error('Error resolviendo negocio:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+};
+
+const TIPOS_CATEGORIA_SIMULADOR = ['ingreso', 'mercancia', 'servicios', 'fijo', 'personal', 'ahorro', 'reinversion', 'otro'];
+
+// ---- Configuración (valor del bloque, reserva de seguridad, gastos personales mínimos) ----
+
+app.get('/api/finanzas-negocio/configuracion', authenticateToken, requireAdmin, resolverNegocioAdmin, async (req, res) => {
+  try {
+    const result = await pool.query(
+      'SELECT valor_bloque, reserva_seguridad_pct, gastos_personales_minimos FROM negocios WHERE id = $1',
+      [req.negocioId]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Negocio no encontrado' });
+    }
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error obteniendo configuración financiera:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+app.put('/api/finanzas-negocio/configuracion', authenticateToken, requireAdmin, resolverNegocioAdmin, async (req, res) => {
+  try {
+    const { valor_bloque, reserva_seguridad_pct, gastos_personales_minimos } = req.body;
+
+    if (valor_bloque !== undefined && (!Number.isFinite(Number(valor_bloque)) || Number(valor_bloque) <= 0)) {
+      return res.status(400).json({ error: 'valor_bloque debe ser un número mayor a cero' });
+    }
+    if (reserva_seguridad_pct !== undefined && (!Number.isFinite(Number(reserva_seguridad_pct)) || Number(reserva_seguridad_pct) < 0 || Number(reserva_seguridad_pct) > 100)) {
+      return res.status(400).json({ error: 'reserva_seguridad_pct debe ser un número entre 0 y 100' });
+    }
+    if (gastos_personales_minimos !== undefined && (!Number.isFinite(Number(gastos_personales_minimos)) || Number(gastos_personales_minimos) < 0)) {
+      return res.status(400).json({ error: 'gastos_personales_minimos debe ser un número mayor o igual a cero' });
+    }
+
+    const result = await pool.query(
+      `UPDATE negocios SET
+         valor_bloque = COALESCE($1, valor_bloque),
+         reserva_seguridad_pct = COALESCE($2, reserva_seguridad_pct),
+         gastos_personales_minimos = COALESCE($3, gastos_personales_minimos)
+       WHERE id = $4
+       RETURNING valor_bloque, reserva_seguridad_pct, gastos_personales_minimos`,
+      [valor_bloque ?? null, reserva_seguridad_pct ?? null, gastos_personales_minimos ?? null, req.negocioId]
+    );
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error actualizando configuración financiera:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// ---- Activos fijos ----
+
+app.get('/api/finanzas-negocio/activos-fijos', authenticateToken, requireAdmin, resolverNegocioAdmin, async (req, res) => {
+  try {
+    const result = await pool.query(
+      'SELECT * FROM activos_fijos WHERE negocio_id = $1 AND activo = true ORDER BY fecha_adquisicion DESC NULLS LAST, id DESC',
+      [req.negocioId]
+    );
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error obteniendo activos fijos:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+app.post('/api/finanzas-negocio/activos-fijos', authenticateToken, requireAdmin, resolverNegocioAdmin, async (req, res) => {
+  try {
+    const { nombre, valor, fecha_adquisicion } = req.body;
+
+    if (!nombre || !nombre.trim()) {
+      return res.status(400).json({ error: 'El nombre es requerido' });
+    }
+    const valorNum = Number(valor);
+    if (!Number.isFinite(valorNum) || valorNum <= 0) {
+      return res.status(400).json({ error: 'valor debe ser un número mayor a cero' });
+    }
+
+    const result = await pool.query(
+      'INSERT INTO activos_fijos (negocio_id, nombre, valor, fecha_adquisicion) VALUES ($1, $2, $3, $4) RETURNING *',
+      [req.negocioId, nombre.trim(), valorNum, fecha_adquisicion || null]
+    );
+
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error('Error creando activo fijo:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+app.put('/api/finanzas-negocio/activos-fijos/:id', authenticateToken, requireAdmin, resolverNegocioAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { nombre, valor, fecha_adquisicion } = req.body;
+
+    if (!nombre || !nombre.trim()) {
+      return res.status(400).json({ error: 'El nombre es requerido' });
+    }
+    const valorNum = Number(valor);
+    if (!Number.isFinite(valorNum) || valorNum <= 0) {
+      return res.status(400).json({ error: 'valor debe ser un número mayor a cero' });
+    }
+
+    const result = await pool.query(
+      'UPDATE activos_fijos SET nombre = $1, valor = $2, fecha_adquisicion = $3 WHERE id = $4 AND negocio_id = $5 RETURNING *',
+      [nombre.trim(), valorNum, fecha_adquisicion || null, id, req.negocioId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Activo no encontrado' });
+    }
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error actualizando activo fijo:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+app.delete('/api/finanzas-negocio/activos-fijos/:id', authenticateToken, requireAdmin, resolverNegocioAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    await pool.query('UPDATE activos_fijos SET activo = false WHERE id = $1 AND negocio_id = $2', [id, req.negocioId]);
+    res.json({ message: 'Activo eliminado correctamente' });
+  } catch (error) {
+    console.error('Error eliminando activo fijo:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// ---- Deudas ----
+
+app.get('/api/finanzas-negocio/deudas', authenticateToken, requireAdmin, resolverNegocioAdmin, async (req, res) => {
+  try {
+    const result = await pool.query(
+      'SELECT * FROM deudas WHERE negocio_id = $1 AND activo = true ORDER BY id DESC',
+      [req.negocioId]
+    );
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error obteniendo deudas:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+app.post('/api/finanzas-negocio/deudas', authenticateToken, requireAdmin, resolverNegocioAdmin, async (req, res) => {
+  try {
+    const { nombre, monto_total, saldo_pendiente, cuota_mensual } = req.body;
+
+    if (!nombre || !nombre.trim()) {
+      return res.status(400).json({ error: 'El nombre es requerido' });
+    }
+    const montoTotalNum = Number(monto_total);
+    if (!Number.isFinite(montoTotalNum) || montoTotalNum <= 0) {
+      return res.status(400).json({ error: 'monto_total debe ser un número mayor a cero' });
+    }
+    const saldoPendienteNum = saldo_pendiente !== undefined && saldo_pendiente !== '' ? Number(saldo_pendiente) : montoTotalNum;
+    if (!Number.isFinite(saldoPendienteNum) || saldoPendienteNum < 0) {
+      return res.status(400).json({ error: 'saldo_pendiente debe ser un número mayor o igual a cero' });
+    }
+    const cuotaMensualNum = cuota_mensual !== undefined && cuota_mensual !== '' ? Number(cuota_mensual) : null;
+    if (cuotaMensualNum !== null && (!Number.isFinite(cuotaMensualNum) || cuotaMensualNum < 0)) {
+      return res.status(400).json({ error: 'cuota_mensual debe ser un número mayor o igual a cero' });
+    }
+
+    const result = await pool.query(
+      'INSERT INTO deudas (negocio_id, nombre, monto_total, saldo_pendiente, cuota_mensual) VALUES ($1, $2, $3, $4, $5) RETURNING *',
+      [req.negocioId, nombre.trim(), montoTotalNum, saldoPendienteNum, cuotaMensualNum]
+    );
+
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error('Error creando deuda:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+app.put('/api/finanzas-negocio/deudas/:id', authenticateToken, requireAdmin, resolverNegocioAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { nombre, monto_total, saldo_pendiente, cuota_mensual } = req.body;
+
+    if (!nombre || !nombre.trim()) {
+      return res.status(400).json({ error: 'El nombre es requerido' });
+    }
+    const montoTotalNum = Number(monto_total);
+    const saldoPendienteNum = Number(saldo_pendiente);
+    if (!Number.isFinite(montoTotalNum) || montoTotalNum <= 0) {
+      return res.status(400).json({ error: 'monto_total debe ser un número mayor a cero' });
+    }
+    if (!Number.isFinite(saldoPendienteNum) || saldoPendienteNum < 0) {
+      return res.status(400).json({ error: 'saldo_pendiente debe ser un número mayor o igual a cero' });
+    }
+    const cuotaMensualNum = cuota_mensual !== undefined && cuota_mensual !== '' ? Number(cuota_mensual) : null;
+
+    const result = await pool.query(
+      'UPDATE deudas SET nombre = $1, monto_total = $2, saldo_pendiente = $3, cuota_mensual = $4 WHERE id = $5 AND negocio_id = $6 RETURNING *',
+      [nombre.trim(), montoTotalNum, saldoPendienteNum, cuotaMensualNum, id, req.negocioId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Deuda no encontrada' });
+    }
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error actualizando deuda:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+app.delete('/api/finanzas-negocio/deudas/:id', authenticateToken, requireAdmin, resolverNegocioAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    await pool.query('UPDATE deudas SET activo = false WHERE id = $1 AND negocio_id = $2', [id, req.negocioId]);
+    res.json({ message: 'Deuda eliminada correctamente' });
+  } catch (error) {
+    console.error('Error eliminando deuda:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// ---- Categorías del simulador (distintas de categorias_gasto: son
+// negocio-wide, solo para planeación, no etiquetan movimientos reales) ----
+
+app.get('/api/finanzas-negocio/categorias-simulador', authenticateToken, requireAdmin, resolverNegocioAdmin, async (req, res) => {
+  try {
+    const result = await pool.query(
+      'SELECT * FROM categorias_simulador WHERE negocio_id = $1 AND activo = true ORDER BY orden, nombre',
+      [req.negocioId]
+    );
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error obteniendo categorías del simulador:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+app.post('/api/finanzas-negocio/categorias-simulador', authenticateToken, requireAdmin, resolverNegocioAdmin, async (req, res) => {
+  try {
+    const { nombre, tipo, meta_bloques, orden } = req.body;
+
+    if (!nombre || !nombre.trim()) {
+      return res.status(400).json({ error: 'El nombre es requerido' });
+    }
+    if (!TIPOS_CATEGORIA_SIMULADOR.includes(tipo)) {
+      return res.status(400).json({ error: `tipo debe ser uno de: ${TIPOS_CATEGORIA_SIMULADOR.join(', ')}` });
+    }
+    const metaBloquesNum = meta_bloques !== undefined && meta_bloques !== '' ? parseInt(meta_bloques, 10) : 0;
+    if (!Number.isInteger(metaBloquesNum) || metaBloquesNum < 0) {
+      return res.status(400).json({ error: 'meta_bloques debe ser un entero mayor o igual a cero' });
+    }
+
+    const existente = await pool.query(
+      'SELECT id FROM categorias_simulador WHERE negocio_id = $1 AND nombre = $2',
+      [req.negocioId, nombre.trim()]
+    );
+    if (existente.rows.length > 0) {
+      return res.status(400).json({ error: 'Ya existe una categoría del simulador con ese nombre' });
+    }
+
+    const result = await pool.query(
+      'INSERT INTO categorias_simulador (negocio_id, nombre, tipo, meta_bloques, orden) VALUES ($1, $2, $3, $4, $5) RETURNING *',
+      [req.negocioId, nombre.trim(), tipo, metaBloquesNum, orden ?? 0]
+    );
+
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error('Error creando categoría del simulador:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+app.put('/api/finanzas-negocio/categorias-simulador/:id', authenticateToken, requireAdmin, resolverNegocioAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { nombre, tipo, meta_bloques, orden } = req.body;
+
+    if (!nombre || !nombre.trim()) {
+      return res.status(400).json({ error: 'El nombre es requerido' });
+    }
+    if (!TIPOS_CATEGORIA_SIMULADOR.includes(tipo)) {
+      return res.status(400).json({ error: `tipo debe ser uno de: ${TIPOS_CATEGORIA_SIMULADOR.join(', ')}` });
+    }
+    const metaBloquesNum = parseInt(meta_bloques, 10);
+    if (!Number.isInteger(metaBloquesNum) || metaBloquesNum < 0) {
+      return res.status(400).json({ error: 'meta_bloques debe ser un entero mayor o igual a cero' });
+    }
+
+    const existente = await pool.query(
+      'SELECT id FROM categorias_simulador WHERE negocio_id = $1 AND nombre = $2 AND id != $3',
+      [req.negocioId, nombre.trim(), id]
+    );
+    if (existente.rows.length > 0) {
+      return res.status(400).json({ error: 'Ya existe una categoría del simulador con ese nombre' });
+    }
+
+    const result = await pool.query(
+      'UPDATE categorias_simulador SET nombre = $1, tipo = $2, meta_bloques = $3, orden = $4 WHERE id = $5 AND negocio_id = $6 RETURNING *',
+      [nombre.trim(), tipo, metaBloquesNum, orden ?? 0, id, req.negocioId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Categoría no encontrada' });
+    }
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error actualizando categoría del simulador:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+app.delete('/api/finanzas-negocio/categorias-simulador/:id', authenticateToken, requireAdmin, resolverNegocioAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    await pool.query('UPDATE categorias_simulador SET activo = false WHERE id = $1 AND negocio_id = $2', [id, req.negocioId]);
+    res.json({ message: 'Categoría eliminada correctamente' });
+  } catch (error) {
+    console.error('Error eliminando categoría del simulador:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// ---- Resumen financiero mensual (balance general + estado de resultados) ----
+// gastos_fijos = tipo 'fijo' + tipo 'servicios' (ambos son costos fijos
+// recurrentes); 'ahorro'/'reinversion'/'mercancia' se muestran aparte, como
+// informativos — son usos de la utilidad, no gastos que la reduzcan (el
+// costo de mercancía vendida ya se calculó del lado de las ventas, no del
+// lado de las compras).
+app.get('/api/finanzas-negocio/resumen-mensual', authenticateToken, requireAdmin, resolverNegocioAdmin, async (req, res) => {
+  try {
+    const negocioId = req.negocioId;
+    const anio = parseInt(req.query.anio, 10);
+    const mes = parseInt(req.query.mes, 10);
+
+    if (!Number.isInteger(anio) || !Number.isInteger(mes) || mes < 1 || mes > 12) {
+      return res.status(400).json({ error: 'anio y mes son requeridos (mes entre 1 y 12)' });
+    }
+
+    const mesStr = String(mes).padStart(2, '0');
+    const startDate = moment(`${anio}-${mesStr}-01 00:00:00-05:00`);
+    const endDate = startDate.clone().endOf('month');
+    const startDateAnterior = startDate.clone().subtract(1, 'month');
+    const endDateAnterior = startDateAnterior.clone().endOf('month');
+
+    const modulosResult = await pool.query('SELECT id FROM modulos WHERE negocio_id = $1', [negocioId]);
+    const moduloIds = modulosResult.rows.map(r => r.id);
+    if (moduloIds.length === 0) {
+      return res.status(400).json({ error: 'El negocio no tiene módulos' });
+    }
+
+    // Balance general: saldo de caja ACUMULADO hasta el fin del mes elegido
+    // (es un balance, no un flujo de un solo mes).
+    const cajaResult = await pool.query(
+      `SELECT COALESCE(SUM(monto) FILTER (WHERE tipo IN ('saldo_inicial','ingreso')), 0)
+              - COALESCE(SUM(monto) FILTER (WHERE tipo = 'egreso'), 0) as efectivo
+       FROM movimientos_caja
+       WHERE negocio_id = $1 AND fecha <= $2`,
+      [negocioId, endDate.toDate()]
+    );
+
+    // Inventario a costo: snapshot ACTUAL — no hay historial de stock por
+    // fecha, así que para cualquier mes consultado se usa el mismo valor de
+    // hoy (limitación conocida de Fase 1).
+    const inventarioResult = await pool.query(
+      'SELECT COALESCE(SUM(stock_actual * precio_compra), 0) as total FROM productos WHERE modulo_id = ANY($1) AND activo = true',
+      [moduloIds]
+    );
+
+    // Activos adquiridos hasta el fin del mes (los comprados después no cuentan)
+    const activosResult = await pool.query(
+      'SELECT COALESCE(SUM(valor), 0) as total FROM activos_fijos WHERE negocio_id = $1 AND activo = true AND (fecha_adquisicion IS NULL OR fecha_adquisicion <= $2)',
+      [negocioId, endDate.format('YYYY-MM-DD')]
+    );
+
+    // Deudas: saldo pendiente ACTUAL — no hay historial de abonos por fecha,
+    // misma limitación que inventario.
+    const deudasResult = await pool.query(
+      'SELECT COALESCE(SUM(saldo_pendiente), 0) as total FROM deudas WHERE negocio_id = $1 AND activo = true',
+      [negocioId]
+    );
+
+    const ventasEnRango = async (desde, hasta) => {
+      const r = await pool.query(
+        `SELECT COALESCE(SUM(total), 0) as total
+         FROM ventas
+         WHERE modulo_id = ANY($1) AND fecha_venta BETWEEN $2 AND $3
+         AND es_ajuste_manual = false AND metodo_pago != 'consumo_propio'`,
+        [moduloIds, desde, hasta]
+      );
+      return Number(r.rows[0].total);
+    };
+
+    const ventasDelMes = await ventasEnRango(startDate.toDate(), endDate.toDate());
+    const ventasMesAnterior = await ventasEnRango(startDateAnterior.toDate(), endDateAnterior.toDate());
+
+    // Costo de mercancía vendida: costo_unitario si la venta lo guardó (a
+    // partir de este cambio), si no, precio_compra ACTUAL del producto como
+    // aproximación — ventas viejas no tienen el costo histórico real.
+    const cogsResult = await pool.query(
+      `SELECT COALESCE(SUM(dv.cantidad * COALESCE(dv.costo_unitario, p.precio_compra, 0)), 0) as total
+       FROM detalle_venta dv
+       JOIN ventas v ON dv.venta_id = v.id
+       LEFT JOIN productos p ON dv.producto_id = p.id
+       WHERE v.modulo_id = ANY($1) AND v.fecha_venta BETWEEN $2 AND $3
+       AND v.es_ajuste_manual = false AND v.metodo_pago != 'consumo_propio'`,
+      [moduloIds, startDate.toDate(), endDate.toDate()]
+    );
+
+    const gastosResult = await pool.query(
+      `SELECT cg.tipo, COALESCE(SUM(mc.monto), 0) as total
+       FROM movimientos_caja mc
+       JOIN categorias_gasto cg ON mc.categoria_gasto_id = cg.id
+       WHERE mc.negocio_id = $1 AND mc.tipo = 'egreso' AND mc.fecha BETWEEN $2 AND $3
+       GROUP BY cg.tipo`,
+      [negocioId, startDate.toDate(), endDate.toDate()]
+    );
+    const gastosPorTipo = Object.fromEntries(gastosResult.rows.map(r => [r.tipo, Number(r.total)]));
+
+    const efectivo = Number(cajaResult.rows[0].efectivo);
+    const inventarioACosto = Number(inventarioResult.rows[0].total);
+    const activosFijos = Number(activosResult.rows[0].total);
+    const deudas = Number(deudasResult.rows[0].total);
+    const patrimonio = efectivo + inventarioACosto + activosFijos - deudas;
+
+    const costoMercanciaVendida = Number(cogsResult.rows[0].total);
+    const gastosFijos = (gastosPorTipo.fijo || 0) + (gastosPorTipo.servicios || 0);
+    const gastosPersonales = gastosPorTipo.personal || 0;
+    const utilidadNeta = ventasDelMes - costoMercanciaVendida - gastosFijos - gastosPersonales;
+
+    const config = await pool.query(
+      'SELECT reserva_seguridad_pct, gastos_personales_minimos FROM negocios WHERE id = $1',
+      [negocioId]
+    );
+    const reservaPct = Number(config.rows[0]?.reserva_seguridad_pct || 0);
+    const gastosPersonalesMinimos = Number(config.rows[0]?.gastos_personales_minimos || 0);
+    const reservaSeguridad = gastosFijos * (reservaPct / 100);
+    const disponibleParaReinvertir = utilidadNeta - reservaSeguridad - gastosPersonalesMinimos;
+
+    const margenBrutoPct = ventasDelMes > 0 ? ((ventasDelMes - costoMercanciaVendida) / ventasDelMes) * 100 : null;
+    const crecimientoVentasPct = ventasMesAnterior > 0 ? ((ventasDelMes - ventasMesAnterior) / ventasMesAnterior) * 100 : null;
+    const rotacionInventario = inventarioACosto > 0 ? costoMercanciaVendida / inventarioACosto : null;
+
+    res.json({
+      periodo: { anio, mes, fecha_inicio: startDate.format('YYYY-MM-DD'), fecha_fin: endDate.format('YYYY-MM-DD') },
+      balance_general: {
+        efectivo_en_caja: efectivo,
+        inventario_a_costo: inventarioACosto,
+        activos_fijos: activosFijos,
+        deudas,
+        patrimonio
+      },
+      estado_resultados: {
+        ventas_del_mes: ventasDelMes,
+        costo_mercancia_vendida: costoMercanciaVendida,
+        gastos_fijos: gastosFijos,
+        gastos_personales: gastosPersonales,
+        utilidad_neta: utilidadNeta
+      },
+      informativo: {
+        gastos_mercancia_comprada: gastosPorTipo.mercancia || 0,
+        gastos_ahorro: gastosPorTipo.ahorro || 0,
+        gastos_reinversion: gastosPorTipo.reinversion || 0
+      },
+      indicadores: {
+        margen_bruto_pct: margenBrutoPct,
+        crecimiento_ventas_pct: crecimientoVentasPct,
+        rotacion_inventario: rotacionInventario
+      },
+      reserva_seguridad: reservaSeguridad,
+      disponible_para_reinvertir: disponibleParaReinvertir
+    });
+  } catch (error) {
+    console.error('Error obteniendo resumen financiero mensual:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// ---- Simulador ("ábaco invertido"): planeación de bloques por categoría,
+// comparada contra lo real, por día/semana/mes navegable ----
+
+const rangoPeriodoSimulador = (granularidad, periodoInicioStr) => {
+  const inicio = moment(`${periodoInicioStr} 00:00:00-05:00`);
+  let fin;
+  if (granularidad === 'dia') {
+    fin = inicio.clone().endOf('day');
+  } else if (granularidad === 'semana') {
+    fin = inicio.clone().add(6, 'days').endOf('day');
+  } else {
+    fin = inicio.clone().endOf('month');
+  }
+  return { inicio, fin };
+};
+
+// 'semana' exige que periodo_inicio sea lunes (mismo criterio que
+// metas_reinversion.semana_inicio); 'mes' exige que sea el día 1.
+const validarPeriodoInicioSimulador = (granularidad, periodoInicioStr) => {
+  if (typeof periodoInicioStr !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(periodoInicioStr)) return false;
+  const m = moment(periodoInicioStr, 'YYYY-MM-DD', true);
+  if (!m.isValid()) return false;
+  if (granularidad === 'semana') return m.isoWeekday() === 1;
+  if (granularidad === 'mes') return m.date() === 1;
+  return true;
+};
+
+app.get('/api/finanzas-negocio/simulador', authenticateToken, requireAdmin, resolverNegocioAdmin, async (req, res) => {
+  try {
+    const negocioId = req.negocioId;
+    const { granularidad, periodo_inicio } = req.query;
+
+    if (!['dia', 'semana', 'mes'].includes(granularidad)) {
+      return res.status(400).json({ error: "granularidad debe ser 'dia', 'semana' o 'mes'" });
+    }
+    if (!validarPeriodoInicioSimulador(granularidad, periodo_inicio)) {
+      return res.status(400).json({
+        error: granularidad === 'semana'
+          ? 'periodo_inicio debe ser un lunes (YYYY-MM-DD)'
+          : granularidad === 'mes'
+            ? 'periodo_inicio debe ser el día 1 del mes (YYYY-MM-DD)'
+            : 'periodo_inicio inválido'
+      });
+    }
+
+    const { inicio, fin } = rangoPeriodoSimulador(granularidad, periodo_inicio);
+
+    const configResult = await pool.query('SELECT valor_bloque FROM negocios WHERE id = $1', [negocioId]);
+    const valorBloque = Number(configResult.rows[0]?.valor_bloque);
+    if (!Number.isFinite(valorBloque) || valorBloque <= 0) {
+      return res.status(400).json({ error: 'Configura primero el valor del bloque en Configuración' });
+    }
+
+    const modulosResult = await pool.query('SELECT id FROM modulos WHERE negocio_id = $1', [negocioId]);
+    const moduloIds = modulosResult.rows.map(r => r.id);
+
+    const categoriasResult = await pool.query(
+      'SELECT id, nombre, tipo, meta_bloques FROM categorias_simulador WHERE negocio_id = $1 AND activo = true ORDER BY orden, nombre',
+      [negocioId]
+    );
+
+    const asignacionesResult = await pool.query(
+      'SELECT categoria_simulador_id, bloques_asignados FROM simulador_asignaciones WHERE negocio_id = $1 AND granularidad = $2 AND periodo_inicio = $3',
+      [negocioId, granularidad, periodo_inicio]
+    );
+    const asignacionesPorCategoria = Object.fromEntries(asignacionesResult.rows.map(r => [r.categoria_simulador_id, r.bloques_asignados]));
+
+    // Ingresos reales del período exacto (día/semana/mes), para la barra de
+    // bloques disponibles — distinto de estado_resultados, que es siempre
+    // por mes calendario.
+    const ingresosResult = await pool.query(
+      `SELECT COALESCE(SUM(total), 0) as total FROM ventas
+       WHERE modulo_id = ANY($1) AND fecha_venta BETWEEN $2 AND $3
+       AND es_ajuste_manual = false AND metodo_pago != 'consumo_propio'`,
+      [moduloIds, inicio.toDate(), fin.toDate()]
+    );
+    const ingresosReales = Number(ingresosResult.rows[0].total);
+
+    const egresosResult = await pool.query(
+      `SELECT cg.tipo, COALESCE(SUM(mc.monto), 0) as total
+       FROM movimientos_caja mc
+       JOIN categorias_gasto cg ON mc.categoria_gasto_id = cg.id
+       WHERE mc.negocio_id = $1 AND mc.tipo = 'egreso' AND mc.fecha BETWEEN $2 AND $3
+       GROUP BY cg.tipo`,
+      [negocioId, inicio.toDate(), fin.toDate()]
+    );
+    const egresosPorTipo = Object.fromEntries(egresosResult.rows.map(r => [r.tipo, Number(r.total)]));
+
+    const categorias = categoriasResult.rows.map(cat => {
+      const montoReal = cat.tipo === 'ingreso' ? ingresosReales : (egresosPorTipo[cat.tipo] || 0);
+      const bloquesReales = montoReal / valorBloque;
+      const bloquesAsignados = asignacionesPorCategoria[cat.id] || 0;
+      return {
+        id: cat.id,
+        nombre: cat.nombre,
+        tipo: cat.tipo,
+        meta_bloques: cat.meta_bloques,
+        bloques_asignados: bloquesAsignados,
+        monto_real: montoReal,
+        bloques_reales: bloquesReales,
+        diferencia_bloques: bloquesAsignados - bloquesReales
+      };
+    });
+
+    const totalBloquesIngresos = Math.round(ingresosReales / valorBloque);
+    const totalBloquesAsignados = categorias
+      .filter(c => c.tipo !== 'ingreso')
+      .reduce((sum, c) => sum + c.bloques_asignados, 0);
+
+    res.json({
+      periodo: { granularidad, periodo_inicio, fecha_fin: fin.format('YYYY-MM-DD') },
+      valor_bloque: valorBloque,
+      ingresos_reales: ingresosReales,
+      total_bloques_ingresos: totalBloquesIngresos,
+      bloques_sin_asignar: totalBloquesIngresos - totalBloquesAsignados,
+      categorias
+    });
+  } catch (error) {
+    console.error('Error obteniendo simulador:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+app.put('/api/finanzas-negocio/simulador', authenticateToken, requireAdmin, resolverNegocioAdmin, async (req, res) => {
+  try {
+    const negocioId = req.negocioId;
+    const { granularidad, periodo_inicio, asignaciones } = req.body;
+
+    if (!['dia', 'semana', 'mes'].includes(granularidad)) {
+      return res.status(400).json({ error: "granularidad debe ser 'dia', 'semana' o 'mes'" });
+    }
+    if (!validarPeriodoInicioSimulador(granularidad, periodo_inicio)) {
+      return res.status(400).json({ error: 'periodo_inicio inválido para esa granularidad' });
+    }
+    if (!Array.isArray(asignaciones)) {
+      return res.status(400).json({ error: 'asignaciones debe ser un arreglo' });
+    }
+
+    for (const a of asignaciones) {
+      const categoriaId = parseInt(a.categoria_simulador_id, 10);
+      const bloques = parseInt(a.bloques_asignados, 10);
+      if (!Number.isInteger(categoriaId) || !Number.isInteger(bloques) || bloques < 0) {
+        return res.status(400).json({ error: 'Cada asignación necesita categoria_simulador_id y bloques_asignados (entero >= 0)' });
+      }
+
+      const catCheck = await pool.query(
+        'SELECT id FROM categorias_simulador WHERE id = $1 AND negocio_id = $2',
+        [categoriaId, negocioId]
+      );
+      if (catCheck.rows.length === 0) {
+        return res.status(400).json({ error: `La categoría ${categoriaId} no pertenece a este negocio` });
+      }
+
+      await pool.query(
+        `INSERT INTO simulador_asignaciones (negocio_id, granularidad, periodo_inicio, categoria_simulador_id, bloques_asignados)
+         VALUES ($1, $2, $3, $4, $5)
+         ON CONFLICT (negocio_id, granularidad, periodo_inicio, categoria_simulador_id)
+         DO UPDATE SET bloques_asignados = $5`,
+        [negocioId, granularidad, periodo_inicio, categoriaId, bloques]
+      );
+    }
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error guardando asignaciones del simulador:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+app.post('/api/finanzas-negocio/simulador/reset', authenticateToken, requireAdmin, resolverNegocioAdmin, async (req, res) => {
+  try {
+    const negocioId = req.negocioId;
+    const { granularidad, periodo_inicio } = req.body;
+
+    if (!['dia', 'semana', 'mes'].includes(granularidad)) {
+      return res.status(400).json({ error: "granularidad debe ser 'dia', 'semana' o 'mes'" });
+    }
+    if (!validarPeriodoInicioSimulador(granularidad, periodo_inicio)) {
+      return res.status(400).json({ error: 'periodo_inicio inválido para esa granularidad' });
+    }
+
+    await pool.query(
+      'DELETE FROM simulador_asignaciones WHERE negocio_id = $1 AND granularidad = $2 AND periodo_inicio = $3',
+      [negocioId, granularidad, periodo_inicio]
+    );
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error reiniciando el simulador:', error);
     res.status(500).json({ error: 'Error interno del servidor' });
   }
 });
@@ -4912,10 +5642,12 @@ app.put('/api/pedidos-cliente/:id/completar', authenticateToken, checkAccess, as
     // ignora_stock = true (ej. "Preparados") se saltan la validación y no
     // descuentan stock_actual más abajo.
     const productosQueIgnoranStock = new Set();
+    // Snapshot del costo al momento de la venta (ver mismo campo en POST /api/ventas)
+    const costoPorProducto = new Map();
 
     for (const detalle of detalles) {
       const stockResult = await client.query(
-        'SELECT id, nombre, stock_actual, ignora_stock FROM productos WHERE id = $1 AND modulo_id = $2 AND activo = true FOR UPDATE',
+        'SELECT id, nombre, stock_actual, ignora_stock, precio_compra FROM productos WHERE id = $1 AND modulo_id = $2 AND activo = true FOR UPDATE',
         [detalle.producto_id, moduloId]
       );
 
@@ -4925,6 +5657,7 @@ app.put('/api/pedidos-cliente/:id/completar', authenticateToken, checkAccess, as
       }
 
       const producto = stockResult.rows[0];
+      costoPorProducto.set(detalle.producto_id, producto.precio_compra);
       if (producto.ignora_stock) {
         productosQueIgnoranStock.add(detalle.producto_id);
       } else if (producto.stock_actual < detalle.cantidad) {
@@ -4955,9 +5688,9 @@ app.put('/api/pedidos-cliente/:id/completar', authenticateToken, checkAccess, as
     // no pierdan estas ventas.
     for (const detalle of detalles) {
       await client.query(
-        `INSERT INTO detalle_venta (venta_id, producto_id, cantidad, precio_unitario, subtotal, modulo_dueno_id)
-         VALUES ($1, $2, $3, $4, $5, $6)`,
-        [venta.id, detalle.producto_id, detalle.cantidad, detalle.precio_unitario, detalle.subtotal, moduloId]
+        `INSERT INTO detalle_venta (venta_id, producto_id, cantidad, precio_unitario, subtotal, modulo_dueno_id, costo_unitario)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        [venta.id, detalle.producto_id, detalle.cantidad, detalle.precio_unitario, detalle.subtotal, moduloId, costoPorProducto.get(detalle.producto_id)]
       );
 
       if (!productosQueIgnoranStock.has(detalle.producto_id)) {

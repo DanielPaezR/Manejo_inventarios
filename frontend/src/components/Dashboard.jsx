@@ -24,7 +24,7 @@ const Dashboard = ({ user, onLogout }) => {
   const [showNotificaciones, setShowNotificaciones] = useState(false);
 
   // Verificar si estamos en una ruta que requiere módulo
-  const requiereModulo = !['/negocios', '/'].includes(location.pathname);
+  const requiereModulo = !['/negocios', '/', '/finanzas-negocio'].includes(location.pathname);
 
   // Atajos de teclado
   useEffect(() => {
@@ -108,6 +108,7 @@ const Dashboard = ({ user, onLogout }) => {
       { path: '/ruta-entregas', icon: '🛵', label: 'Ruta de Entregas' },
       { path: '/clientes', icon: '👤', label: 'Clientes' },            // ✅ NUEVO
       { path: '/finanzas', icon: '💰', label: 'Finanzas' },            // ✅ NUEVO
+      { path: '/finanzas-negocio', icon: '🧮', label: 'Finanzas del Negocio' },
     ],
     trabajador: [
       { path: '/ventas', icon: '🛒', label: 'Ventas' },

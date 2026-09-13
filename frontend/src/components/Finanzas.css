@@ -193,6 +193,12 @@
   color: #2d3748;
 }
 
+.categoria-gasto-tipo {
+  font-style: normal;
+  font-size: 11px;
+  color: #a0aec0;
+}
+
 .categoria-gasto-item input {
   flex: 1;
   padding: 6px 10px;
