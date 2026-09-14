@@ -458,7 +458,7 @@ const Simulador = () => {
             <div className="fn-banco-wrapper">
               <div className="fn-banco-header">
                 <strong>🧩 Bloques para simular</strong>
-                <span>{data.total_bloques_ingresos} bloques de {formatearMoneda(data.valor_bloque)} (según las ventas reales de hoy) · {bloquesSinAsignar} sin asignar</span>
+                <span>{data.total_bloques_ingresos} bloques de {formatearMoneda(data.valor_bloque)} (según las ventas del período anterior) · {bloquesSinAsignar} sin asignar</span>
               </div>
               <ZonaDrop id="banco">
                 <div className="fn-bloques-fila">

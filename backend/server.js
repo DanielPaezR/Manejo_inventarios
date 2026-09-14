@@ -4650,7 +4650,12 @@ app.get('/api/finanzas-negocio/simulador', authenticateToken, requireAdmin, reso
 
     const categorias = [categoriaIngresoVirtual, ...categoriasGasto];
 
-    const totalBloquesIngresos = Math.round(actual.ingresos / valorBloque);
+    // El presupuesto de bloques para simular se basa en las ventas del
+    // período ANTERIOR (ya cerrado), no en las del período actual — este
+    // último todavía está en curso y sube en vivo, así que no sirve como
+    // "cuánto tengo para planear" (mismo monto que ya se muestra en la
+    // franja gris de referencia del ábaco).
+    const totalBloquesIngresos = Math.round(anterior.ingresos / valorBloque);
     const totalBloquesAsignados = categoriasGasto.reduce((sum, c) => sum + c.bloques_asignados, 0);
 
     res.json({
