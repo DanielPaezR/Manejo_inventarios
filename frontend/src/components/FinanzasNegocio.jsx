@@ -244,7 +244,7 @@ const Simulador = () => {
       await api.put('/finanzas-negocio/simulador', {
         granularidad,
         periodo_inicio: periodoInicio,
-        asignaciones: Object.entries(asignacionesAGuardar).map(([categoria_simulador_id, bloques_asignados]) => ({ categoria_simulador_id, bloques_asignados }))
+        asignaciones: Object.entries(asignacionesAGuardar).map(([categoria_gasto_id, bloques_asignados]) => ({ categoria_gasto_id, bloques_asignados }))
       });
     } catch (err) {
       console.error('Error guardando asignaciones:', err);
@@ -509,87 +509,69 @@ const ZonaDrop = ({ id, children }) => {
   );
 };
 
+// Ya no se crean categorías "propias" del simulador: usa las MISMAS
+// categorias_gasto que se registran en Finanzas por módulo (donde se
+// etiquetan los movimientos_caja reales). Aquí solo se decide cuáles de
+// esas categorías reales aparecen como columna del ábaco.
 const GestionCategoriasSimulador = ({ onCambio }) => {
   const [categorias, setCategorias] = useState([]);
-  const [form, setForm] = useState({ nombre: '', tipo: 'otro' });
-  const [editandoId, setEditandoId] = useState(null);
+  const [cargando, setCargando] = useState(false);
   const [mensaje, setMensaje] = useState('');
 
   const cargar = useCallback(async () => {
     try {
-      const response = await api.get('/finanzas-negocio/categorias-simulador');
+      setCargando(true);
+      const response = await api.get('/finanzas-negocio/categorias-gasto');
       setCategorias(response.data);
     } catch (error) {
-      console.error('Error cargando categorías del simulador:', error);
+      console.error('Error cargando categorías de gasto:', error);
+    } finally {
+      setCargando(false);
     }
   }, []);
 
   useEffect(() => { cargar(); }, [cargar]);
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!form.nombre.trim()) return;
+  const handleToggle = async (cat) => {
+    const nuevoValor = !cat.mostrar_en_simulador;
+    setCategorias(prev => prev.map(c => c.id === cat.id ? { ...c, mostrar_en_simulador: nuevoValor } : c));
     try {
-      if (editandoId) {
-        await api.put(`/finanzas-negocio/categorias-simulador/${editandoId}`, form);
-      } else {
-        await api.post('/finanzas-negocio/categorias-simulador', form);
-      }
-      setForm({ nombre: '', tipo: 'otro' });
-      setEditandoId(null);
-      await cargar();
+      await api.put(`/finanzas-negocio/categorias-gasto/${cat.id}/mostrar-en-simulador`, { mostrar_en_simulador: nuevoValor });
       onCambio();
     } catch (error) {
-      setMensaje(error.response?.data?.error || 'Error al guardar la categoría');
+      console.error('Error actualizando categoría:', error);
+      setCategorias(prev => prev.map(c => c.id === cat.id ? { ...c, mostrar_en_simulador: !nuevoValor } : c));
+      setMensaje(error.response?.data?.error || 'Error al actualizar la categoría');
       setTimeout(() => setMensaje(''), 4000);
-    }
-  };
-
-  const iniciarEdicion = (cat) => {
-    setEditandoId(cat.id);
-    setForm({ nombre: cat.nombre, tipo: cat.tipo });
-  };
-
-  const handleEliminar = async (id) => {
-    if (!window.confirm('¿Eliminar esta categoría del simulador?')) return;
-    try {
-      await api.delete(`/finanzas-negocio/categorias-simulador/${id}`);
-      await cargar();
-      onCambio();
-    } catch (error) {
-      console.error('Error eliminando categoría:', error);
     }
   };
 
   return (
     <div className="fn-card fn-gestion-categorias">
-      <h4>Categorías del simulador</h4>
+      <h4>Categorías en el simulador</h4>
+      <p className="fn-nota">
+        Marca cuáles categorías de gasto (las mismas que usas en Finanzas de cada módulo) quieres ver como columna en el ábaco.
+        Para crear una categoría nueva, ve a Finanzas dentro del módulo correspondiente.
+      </p>
       {mensaje && <p className="fn-error">{mensaje}</p>}
-      <form onSubmit={handleSubmit} className="fn-form-inline">
-        <input
-          type="text"
-          placeholder="Nombre (ej. Mercancía)"
-          value={form.nombre}
-          onChange={(e) => setForm({ ...form, nombre: e.target.value })}
-          required
-        />
-        <select value={form.tipo} onChange={(e) => setForm({ ...form, tipo: e.target.value })}>
-          {TIPOS_CATEGORIA.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
-        </select>
-        <button type="submit">{editandoId ? 'Actualizar' : 'Crear'}</button>
-        {editandoId && <button type="button" onClick={() => { setEditandoId(null); setForm({ nombre: '', tipo: 'otro' }); }}>Cancelar</button>}
-      </form>
+      {cargando && <p className="fn-info">Cargando...</p>}
 
       <ul className="fn-lista-categorias">
         {categorias.map(cat => (
           <li key={cat.id}>
-            <span>{cat.nombre} <em>({nombreTipo(cat.tipo)})</em></span>
-            <span>
-              <button onClick={() => iniciarEdicion(cat)}>✏️</button>
-              <button onClick={() => handleEliminar(cat.id)}>🗑️</button>
-            </span>
+            <label className="fn-checkbox-linea">
+              <input
+                type="checkbox"
+                checked={cat.mostrar_en_simulador}
+                onChange={() => handleToggle(cat)}
+              />
+              <span>{cat.nombre} <em>({nombreTipo(cat.tipo)} · {cat.modulo_nombre})</em></span>
+            </label>
           </li>
         ))}
+        {categorias.length === 0 && !cargando && (
+          <p className="fn-info">No hay categorías de gasto creadas todavía. Créalas desde Finanzas dentro de cada módulo.</p>
+        )}
       </ul>
     </div>
   );

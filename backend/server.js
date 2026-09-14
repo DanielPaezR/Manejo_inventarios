@@ -4082,8 +4082,6 @@ const resolverNegocioAdmin = async (req, res, next) => {
   }
 };
 
-const TIPOS_CATEGORIA_SIMULADOR = ['ingreso', 'mercancia', 'servicios', 'fijo', 'personal', 'ahorro', 'reinversion', 'otro'];
-
 // ---- Configuración (valor del bloque, reserva de seguridad, gastos personales mínimos) ----
 
 app.get('/api/finanzas-negocio/configuracion', authenticateToken, requireAdmin, resolverNegocioAdmin, async (req, res) => {
@@ -4304,76 +4302,40 @@ app.delete('/api/finanzas-negocio/deudas/:id', authenticateToken, requireAdmin, 
   }
 });
 
-// ---- Categorías del simulador (distintas de categorias_gasto: son
-// negocio-wide, solo para planeación, no etiquetan movimientos reales) ----
+// ---- Categorías de gasto disponibles para el simulador (son las MISMAS
+// categorias_gasto que se usan en Finanzas por módulo para etiquetar
+// movimientos_caja; aquí solo se listan a nivel negocio y se marca cuáles
+// se muestran como columna del ábaco) ----
 
-app.get('/api/finanzas-negocio/categorias-simulador', authenticateToken, requireAdmin, resolverNegocioAdmin, async (req, res) => {
+app.get('/api/finanzas-negocio/categorias-gasto', authenticateToken, requireAdmin, resolverNegocioAdmin, async (req, res) => {
   try {
     const result = await pool.query(
-      'SELECT * FROM categorias_simulador WHERE negocio_id = $1 AND activo = true ORDER BY orden, nombre',
+      `SELECT cg.id, cg.nombre, cg.tipo, cg.mostrar_en_simulador, cg.modulo_id, m.nombre AS modulo_nombre
+       FROM categorias_gasto cg
+       JOIN modulos m ON m.id = cg.modulo_id
+       WHERE cg.negocio_id = $1 AND cg.activo = true
+       ORDER BY m.nombre, cg.nombre`,
       [req.negocioId]
     );
     res.json(result.rows);
   } catch (error) {
-    console.error('Error obteniendo categorías del simulador:', error);
+    console.error('Error obteniendo categorías de gasto:', error);
     res.status(500).json({ error: 'Error interno del servidor' });
   }
 });
 
-app.post('/api/finanzas-negocio/categorias-simulador', authenticateToken, requireAdmin, resolverNegocioAdmin, async (req, res) => {
-  try {
-    const { nombre, tipo, orden } = req.body;
-
-    if (!nombre || !nombre.trim()) {
-      return res.status(400).json({ error: 'El nombre es requerido' });
-    }
-    if (!TIPOS_CATEGORIA_SIMULADOR.includes(tipo)) {
-      return res.status(400).json({ error: `tipo debe ser uno de: ${TIPOS_CATEGORIA_SIMULADOR.join(', ')}` });
-    }
-
-    const existente = await pool.query(
-      'SELECT id FROM categorias_simulador WHERE negocio_id = $1 AND nombre = $2',
-      [req.negocioId, nombre.trim()]
-    );
-    if (existente.rows.length > 0) {
-      return res.status(400).json({ error: 'Ya existe una categoría del simulador con ese nombre' });
-    }
-
-    const result = await pool.query(
-      'INSERT INTO categorias_simulador (negocio_id, nombre, tipo, orden) VALUES ($1, $2, $3, $4) RETURNING *',
-      [req.negocioId, nombre.trim(), tipo, orden ?? 0]
-    );
-
-    res.status(201).json(result.rows[0]);
-  } catch (error) {
-    console.error('Error creando categoría del simulador:', error);
-    res.status(500).json({ error: 'Error interno del servidor' });
-  }
-});
-
-app.put('/api/finanzas-negocio/categorias-simulador/:id', authenticateToken, requireAdmin, resolverNegocioAdmin, async (req, res) => {
+app.put('/api/finanzas-negocio/categorias-gasto/:id/mostrar-en-simulador', authenticateToken, requireAdmin, resolverNegocioAdmin, async (req, res) => {
   try {
     const { id } = req.params;
-    const { nombre, tipo, orden } = req.body;
+    const { mostrar_en_simulador } = req.body;
 
-    if (!nombre || !nombre.trim()) {
-      return res.status(400).json({ error: 'El nombre es requerido' });
-    }
-    if (!TIPOS_CATEGORIA_SIMULADOR.includes(tipo)) {
-      return res.status(400).json({ error: `tipo debe ser uno de: ${TIPOS_CATEGORIA_SIMULADOR.join(', ')}` });
-    }
-
-    const existente = await pool.query(
-      'SELECT id FROM categorias_simulador WHERE negocio_id = $1 AND nombre = $2 AND id != $3',
-      [req.negocioId, nombre.trim(), id]
-    );
-    if (existente.rows.length > 0) {
-      return res.status(400).json({ error: 'Ya existe una categoría del simulador con ese nombre' });
+    if (typeof mostrar_en_simulador !== 'boolean') {
+      return res.status(400).json({ error: 'mostrar_en_simulador debe ser true o false' });
     }
 
     const result = await pool.query(
-      'UPDATE categorias_simulador SET nombre = $1, tipo = $2, orden = $3 WHERE id = $4 AND negocio_id = $5 RETURNING *',
-      [nombre.trim(), tipo, orden ?? 0, id, req.negocioId]
+      'UPDATE categorias_gasto SET mostrar_en_simulador = $1 WHERE id = $2 AND negocio_id = $3 RETURNING id, nombre, tipo, mostrar_en_simulador, modulo_id',
+      [mostrar_en_simulador, id, req.negocioId]
     );
 
     if (result.rows.length === 0) {
@@ -4382,18 +4344,7 @@ app.put('/api/finanzas-negocio/categorias-simulador/:id', authenticateToken, req
 
     res.json(result.rows[0]);
   } catch (error) {
-    console.error('Error actualizando categoría del simulador:', error);
-    res.status(500).json({ error: 'Error interno del servidor' });
-  }
-});
-
-app.delete('/api/finanzas-negocio/categorias-simulador/:id', authenticateToken, requireAdmin, resolverNegocioAdmin, async (req, res) => {
-  try {
-    const { id } = req.params;
-    await pool.query('UPDATE categorias_simulador SET activo = false WHERE id = $1 AND negocio_id = $2', [id, req.negocioId]);
-    res.json({ message: 'Categoría eliminada correctamente' });
-  } catch (error) {
-    console.error('Error eliminando categoría del simulador:', error);
+    console.error('Error actualizando mostrar_en_simulador:', error);
     res.status(500).json({ error: 'Error interno del servidor' });
   }
 });
@@ -4622,18 +4573,21 @@ app.get('/api/finanzas-negocio/simulador', authenticateToken, requireAdmin, reso
     const moduloIds = modulosResult.rows.map(r => r.id);
 
     const categoriasResult = await pool.query(
-      'SELECT id, nombre, tipo FROM categorias_simulador WHERE negocio_id = $1 AND activo = true ORDER BY orden, nombre',
+      `SELECT id, nombre, tipo FROM categorias_gasto
+       WHERE negocio_id = $1 AND activo = true AND mostrar_en_simulador = true
+       ORDER BY nombre`,
       [negocioId]
     );
 
     const asignacionesResult = await pool.query(
-      'SELECT categoria_simulador_id, bloques_asignados FROM simulador_asignaciones WHERE negocio_id = $1 AND granularidad = $2 AND periodo_inicio = $3',
+      'SELECT categoria_gasto_id, bloques_asignados FROM simulador_asignaciones WHERE negocio_id = $1 AND granularidad = $2 AND periodo_inicio = $3',
       [negocioId, granularidad, periodo_inicio]
     );
-    const asignacionesPorCategoria = Object.fromEntries(asignacionesResult.rows.map(r => [r.categoria_simulador_id, r.bloques_asignados]));
+    const asignacionesPorCategoria = Object.fromEntries(asignacionesResult.rows.map(r => [r.categoria_gasto_id, r.bloques_asignados]));
 
-    // Ingresos reales + egresos reales por tipo de categoría de gasto, de un
-    // rango de fechas puntual — se llama dos veces (período actual y el
+    // Ingresos reales + egresos reales por categoría de gasto EXACTA (mismo
+    // id que etiqueta movimientos_caja en Finanzas por módulo), de un rango
+    // de fechas puntual — se llama dos veces (período actual y el
     // inmediatamente anterior, misma granularidad) para la comparación
     // gris/verde-rojo/azul del ábaco.
     const montosRealesPeriodo = async (desde, hasta) => {
@@ -4645,17 +4599,16 @@ app.get('/api/finanzas-negocio/simulador', authenticateToken, requireAdmin, reso
       );
 
       const egresosResult = await pool.query(
-        `SELECT cg.tipo, COALESCE(SUM(mc.monto), 0) as total
-         FROM movimientos_caja mc
-         JOIN categorias_gasto cg ON mc.categoria_gasto_id = cg.id
-         WHERE mc.negocio_id = $1 AND mc.tipo = 'egreso' AND mc.fecha BETWEEN $2 AND $3
-         GROUP BY cg.tipo`,
+        `SELECT categoria_gasto_id, COALESCE(SUM(monto), 0) as total
+         FROM movimientos_caja
+         WHERE negocio_id = $1 AND tipo = 'egreso' AND categoria_gasto_id IS NOT NULL AND fecha BETWEEN $2 AND $3
+         GROUP BY categoria_gasto_id`,
         [negocioId, desde, hasta]
       );
 
       return {
         ingresos: Number(ingresosResult.rows[0].total),
-        egresosPorTipo: Object.fromEntries(egresosResult.rows.map(r => [r.tipo, Number(r.total)]))
+        egresosPorCategoriaId: Object.fromEntries(egresosResult.rows.map(r => [r.categoria_gasto_id, Number(r.total)]))
       };
     };
 
@@ -4664,11 +4617,25 @@ app.get('/api/finanzas-negocio/simulador', authenticateToken, requireAdmin, reso
       montosRealesPeriodo(inicioAnterior.toDate(), finAnterior.toDate())
     ]);
 
-    const categorias = categoriasResult.rows.map(cat => {
-      const esIngreso = cat.tipo === 'ingreso';
-      const montoReal = esIngreso ? actual.ingresos : (actual.egresosPorTipo[cat.tipo] || 0);
-      const montoAnterior = esIngreso ? anterior.ingresos : (anterior.egresosPorTipo[cat.tipo] || 0);
-      const bloquesAsignados = esIngreso ? 0 : (asignacionesPorCategoria[cat.id] || 0);
+    // "Ventas" no es una categoria_gasto real (nada que etiquetar: es el
+    // ingreso, no un egreso) — se sigue representando como una categoría
+    // virtual de tipo 'ingreso' para que el ábaco (frontend) la muestre
+    // arriba del eje X igual que antes.
+    const categoriaIngresoVirtual = {
+      id: 'ingreso',
+      nombre: 'Ventas',
+      tipo: 'ingreso',
+      bloques_asignados: 0,
+      monto_real: actual.ingresos,
+      bloques_reales: actual.ingresos / valorBloque,
+      monto_periodo_anterior: anterior.ingresos,
+      bloques_periodo_anterior: anterior.ingresos / valorBloque
+    };
+
+    const categoriasGasto = categoriasResult.rows.map(cat => {
+      const montoReal = actual.egresosPorCategoriaId[cat.id] || 0;
+      const montoAnterior = anterior.egresosPorCategoriaId[cat.id] || 0;
+      const bloquesAsignados = asignacionesPorCategoria[cat.id] || 0;
       return {
         id: cat.id,
         nombre: cat.nombre,
@@ -4681,10 +4648,10 @@ app.get('/api/finanzas-negocio/simulador', authenticateToken, requireAdmin, reso
       };
     });
 
+    const categorias = [categoriaIngresoVirtual, ...categoriasGasto];
+
     const totalBloquesIngresos = Math.round(actual.ingresos / valorBloque);
-    const totalBloquesAsignados = categorias
-      .filter(c => c.tipo !== 'ingreso')
-      .reduce((sum, c) => sum + c.bloques_asignados, 0);
+    const totalBloquesAsignados = categoriasGasto.reduce((sum, c) => sum + c.bloques_asignados, 0);
 
     res.json({
       periodo: {
@@ -4723,14 +4690,14 @@ app.put('/api/finanzas-negocio/simulador', authenticateToken, requireAdmin, reso
     }
 
     for (const a of asignaciones) {
-      const categoriaId = parseInt(a.categoria_simulador_id, 10);
+      const categoriaId = parseInt(a.categoria_gasto_id, 10);
       const bloques = parseInt(a.bloques_asignados, 10);
       if (!Number.isInteger(categoriaId) || !Number.isInteger(bloques) || bloques < 0) {
-        return res.status(400).json({ error: 'Cada asignación necesita categoria_simulador_id y bloques_asignados (entero >= 0)' });
+        return res.status(400).json({ error: 'Cada asignación necesita categoria_gasto_id y bloques_asignados (entero >= 0)' });
       }
 
       const catCheck = await pool.query(
-        'SELECT id FROM categorias_simulador WHERE id = $1 AND negocio_id = $2',
+        'SELECT id FROM categorias_gasto WHERE id = $1 AND negocio_id = $2',
         [categoriaId, negocioId]
       );
       if (catCheck.rows.length === 0) {
@@ -4738,9 +4705,9 @@ app.put('/api/finanzas-negocio/simulador', authenticateToken, requireAdmin, reso
       }
 
       await pool.query(
-        `INSERT INTO simulador_asignaciones (negocio_id, granularidad, periodo_inicio, categoria_simulador_id, bloques_asignados)
+        `INSERT INTO simulador_asignaciones (negocio_id, granularidad, periodo_inicio, categoria_gasto_id, bloques_asignados)
          VALUES ($1, $2, $3, $4, $5)
-         ON CONFLICT (negocio_id, granularidad, periodo_inicio, categoria_simulador_id)
+         ON CONFLICT (negocio_id, granularidad, periodo_inicio, categoria_gasto_id)
          DO UPDATE SET bloques_asignados = $5`,
         [negocioId, granularidad, periodo_inicio, categoriaId, bloques]
       );
