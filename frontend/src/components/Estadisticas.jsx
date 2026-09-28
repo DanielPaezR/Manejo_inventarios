@@ -166,6 +166,23 @@ const Estadisticas = ({ user }) => {
     }
   }, [moduloActivo, vistaActiva, periodo, periodoOffset, cargarVentasCruzadas]);
 
+  // Marca/desmarca el día actual de ventas cruzadas como pagado — solo
+  // disponible cuando el backend confirma puede_marcar_pagado (módulo por
+  // defecto del negocio) y hay un día puntual seleccionado (no un rango).
+  // Optimista: actualiza la UI de inmediato y revierte si falla el guardado.
+  const handleTogglePagado = async () => {
+    if (!ventasCruzadas?.dia) return;
+    const nuevoValor = !ventasCruzadas.pagado;
+    setVentasCruzadas(prev => ({ ...prev, pagado: nuevoValor }));
+    try {
+      await api.put('/estadisticas/ventas-cruzadas/pagado', { fecha: ventasCruzadas.dia, pagado: nuevoValor });
+    } catch (error) {
+      console.error('Error actualizando el estado de pago:', error);
+      setVentasCruzadas(prev => ({ ...prev, pagado: !nuevoValor }));
+      alert(error.response?.data?.error || 'Error al actualizar el estado de pago');
+    }
+  };
+
   // Consumo propio: card independiente dentro de la vista 'ventas', con su
   // propio selector de periodo (no el general de la página) porque acá sí
   // queremos poder ver el histórico completo ('total'), algo que el
@@ -1049,6 +1066,24 @@ const Estadisticas = ({ user }) => {
                 </div>
               ) : (
                 <>
+                  {ventasCruzadas?.dia && (
+                    <div className="card pagado-dia-card">
+                      <div className="pagado-dia-info">
+                        <span className="pagado-dia-fecha">📅 Cuentas del {formatearRangoFechas(ventasCruzadas.dia, ventasCruzadas.dia)}</span>
+                        <span className={`pagado-badge ${ventasCruzadas.pagado ? 'pagado' : 'pendiente'}`}>
+                          {ventasCruzadas.pagado ? '✅ Pagado' : '⏳ Pendiente'}
+                        </span>
+                      </div>
+                      {ventasCruzadas.puede_marcar_pagado ? (
+                        <button type="button" className="btn-toggle-pagado" onClick={handleTogglePagado}>
+                          {ventasCruzadas.pagado ? 'Marcar como pendiente' : 'Marcar como pagado'}
+                        </button>
+                      ) : (
+                        <span className="pagado-dia-nota">Solo se puede marcar desde el módulo por defecto del negocio</span>
+                      )}
+                    </div>
+                  )}
+
                   <div className="card grafico-horizontal-card">
                     <h3>📤 De tus productos compartidos, vendido por otros módulos</h3>
                     {ventasCruzadas?.como_dueno?.length > 0 ? (
@@ -1061,6 +1096,14 @@ const Estadisticas = ({ user }) => {
                                 {formatearMoneda(item.monto)} ({item.unidades} und.)
                               </span>
                             </div>
+                            <ul className="cruzadas-productos-lista">
+                              {item.productos.map((p) => (
+                                <li key={p.producto_id}>
+                                  <span className="cruzadas-producto-nombre">{p.producto_nombre}</span>
+                                  <span className="cruzadas-producto-valor">{p.unidades} und. · {formatearMoneda(p.monto)}</span>
+                                </li>
+                              ))}
+                            </ul>
                           </div>
                         ))}
                       </div>
@@ -1081,6 +1124,14 @@ const Estadisticas = ({ user }) => {
                                 {formatearMoneda(item.monto)} ({item.unidades} und.)
                               </span>
                             </div>
+                            <ul className="cruzadas-productos-lista">
+                              {item.productos.map((p) => (
+                                <li key={p.producto_id}>
+                                  <span className="cruzadas-producto-nombre">{p.producto_nombre}</span>
+                                  <span className="cruzadas-producto-valor">{p.unidades} und. · {formatearMoneda(p.monto)}</span>
+                                </li>
+                              ))}
+                            </ul>
                           </div>
                         ))}
                       </div>

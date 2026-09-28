@@ -2190,9 +2190,31 @@ app.get('/api/estadisticas', authenticateToken, checkAccess, requireAdmin, async
 // - como_dueno: de MIS productos, cuánto vendieron OTROS módulos.
 // - como_vendedor: de lo que YO vendí, cuánto era de OTROS dueños.
 // Mismo patrón de resolución de período que GET /api/estadisticas.
+// Convierte las filas planas (una por módulo+producto) en una lista por
+// módulo con su total y el desglose de productos anidado — mismo criterio
+// para como_dueno y como_vendedor.
+const agruparCruzadasPorModulo = (rows) => {
+  const porModulo = new Map();
+  for (const r of rows) {
+    const unidades = Number(r.unidades);
+    const monto = Number(r.monto);
+    if (!porModulo.has(r.modulo_id)) {
+      porModulo.set(r.modulo_id, { modulo_id: r.modulo_id, modulo_nombre: r.modulo_nombre, unidades: 0, monto: 0, productos: [] });
+    }
+    const grupo = porModulo.get(r.modulo_id);
+    grupo.unidades += unidades;
+    grupo.monto += monto;
+    grupo.productos.push({ producto_id: r.producto_id, producto_nombre: r.producto_nombre, unidades, monto });
+  }
+  return Array.from(porModulo.values())
+    .map(g => ({ ...g, productos: g.productos.sort((a, b) => b.monto - a.monto) }))
+    .sort((a, b) => b.monto - a.monto);
+};
+
 app.get('/api/estadisticas/ventas-cruzadas', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
   try {
     const moduloId = req.moduloId;
+    const negocioId = req.negocioId;
     const { periodo, fecha_inicio, fecha_fin } = req.query;
 
     if (!moduloId) {
@@ -2200,11 +2222,17 @@ app.get('/api/estadisticas/ventas-cruzadas', authenticateToken, checkAccess, req
     }
 
     let startDate, endDate;
+    // Solo se puede "marcar como pagado" un día calendario puntual, no un
+    // rango — se calcula aquí para 'hoy' (siempre un solo día) y para
+    // 'personalizado' cuando fecha_inicio y fecha_fin coinciden (como
+    // cuando se navega día a día desde el filtro "Hoy" del frontend).
+    let diaUnico = null;
 
     switch (periodo) {
       case 'hoy':
         startDate = ahoraColombia().startOf('day').toDate();
         endDate = ahoraColombia().endOf('day').toDate();
+        diaUnico = ahoraColombia().format('YYYY-MM-DD');
         break;
       case 'semana':
         startDate = ahoraColombia().subtract(7, 'days').startOf('day').toDate();
@@ -2220,46 +2248,107 @@ app.get('/api/estadisticas/ventas-cruzadas', authenticateToken, checkAccess, req
         }
         startDate = moment(`${fecha_inicio} 00:00:00-05:00`).toDate();
         endDate = moment(`${fecha_fin} 23:59:59-05:00`).toDate();
+        if (fecha_inicio === fecha_fin) diaUnico = fecha_inicio;
         break;
       default:
         startDate = ahoraColombia().startOf('day').toDate();
         endDate = ahoraColombia().endOf('day').toDate();
+        diaUnico = ahoraColombia().format('YYYY-MM-DD');
     }
 
     const comoDueno = await pool.query(
       `SELECT v.modulo_id as modulo_id, m.nombre as modulo_nombre,
+              p.id as producto_id, p.nombre as producto_nombre,
               SUM(dv.cantidad) as unidades, SUM(dv.subtotal) as monto
        FROM detalle_venta dv
        JOIN ventas v ON dv.venta_id = v.id
        JOIN modulos m ON v.modulo_id = m.id
+       JOIN productos p ON dv.producto_id = p.id
        WHERE dv.modulo_dueno_id = $1 AND v.modulo_id != $1
        AND v.fecha_venta BETWEEN $2 AND $3
        AND v.es_ajuste_manual = false AND v.metodo_pago != 'consumo_propio'
-       GROUP BY v.modulo_id, m.nombre
-       ORDER BY monto DESC`,
+       GROUP BY v.modulo_id, m.nombre, p.id, p.nombre`,
       [moduloId, startDate, endDate]
     );
 
     const comoVendedor = await pool.query(
       `SELECT dv.modulo_dueno_id as modulo_id, m.nombre as modulo_nombre,
+              p.id as producto_id, p.nombre as producto_nombre,
               SUM(dv.cantidad) as unidades, SUM(dv.subtotal) as monto
        FROM detalle_venta dv
        JOIN ventas v ON dv.venta_id = v.id
        JOIN modulos m ON dv.modulo_dueno_id = m.id
+       JOIN productos p ON dv.producto_id = p.id
        WHERE v.modulo_id = $1 AND dv.modulo_dueno_id != $1
        AND v.fecha_venta BETWEEN $2 AND $3
        AND v.es_ajuste_manual = false AND v.metodo_pago != 'consumo_propio'
-       GROUP BY dv.modulo_dueno_id, m.nombre
-       ORDER BY monto DESC`,
+       GROUP BY dv.modulo_dueno_id, m.nombre, p.id, p.nombre`,
       [moduloId, startDate, endDate]
     );
 
+    // El check de "pagado" solo lo puede marcar el módulo por defecto del
+    // negocio (el primero creado, ej. "Aquí fué") — los demás módulos
+    // (ej. Lozanía, Empanadas) pueden ver el estado pero no cambiarlo.
+    const moduloDefectoResult = await pool.query(
+      'SELECT id FROM modulos WHERE negocio_id = $1 ORDER BY fecha_creacion ASC LIMIT 1',
+      [negocioId]
+    );
+    const puedeMarcarPagado = moduloDefectoResult.rows[0]?.id === Number(moduloId);
+
+    let pagado = null;
+    if (diaUnico) {
+      const pagadoResult = await pool.query(
+        'SELECT pagado FROM ventas_cruzadas_pagos WHERE negocio_id = $1 AND fecha = $2',
+        [negocioId, diaUnico]
+      );
+      pagado = pagadoResult.rows[0]?.pagado ?? false;
+    }
+
     res.json({
-      como_dueno: comoDueno.rows.map(r => ({ ...r, unidades: Number(r.unidades), monto: Number(r.monto) })),
-      como_vendedor: comoVendedor.rows.map(r => ({ ...r, unidades: Number(r.unidades), monto: Number(r.monto) }))
+      como_dueno: agruparCruzadasPorModulo(comoDueno.rows),
+      como_vendedor: agruparCruzadasPorModulo(comoVendedor.rows),
+      dia: diaUnico,
+      pagado,
+      puede_marcar_pagado: puedeMarcarPagado
     });
   } catch (error) {
     console.error('Error obteniendo ventas cruzadas:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+app.put('/api/estadisticas/ventas-cruzadas/pagado', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+  try {
+    const moduloId = req.moduloId;
+    const negocioId = req.negocioId;
+    const { fecha, pagado } = req.body;
+
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha || '')) {
+      return res.status(400).json({ error: 'fecha debe tener el formato YYYY-MM-DD' });
+    }
+    if (typeof pagado !== 'boolean') {
+      return res.status(400).json({ error: 'pagado debe ser true o false' });
+    }
+
+    const moduloDefectoResult = await pool.query(
+      'SELECT id FROM modulos WHERE negocio_id = $1 ORDER BY fecha_creacion ASC LIMIT 1',
+      [negocioId]
+    );
+    if (moduloDefectoResult.rows[0]?.id !== Number(moduloId)) {
+      return res.status(403).json({ error: 'Solo se puede marcar como pagado desde el módulo por defecto del negocio' });
+    }
+
+    await pool.query(
+      `INSERT INTO ventas_cruzadas_pagos (negocio_id, fecha, pagado, marcado_por, fecha_actualizacion)
+       VALUES ($1, $2, $3, $4, now())
+       ON CONFLICT (negocio_id, fecha)
+       DO UPDATE SET pagado = $3, marcado_por = $4, fecha_actualizacion = now()`,
+      [negocioId, fecha, pagado, req.user.id]
+    );
+
+    res.json({ fecha, pagado });
+  } catch (error) {
+    console.error('Error actualizando pagado de ventas cruzadas:', error);
     res.status(500).json({ error: 'Error interno del servidor' });
   }
 });

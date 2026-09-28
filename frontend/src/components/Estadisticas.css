@@ -860,6 +860,89 @@
   background: linear-gradient(90deg, #fc8181, #e53e3e);
 }
 
+.cruzadas-productos-lista {
+  list-style: none;
+  margin: 2px 0 0;
+  padding: 0 0 0 8px;
+  border-left: 2px solid #edf2f7;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.cruzadas-productos-lista li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 12.5px;
+  color: #718096;
+}
+
+.cruzadas-producto-nombre {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cruzadas-producto-valor {
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.pagado-dia-card {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.pagado-dia-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.pagado-dia-fecha {
+  font-weight: 600;
+  color: #2d3748;
+}
+
+.pagado-badge {
+  padding: 4px 12px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.pagado-badge.pagado {
+  background: #c6f6d5;
+  color: #22543d;
+}
+
+.pagado-badge.pendiente {
+  background: #feebc8;
+  color: #7b341e;
+}
+
+.pagado-dia-nota {
+  font-size: 12.5px;
+  color: #a0aec0;
+}
+
+.btn-toggle-pagado {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 8px;
+  background: var(--primary, #a8452f);
+  color: white;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
 /* ============================================================
    VISTA DE EVOLUCIÓN
    ============================================================ */
