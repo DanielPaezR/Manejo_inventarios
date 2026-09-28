@@ -18,6 +18,10 @@ const MESES_CORTOS = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 's
 
 const formatearRangoFechas = (inicioStr, finStr) => {
   if (!inicioStr || !finStr) return '';
+  if (inicioStr === finStr) {
+    const [, m, d] = inicioStr.split('-').map(Number);
+    return `${d} ${MESES_CORTOS[m - 1]}`;
+  }
   const [, mi, di] = inicioStr.split('-').map(Number);
   const [, mf, df] = finStr.split('-').map(Number);
   if (mi === mf) return `${di} - ${df} ${MESES_CORTOS[mi - 1]}`;
@@ -38,9 +42,11 @@ const Estadisticas = ({ user }) => {
   const [loadingCruzadas, setLoadingCruzadas] = useState(false);
 
   // Navegación ← → a bloques anteriores/siguientes cuando periodo es
-  // 'semana' o 'mes' (rolling por defecto). periodoOffset 0 = el bloque
-  // "actual" que ya devuelve el backend; -1 = el bloque inmediatamente
-  // anterior, del mismo ancho, y así sucesivamente. periodoAnchorRef
+  // 'hoy', 'semana' o 'mes' (rolling por defecto). periodoOffset 0 = el
+  // bloque "actual" que ya devuelve el backend; -1 = el bloque
+  // inmediatamente anterior, del mismo ancho (1 día / 7 días / 30 días),
+  // y así sucesivamente — para 'hoy' esto permite ver ayer, antier, etc.
+  // periodoAnchorRef
   // guarda fecha_inicio/fecha_fin/dias del bloque en offset 0 la primera
   // vez que se carga (viene del backend, ya en hora Colombia), para poder
   // calcular los bloques anteriores con aritmética de fechas pura, sin
@@ -62,7 +68,7 @@ const Estadisticas = ({ user }) => {
       if (!fechas.inicio || !fechas.fin) return null;
       return { periodo: 'personalizado', fecha_inicio: fechas.inicio, fecha_fin: fechas.fin };
     }
-    if ((periodo === 'semana' || periodo === 'mes') && periodoOffset !== 0 && periodoAnchorRef.current) {
+    if ((periodo === 'hoy' || periodo === 'semana' || periodo === 'mes') && periodoOffset !== 0 && periodoAnchorRef.current) {
       const anchor = periodoAnchorRef.current;
       const fin = sumarDiasUTC(anchor.fin, periodoOffset * anchor.dias);
       const inicio = sumarDiasUTC(fin, -(anchor.dias - 1));
@@ -86,7 +92,7 @@ const Estadisticas = ({ user }) => {
 
       // Ancla el bloque "actual" (offset 0) la primera vez que se carga,
       // para poder navegar a bloques anteriores más adelante.
-      if ((periodo === 'semana' || periodo === 'mes') && periodoOffset === 0) {
+      if ((periodo === 'hoy' || periodo === 'semana' || periodo === 'mes') && periodoOffset === 0) {
         periodoAnchorRef.current = {
           inicio: response.data.periodoInfo.fecha_inicio,
           fin: response.data.periodoInfo.fecha_fin,
@@ -449,17 +455,18 @@ const Estadisticas = ({ user }) => {
           </button>
         </div>
 
-        {/* Navegar a la semana/mes anterior o siguiente, del mismo ancho
+        {/* Navegar al día/semana/mes anterior o siguiente, del mismo ancho
             que el bloque "actual" — útil para comparar contra períodos
-            pasados sin tener que escribir fechas a mano. */}
-        {(periodo === 'semana' || periodo === 'mes') && (
+            pasados (ej. "¿cuánto vendí ayer?") sin tener que escribir
+            fechas a mano. */}
+        {(periodo === 'hoy' || periodo === 'semana' || periodo === 'mes') && (
           <div className="periodo-navegacion">
             <button
               type="button"
               onClick={() => setPeriodoOffset(o => o - 1)}
               disabled={loading}
               className="btn-icono"
-              title={periodo === 'semana' ? 'Semana anterior' : 'Mes anterior'}
+              title={periodo === 'hoy' ? 'Día anterior' : periodo === 'semana' ? 'Semana anterior' : 'Mes anterior'}
             >
               ←
             </button>
@@ -473,7 +480,7 @@ const Estadisticas = ({ user }) => {
               onClick={() => setPeriodoOffset(o => Math.min(0, o + 1))}
               disabled={loading || periodoOffset === 0}
               className="btn-icono"
-              title={periodo === 'semana' ? 'Semana siguiente' : 'Mes siguiente'}
+              title={periodo === 'hoy' ? 'Día siguiente' : periodo === 'semana' ? 'Semana siguiente' : 'Mes siguiente'}
             >
               →
             </button>
