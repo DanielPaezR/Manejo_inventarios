@@ -107,6 +107,7 @@ const Dashboard = ({ user, onLogout }) => {
       { path: '/pedidos-cliente', icon: '🧾', label: 'Pedidos de Clientes' },
       { path: '/ruta-entregas', icon: '🛵', label: 'Ruta de Entregas' },
       { path: '/clientes', icon: '👤', label: 'Clientes' },            // ✅ NUEVO
+      { path: '/facturas', icon: '🔎', label: 'Buscar Factura' },
       { path: '/finanzas', icon: '💰', label: 'Finanzas' },            // ✅ NUEVO
       { path: '/finanzas-negocio', icon: '🧮', label: 'Finanzas del Negocio' },
     ],

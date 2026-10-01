@@ -308,6 +308,20 @@ const Factura = ({ venta, onClose }) => {
             {venta.cliente_telefono && <p><strong>Teléfono:</strong> {venta.cliente_telefono}</p>}
           </div>
 
+          {/* Deuda del cliente — solo aparece si la venta tiene un cliente
+              asociado (cliente_deuda_actual viene null para consumidor
+              final). Es la deuda ACTUAL del cliente en el módulo, no solo
+              de esta venta, para poder revisar cuentas pendientes de un
+              vistazo al consultar cualquier factura suya. */}
+          {venta.cliente_deuda_actual !== null && venta.cliente_deuda_actual !== undefined && (
+            <div className={`factura-deuda ${Number(venta.cliente_deuda_actual) > 0 ? 'con-deuda' : 'sin-deuda'}`}>
+              <strong>Deuda actual del cliente:</strong>{' '}
+              {Number(venta.cliente_deuda_actual) > 0
+                ? `$${formatearNumero(venta.cliente_deuda_actual)}`
+                : 'Sin deuda pendiente'}
+            </div>
+          )}
+
           {/* Detalles de la factura */}
           <div className="factura-items">
             <table>

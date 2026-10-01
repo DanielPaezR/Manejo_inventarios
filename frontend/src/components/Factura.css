@@ -156,6 +156,26 @@
   margin: 2px 0;
 }
 
+/* Deuda del cliente */
+.factura-deuda {
+  margin: 10px 0;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+}
+
+.factura-deuda.con-deuda {
+  background: #fff5f5;
+  color: #c53030;
+  border-left: 3px solid #e53e3e;
+}
+
+.factura-deuda.sin-deuda {
+  background: #f0fff4;
+  color: #276749;
+  border-left: 3px solid #48bb78;
+}
+
 /* Items */
 .factura-items {
   margin: 12px 0;

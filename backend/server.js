@@ -1459,6 +1459,40 @@ app.get('/api/ventas', authenticateToken, checkAccess, async (req, res) => {
   }
 });
 
+// Buscador de facturas por número (ej. "FAC001231") — para revisar rápido
+// qué se compró y cuándo, pegando el serial impreso en el recibo. Búsqueda
+// parcial e insensible a mayúsculas (no hace falta copiar el número
+// completo), acotada al módulo activo porque numero_factura solo es único
+// dentro de cada módulo (cada uno tiene su propia secuencia). Devuelve una
+// lista liviana; el detalle completo se pide aparte con GET /:id/factura.
+app.get('/api/ventas/buscar-factura', authenticateToken, checkAccess, async (req, res) => {
+  try {
+    const moduloId = req.moduloId;
+    const q = (req.query.q || '').trim();
+
+    if (!moduloId) {
+      return res.status(400).json({ error: 'Se requiere un módulo' });
+    }
+    if (!q) {
+      return res.status(400).json({ error: 'Se requiere un término de búsqueda (q)' });
+    }
+
+    const result = await pool.query(
+      `SELECT v.id, v.numero_factura, v.fecha_venta, v.cliente_nombre, v.total, v.metodo_pago, v.es_ajuste_manual
+       FROM ventas v
+       WHERE v.modulo_id = $1 AND UPPER(v.numero_factura) LIKE '%' || UPPER($2) || '%'
+       ORDER BY v.fecha_venta DESC
+       LIMIT 20`,
+      [moduloId, q]
+    );
+
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error buscando factura:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
 app.get('/api/ventas/:id/factura', authenticateToken, checkAccess, async (req, res) => {
   try {
     const { id } = req.params;
@@ -1469,7 +1503,7 @@ app.get('/api/ventas/:id/factura', authenticateToken, checkAccess, async (req, r
     }
 
     const result = await pool.query(
-      `SELECT v.*, 
+      `SELECT v.*,
               n.nombre as negocio_nombre,
               n.direccion as negocio_direccion,
               n.telefono as negocio_telefono,
@@ -1477,6 +1511,13 @@ app.get('/api/ventas/:id/factura', authenticateToken, checkAccess, async (req, r
               n.ruc_nit as negocio_ruc_nit,
               m.nombre as modulo_nombre,
               u.nombre as vendedor_nombre,
+              CASE WHEN v.cliente_id IS NOT NULL THEN (
+                (SELECT COALESCE(SUM(v2.total), 0) FROM ventas v2
+                 WHERE v2.modulo_id = v.modulo_id AND v2.cliente_id = v.cliente_id AND v2.metodo_pago = 'credito')
+                -
+                (SELECT COALESCE(SUM(mc.monto), 0) FROM movimientos_caja mc
+                 WHERE mc.cliente_id = v.cliente_id AND mc.origen = 'manual' AND mc.categoria = 'abono_credito')
+              ) ELSE NULL END AS cliente_deuda_actual,
               json_agg(
                 json_build_object(
                   'producto_nombre', p.nombre,

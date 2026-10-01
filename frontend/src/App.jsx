@@ -11,6 +11,7 @@ import Reportes from './components/Reportes';
 import Proveedores from './components/Proveedores';
 import Pedidos from './components/Pedidos';
 import Clientes from './components/Clientes';
+import BuscarFactura from './components/BuscarFactura';
 import Finanzas from './components/Finanzas';
 import FinanzasNegocio from './components/FinanzasNegocio';
 import PedidosCliente from './components/PedidosCliente';
@@ -96,6 +97,7 @@ function App() {
               <Route path="proveedores" element={<Proveedores user={user} />} />
               <Route path="pedidos" element={<Pedidos user={user} />} />
               <Route path="clientes" element={<Clientes user={user} />} />
+              <Route path="facturas" element={<BuscarFactura user={user} />} />
               <Route path="finanzas" element={<Finanzas user={user} />} />
               <Route path="finanzas-negocio" element={<FinanzasNegocio user={user} />} />
               <Route path="pedidos-cliente" element={<PedidosCliente user={user} />} />

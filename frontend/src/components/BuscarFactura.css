@@ -1,0 +1,164 @@
+.buscar-factura-container {
+  padding: 24px;
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+.bf-sin-modulo {
+  text-align: center;
+  color: #718096;
+  padding: 40px 0;
+}
+
+.bf-header {
+  margin-bottom: 20px;
+}
+
+.bf-header h2 {
+  margin: 0 0 6px 0;
+  color: #2d3748;
+}
+
+.bf-subtitulo {
+  color: #718096;
+  font-size: 14px;
+  margin: 0;
+}
+
+.bf-buscador {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.bf-input {
+  flex: 1;
+  padding: 12px 16px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  font-size: 16px;
+  text-transform: uppercase;
+}
+
+.bf-input:focus {
+  outline: none;
+  border-color: var(--primary, #a8452f);
+}
+
+.bf-cargando {
+  color: #718096;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.bf-error {
+  color: #c53030;
+  background: #fff5f5;
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 14px;
+}
+
+.bf-sin-resultados {
+  color: #718096;
+  text-align: center;
+  padding: 24px 0;
+}
+
+.bf-resultados {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.bf-resultado-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+  text-align: left;
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 12px 16px;
+  cursor: pointer;
+  transition: all 0.15s;
+  font-family: inherit;
+}
+
+.bf-resultado-item:hover {
+  border-color: var(--primary, #a8452f);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+.bf-resultado-item:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.bf-resultado-principal {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.bf-resultado-numero {
+  font-weight: 700;
+  color: var(--primary-dark, #7a3322);
+  font-family: 'Courier New', monospace;
+}
+
+.bf-resultado-cliente {
+  color: #2d3748;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bf-resultado-secundario {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-size: 13px;
+  color: #718096;
+}
+
+.bf-resultado-total {
+  margin-left: auto;
+  font-weight: 700;
+  color: #2d3748;
+}
+
+.bf-badge-metodo {
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: #edf2f7;
+  color: #4a5568;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.bf-metodo-credito {
+  background: #fed7aa;
+  color: #7c2d12;
+}
+
+@media (max-width: 480px) {
+  .buscar-factura-container {
+    padding: 16px;
+  }
+
+  .bf-resultado-secundario {
+    font-size: 12px;
+  }
+
+  .bf-resultado-total {
+    margin-left: 0;
+    width: 100%;
+    text-align: right;
+  }
+}
