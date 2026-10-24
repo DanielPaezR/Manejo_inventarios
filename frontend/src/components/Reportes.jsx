@@ -93,13 +93,6 @@ const Reportes = ({ user }) => {
 
   return (
     <div className="reportes-container">
-      <div className="reportes-header">
-        <h2>📄 Reportes</h2>
-        <div className="modulo-indicador">
-          <span className="badge">Módulo: {moduloActivo.nombre}</span>
-        </div>
-      </div>
-
       <div className="reportes-config">
         <div className="config-section">
           <h3>Configuración del Reporte</h3>

@@ -78,7 +78,6 @@ const FinanzasNegocio = ({ user }) => {
   return (
     <div className="fn-container">
       <div className="fn-header">
-        <h2>🧮 Finanzas del Negocio</h2>
         <p className="fn-subtitulo">Vista consolidada de todos los módulos — para planear, no para el día a día operativo (eso sigue en Finanzas).</p>
       </div>
 

@@ -42,8 +42,8 @@
   justify-content: space-between;
   align-items: center;
   padding: 16px 20px;
-  border-bottom: 1px solid #e2e8f0;
-  background: #f7fafc;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-subtle);
   flex-shrink: 0;
 }
 
@@ -56,12 +56,12 @@
 .header-left h3 {
   margin: 0;
   font-size: 18px;
-  color: #2d3748;
+  color: var(--text-strong);
 }
 
 .factura-numero {
   font-size: 12px;
-  background: #fdf3ea;
+  background: var(--brand-50);
   color: var(--primary-dark);
   padding: 2px 10px;
   border-radius: 12px;
@@ -84,16 +84,16 @@
 }
 
 .header-actions button:hover {
-  background: #edf2f7;
+  background: var(--surface-muted);
 }
 
 .btn-cerrar {
   font-size: 20px !important;
-  color: #a0aec0;
+  color: var(--text-faint);
 }
 
 .btn-cerrar:hover {
-  color: #e53e3e !important;
+  color: var(--danger) !important;
 }
 
 /* ============================================================
@@ -112,7 +112,7 @@
 /* Cabecera */
 .factura-header {
   text-align: center;
-  border-bottom: 2px double #2d3748;
+  border-bottom: 2px double var(--text-strong);
   padding-bottom: 12px;
   margin-bottom: 12px;
 }
@@ -120,12 +120,12 @@
 .factura-header h2 {
   font-size: 18px;
   margin: 0 0 4px 0;
-  color: #2d3748;
+  color: var(--text-strong);
 }
 
 .negocio-datos {
   font-size: 11px;
-  color: #4a5568;
+  color: var(--text-default);
   line-height: 1.4;
 }
 
@@ -146,7 +146,7 @@
 .factura-cliente {
   margin: 10px 0;
   padding: 8px 12px;
-  background: #f7fafc;
+  background: var(--surface-subtle);
   border-radius: 6px;
   font-size: 12px;
   border-left: 3px solid var(--primary);
@@ -165,15 +165,15 @@
 }
 
 .factura-deuda.con-deuda {
-  background: #fff5f5;
-  color: #c53030;
-  border-left: 3px solid #e53e3e;
+  background: var(--danger-50);
+  color: var(--danger);
+  border-left: 3px solid var(--danger);
 }
 
 .factura-deuda.sin-deuda {
-  background: #f0fff4;
+  background: var(--success-50);
   color: #276749;
-  border-left: 3px solid #48bb78;
+  border-left: 3px solid var(--success);
 }
 
 /* Items */
@@ -188,18 +188,18 @@
 }
 
 .factura-items th {
-  background: #edf2f7;
+  background: var(--surface-muted);
   padding: 6px 8px;
   text-align: left;
   font-weight: 600;
   font-size: 11px;
-  color: #2d3748;
-  border-bottom: 2px solid #2d3748;
+  color: var(--text-strong);
+  border-bottom: 2px solid var(--text-strong);
 }
 
 .factura-items td {
   padding: 5px 8px;
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid var(--border);
 }
 
 .factura-items tr:last-child td {
@@ -209,7 +209,7 @@
 /* Totales */
 .factura-totales {
   margin-top: 12px;
-  border-top: 2px solid #2d3748;
+  border-top: 2px solid var(--text-strong);
   padding-top: 10px;
 }
 
@@ -223,14 +223,14 @@
 .total-linea.total {
   font-size: 16px;
   font-weight: bold;
-  border-top: 1px solid #2d3748;
+  border-top: 1px solid var(--text-strong);
   padding-top: 6px;
   margin-top: 4px;
 }
 
 .factura-numero-letras {
   font-size: 11px;
-  color: #718096;
+  color: var(--text-muted);
   margin-top: 6px;
   text-align: right;
   font-style: italic;
@@ -241,9 +241,9 @@
   text-align: center;
   margin-top: 14px;
   padding-top: 10px;
-  border-top: 1px dashed #cbd5e0;
+  border-top: 1px dashed var(--border-strong);
   font-size: 12px;
-  color: #4a5568;
+  color: var(--text-default);
 }
 
 .factura-footer p {
@@ -252,7 +252,7 @@
 
 .factura-footer .factura-legal {
   font-size: 10px;
-  color: #a0aec0;
+  color: var(--text-faint);
 }
 
 /* ============================================================
@@ -262,8 +262,8 @@
   display: flex;
   gap: 10px;
   padding: 14px 20px;
-  border-top: 1px solid #e2e8f0;
-  background: #f7fafc;
+  border-top: 1px solid var(--border);
+  background: var(--surface-subtle);
   flex-shrink: 0;
   flex-wrap: wrap;
 }
@@ -289,22 +289,22 @@
 }
 
 .btn-descargar-footer {
-  background: #48bb78;
+  background: var(--success);
   color: white;
 }
 
 .btn-descargar-footer:hover {
-  background: #38a169;
+  background: var(--success);
   transform: translateY(-1px);
 }
 
 .btn-cerrar-factura {
-  background: #e2e8f0;
-  color: #2d3748;
+  background: var(--border);
+  color: var(--text-strong);
 }
 
 .btn-cerrar-factura:hover {
-  background: #cbd5e0;
+  background: var(--border-strong);
 }
 
 /* ============================================================

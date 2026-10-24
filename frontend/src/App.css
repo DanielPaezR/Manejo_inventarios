@@ -1,17 +1,139 @@
-/* Paleta "campo/madera" compartida por toda la app — mismos tonos que el
-   fondo del login (terracota del techo, marrón cálido, crema de luz de
-   fondo). PROTOTIPO: por ahora solo la consumen Dashboard.css (sus
-   propias variables --accent-blue/--focus-ring/etc. redefinidas con
-   estos valores) y Ventas.css, mientras se valida con el usuario antes
-   de migrar el resto de los .css (que hoy tienen el azul #4299e1
-   hardcodeado, sin variables). */
+/* ============================================================
+   SISTEMA DE DISEÑO — tokens compartidos por toda la app.
+   Pensado para venderse a otros negocios: la identidad de cada uno sale
+   de --brand (un solo color); toda la escala de marca se deriva de ahí
+   con color-mix, así que cambiar ese valor re-tematiza la app completa.
+   ============================================================ */
 :root {
-  --primary: #a8452f;
-  --primary-dark: #7c3220;
-  --accent: #d98e3b;
+  --brand: #b0452c;
+  --brand-50: color-mix(in srgb, var(--brand) 7%, white);
+  --brand-100: color-mix(in srgb, var(--brand) 15%, white);
+  --brand-200: color-mix(in srgb, var(--brand) 30%, white);
+  --brand-600: color-mix(in srgb, var(--brand) 88%, black);
+  --brand-700: color-mix(in srgb, var(--brand) 72%, black);
+  --on-brand: #ffffff;
+
+  /* Neutros cálidos: madera clara en vez del gris azulado genérico. */
+  --bg: #f6f3ee;
+  --surface: #ffffff;
+  --surface-subtle: #faf8f5;
+  --surface-muted: #f1ece5;
+  --border: #e6dfd5;
+  --border-strong: #d3c9bc;
+  --text-strong: #1f1813;
+  --text-default: #3a2f27;
+  --text-muted: #6f6257;
+  --text-faint: #9a8d81;
+
+  /* Menú lateral: madera quemada. */
+  --sidebar-bg: #1d1712;
+  --sidebar-border: rgba(255, 255, 255, 0.06);
+  --sidebar-text: #d8cec3;
+  --sidebar-text-muted: #8e8175;
+  --sidebar-hover: rgba(255, 255, 255, 0.06);
+  --sidebar-active: rgba(255, 255, 255, 0.1);
+
+  --success: #2f7a4a;
+  --success-50: #edf6f0;
+  --warning: #b26b12;
+  --warning-50: #fdf5e8;
+  --danger: #c0392b;
+  --danger-50: #fdf0ee;
+
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+
+  --shadow-xs: 0 1px 2px rgba(31, 24, 19, 0.06);
+  --shadow-sm: 0 1px 3px rgba(31, 24, 19, 0.08), 0 1px 2px rgba(31, 24, 19, 0.04);
+  --shadow-md: 0 4px 14px rgba(31, 24, 19, 0.08), 0 2px 4px rgba(31, 24, 19, 0.04);
+  --shadow-lg: 0 16px 40px rgba(31, 24, 19, 0.16);
+  --focus-ring: 0 0 0 3px color-mix(in srgb, var(--brand) 28%, transparent);
+
+  --font-sans: 'Inter Variable', 'Segoe UI', system-ui, -apple-system, sans-serif;
+
+  /* Nombres heredados que aún usan muchos .css de componentes. */
+  --primary: var(--brand);
+  --primary-dark: var(--brand-700);
+  --accent: #c98a2e;
 }
 
-/* Estilos generales */
+/* ============================================================
+   BASE
+   ============================================================ */
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  font-family: var(--font-sans);
+  background: var(--bg);
+  color: var(--text-default);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-feature-settings: 'cv11', 'ss01';
+}
+
+button,
+input,
+select,
+textarea {
+  font-family: inherit;
+  color: inherit;
+}
+
+h1, h2, h3, h4 {
+  color: var(--text-strong);
+  letter-spacing: -0.01em;
+  line-height: 1.25;
+}
+
+::selection {
+  background: var(--brand-100);
+  color: var(--text-strong);
+}
+
+:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  outline: none;
+  border-color: var(--brand) !important;
+  box-shadow: var(--focus-ring);
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: 8px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* Números alineados (precios, totales, tablas). */
+.tabular,
+table td,
+table th {
+  font-variant-numeric: tabular-nums;
+}
+
 .app {
   min-height: 100vh;
 }
@@ -21,15 +143,9 @@
   justify-content: center;
   align-items: center;
   height: 100vh;
-  font-size: 1.2rem;
+  font-size: 1.1rem;
+  color: var(--text-muted);
 }
-
-/* .login-container/.login-form vivían acá antes de que Login.jsx tuviera
-   su propio Login.css — quedaban muertos (login-form ya no se usa en
-   ningún componente) pero seguían ganando la cascada sobre .login-container
-   de Login.css por cargar después en el bundle, tapando por completo el
-   fondo nuevo del login. Se quitan de acá; Login.css es ahora la única
-   fuente de esas reglas. */
 
 .form-group {
   margin-bottom: 1rem;
@@ -37,134 +153,348 @@
 
 .form-group label {
   display: block;
-  margin-bottom: 0.5rem;
-  color: #555;
+  margin-bottom: 0.4rem;
+  color: var(--text-default);
+  font-weight: 500;
+  font-size: 13px;
 }
 
 .form-group input {
   width: 100%;
-  padding: 0.75rem;
-  border: 1px solid #ddd;
-  border-radius: var(--radius-sm, 10px);
-  font-size: 1rem;
-  transition: border-color 0.2s ease;
-}
-
-.form-group input:focus {
-  outline: none;
-  border-color: var(--primary);
+  padding: 0.7rem 0.85rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 0.95rem;
+  background: var(--surface);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
 .btn {
   width: 100%;
-  padding: 0.75rem;
-  background: var(--primary);
-  color: white;
+  padding: 0.7rem;
+  background: var(--brand);
+  color: var(--on-brand);
   border: none;
-  border-radius: var(--radius-sm, 10px);
-  font-size: 1rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.95rem;
+  font-weight: 600;
   cursor: pointer;
-  transition: all 0.25s ease;
+  box-shadow: var(--shadow-xs), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  transition: background 0.15s ease, box-shadow 0.15s ease, transform 0.1s ease;
 }
 
 .btn:hover {
-  background: var(--primary-dark);
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(168, 69, 47, 0.3);
+  background: var(--brand-600);
 }
 
 .btn:active {
-  transform: translateY(0);
+  transform: translateY(1px);
 }
 
-/* Dashboard */
-.dashboard {
-  display: flex;
-  min-height: 100vh;
-}
-
-.sidebar {
-  width: 250px;
-  background: #2c3e50;
-  color: white;
-  padding: 1rem 0;
-}
-
-.sidebar-header {
-  padding: 0 1rem 1rem;
-  border-bottom: 1px solid #34495e;
-}
-
-.sidebar-nav {
-  list-style: none;
-  padding: 1rem 0;
-}
-
-.sidebar-nav li {
-  margin-bottom: 0.5rem;
-}
-
-.sidebar-nav a {
-  display: block;
-  padding: 0.75rem 1rem;
-  color: #bdc3c7;
-  text-decoration: none;
-  transition: all 0.3s;
-}
-
-.sidebar-nav a:hover,
-.sidebar-nav a.active {
-  background: #34495e;
-  color: white;
-}
-
-.main-content {
-  flex: 1;
-  padding: 1rem;
-  background: #ecf0f1;
-}
-
-.header {
-  background: white;
-  padding: 1rem;
-  border-radius: var(--radius-md, 16px);
-  margin-bottom: 1rem;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  box-shadow: 0 2px 8px rgba(59, 42, 32, 0.08);
-}
-
-/* Componentes específicos — .card se usa en casi toda la app (Ruta de
-   Entregas, Finanzas, Pedidos, etc.), así que este radio/sombra más suave
-   se nota en todas partes con un solo cambio acá. */
+/* .card se usa en casi toda la app (Finanzas, Estadísticas, Pedidos...):
+   borde fino + sombra mínima en vez de sombra grande difusa. */
 .card {
-  background: white;
-  padding: 1.5rem;
-  border-radius: var(--radius-md, 16px);
-  box-shadow: 0 2px 12px rgba(59, 42, 32, 0.08);
+  background: var(--surface);
+  padding: 1.25rem 1.5rem;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-xs);
   margin-bottom: 1rem;
 }
 
 .alertas {
-  background: #fff3cd;
-  border: 1px solid #ffeaa7;
-  border-radius: var(--radius-sm, 10px);
+  background: var(--warning-50);
+  border: 1px solid color-mix(in srgb, var(--warning) 25%, white);
+  border-radius: var(--radius-md);
   padding: 1rem;
   margin-bottom: 1rem;
 }
 
-/* Responsive */
-@media (max-width: 768px) {
-  .dashboard {
-    flex-direction: column;
-  }
-  
-  .sidebar {
-    width: 100%;
-  }
-  
-  .main-content {
-    padding: 0.5rem;
-  }
+/* ============================================================
+   COMPONENTES COMPARTIDOS
+   Varias pantallas reutilizan estos nombres de clase con definiciones
+   distintas en su propio .css. Como todo el CSS es global (gana el que
+   carga último) y App.css carga después de los componentes, esta capa
+   los deja iguales en toda la app. Solo toca la apariencia, no el
+   posicionamiento propio de cada pantalla.
+   ============================================================ */
+
+/* Encabezado de cada pantalla: el título y el módulo ya están en la
+   barra superior, aquí solo quedan las acciones de la pantalla. */
+.productos-header,
+.estadisticas-header,
+.proveedores-header,
+.pedidos-header,
+.pedidos-cliente-header,
+.clientes-header,
+.negocios-header,
+.finanzas-header {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 0 0 20px;
+  padding: 0;
+  border: none;
+}
+
+.estadisticas-header {
+  justify-content: flex-start;
+}
+
+/* Botones primarios */
+.btn-agregar,
+.btn-agregar-primero,
+.btn-guardar,
+.btn-primary,
+.btn-aplicar,
+.btn-buscar,
+.btn-guardar-cliente {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 38px;
+  padding: 0 16px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: var(--brand);
+  color: var(--on-brand);
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: var(--shadow-xs), inset 0 1px 0 rgba(255, 255, 255, 0.14);
+  transition: background 0.15s ease, transform 0.1s ease;
+}
+
+.btn-agregar:hover:not(:disabled),
+.btn-agregar-primero:hover:not(:disabled),
+.btn-guardar:hover:not(:disabled),
+.btn-primary:hover:not(:disabled),
+.btn-aplicar:hover:not(:disabled),
+.btn-buscar:hover:not(:disabled),
+.btn-guardar-cliente:hover:not(:disabled) {
+  background: var(--brand-600);
+  transform: none;
+  box-shadow: var(--shadow-xs), inset 0 1px 0 rgba(255, 255, 255, 0.14);
+}
+
+.btn-agregar:active:not(:disabled),
+.btn-guardar:active:not(:disabled),
+.btn-primary:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.btn-agregar:disabled,
+.btn-guardar:disabled,
+.btn-primary:disabled,
+.btn-guardar-cliente:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* Botones secundarios */
+.btn-cancelar,
+.btn-limpiar,
+.btn-secundario,
+.btn-cancelar-cliente,
+.btn-cerrar-factura {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 38px;
+  padding: 0 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text-default);
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: var(--shadow-xs);
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.btn-cancelar:hover,
+.btn-limpiar:hover,
+.btn-secundario:hover,
+.btn-cancelar-cliente:hover,
+.btn-cerrar-factura:hover {
+  background: var(--surface-subtle);
+  border-color: var(--border-strong);
+  transform: none;
+}
+
+/* Pestañas de vista (Estadísticas, Finanzas del Negocio) */
+.btn-vista,
+.fn-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 14px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text-default);
+  font-size: 13px;
+  font-weight: 550;
+  cursor: pointer;
+  box-shadow: none;
+  transform: none;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.btn-vista:hover,
+.fn-tab:hover {
+  border-color: var(--border-strong);
+  background: var(--surface-subtle);
+  transform: none;
+}
+
+.btn-vista.active,
+.fn-tab.active {
+  background: var(--text-strong);
+  border-color: var(--text-strong);
+  color: #fff;
+  box-shadow: var(--shadow-xs);
+}
+
+/* Selector segmentado de período (Hoy / Semana / Mes...) */
+.periodo-selector {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  padding: 3px;
+  background: var(--surface-muted);
+  border-radius: var(--radius-sm);
+}
+
+.btn-periodo {
+  height: 32px;
+  padding: 0 14px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 550;
+  cursor: pointer;
+  box-shadow: none;
+  transform: none;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.btn-periodo:hover {
+  color: var(--text-strong);
+  background: transparent;
+  transform: none;
+}
+
+.btn-periodo.active {
+  background: var(--surface);
+  color: var(--text-strong);
+  box-shadow: var(--shadow-sm);
+}
+
+/* Modales */
+.modal,
+.modal-overlay,
+.cliente-modal,
+.factura-modal {
+  background: rgba(20, 15, 11, 0.5);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+}
+
+.modal-content,
+.modal-container,
+.cliente-modal-content,
+.factura-modal-content {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+}
+
+.modal-header,
+.cliente-modal-header,
+.factura-modal-header {
+  border-bottom: 1px solid var(--border);
+}
+
+.modal-header h2,
+.modal-header h3,
+.cliente-modal-header h3,
+.factura-modal-header h3 {
+  font-size: 17px;
+  font-weight: 650;
+  color: var(--text-strong);
+}
+
+.modal-footer {
+  border-top: 1px solid var(--border);
+}
+
+/* Campos de formulario */
+.form-group input:not([type='checkbox']):not([type='radio']):not([type='file']),
+.form-group select,
+.form-group textarea,
+.modal-content input:not([type='checkbox']):not([type='radio']):not([type='file']),
+.modal-content select,
+.modal-content textarea {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text-strong);
+  font-size: 14px;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.form-group input:not([type='checkbox']):not([type='radio']):not([type='file']):hover,
+.form-group select:hover,
+.form-group textarea:hover {
+  border-color: var(--border-strong);
+}
+
+/* Estados vacíos, carga y avisos */
+.sin-datos {
+  color: var(--text-muted);
+}
+
+.spinner {
+  border-color: var(--surface-muted);
+  border-top-color: var(--brand);
+}
+
+.alert-warning {
+  background: var(--warning-50);
+  border: 1px solid color-mix(in srgb, var(--warning) 25%, white);
+  color: var(--warning);
+  border-radius: var(--radius-md);
+}
+
+.mensaje-flotante {
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+}
+
+.mensaje-flotante.exito {
+  background: var(--success-50);
+  color: var(--success);
+  border: 1px solid color-mix(in srgb, var(--success) 25%, white);
+}
+
+.mensaje-flotante.error {
+  background: var(--danger-50);
+  color: var(--danger);
+  border: 1px solid color-mix(in srgb, var(--danger) 25%, white);
+}
+
+/* Tablas */
+table th {
+  color: var(--text-muted);
+  font-weight: 600;
 }

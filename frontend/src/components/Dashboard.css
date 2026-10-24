@@ -1,413 +1,300 @@
 /* ============================================================
-   DASHBOARD - VERSIÓN PREMIUM DEFINITIVA (contraste corregido)
+   MARCO DE LA APP: menú lateral + barra superior + contenido.
+   Usa los tokens de App.css (--brand, --sidebar-*, --border...).
    ============================================================ */
-
-/* ----------------------------------------------------------
-   TOKENS DE COLOR
-   ---------------------------------------------------------- */
-:root {
-  /* Paleta "campo/madera" (PROTOTIPO, en validación con el usuario antes
-     de extenderla al resto de la app) — mismos tonos que el fondo del
-     login: terracota del techo, marrón cálido de la madera, crema de la
-     luz de fondo. Los NOMBRES de variable no cambian (siguen siendo
-     --accent-blue, --focus-ring, etc. por compatibilidad con el resto de
-     este archivo que ya las usa) aunque el VALOR ya no sea azul. */
-  --bg-app: #f5efe6;
-
-  --navbar-grad-1: rgba(42, 29, 20, 0.88);
-  --navbar-grad-2: rgba(74, 53, 39, 0.88);
-
-  --text-on-dark: #ffffff;
-  --text-on-dark-muted: rgba(255, 255, 255, 0.7);
-  --text-on-dark-faint: rgba(255, 255, 255, 0.45);
-
-  --text-strong: #2a1d14;
-  --text-default: #3b2a20;
-  --text-muted: #6b5745;
-  --text-muted-soft: #7d6a58;
-
-  --link: #a8452f;
-  --link-bg-hover: #fdf3ea;
-
-  --accent-blue: #a8452f;
-  --accent-blue-soft: #d98e3b;
-
-  --danger: #c53030;
-  --danger-soft-bg: #fff5f5;
-
-  --border: #e8ddd0;
-  --border-soft: #fbf6ef;
-
-  --focus-ring: #a8452f;
-
-  /* Radios de borde compartidos — "menos cuadrado" en toda la app.
-     sm para inputs/botones chicos, md para cards, lg para modales/hero. */
-  --radius-sm: 10px;
-  --radius-md: 16px;
-  --radius-lg: 22px;
-}
-
 .dashboard {
   display: flex;
-  flex-direction: column;
   min-height: 100vh;
-  background: var(--bg-app);
+  background: var(--bg);
+}
+
+.dashboard-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 /* ============================================================
-   NAVBAR SUPERIOR
+   MENÚ LATERAL
    ============================================================ */
-.navbar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 0 24px;
-  height: 68px;
-  background: linear-gradient(135deg, var(--navbar-grad-1) 0%, var(--navbar-grad-2) 50%, var(--navbar-grad-1) 100%);
-  /* Efecto vidrio, igual criterio que la tarjeta del login: el gradiente
-     de fondo ahora lleva algo de transparencia (ver --navbar-grad-1/-2 en
-     :root) y backdrop-filter difumina lo que quede debajo al hacer scroll,
-     ya que el navbar es sticky. */
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
-  color: var(--text-on-dark);
+.sidebar {
   position: sticky;
   top: 0;
-  z-index: 100;
-  box-shadow: 0 2px 16px rgba(0, 0, 0, 0.25);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  height: 100vh;
+  width: 248px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--sidebar-bg);
+  /* Veta sutil de madera quemada: un degradado casi imperceptible le quita
+     el aspecto de bloque plano sin competir con el contenido. */
+  background-image:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.025) 0%, rgba(255, 255, 255, 0) 40%),
+    linear-gradient(90deg, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 0.18) 100%);
+  color: var(--sidebar-text);
+  border-right: 1px solid var(--sidebar-border);
+  transition: width 0.2s ease;
+  z-index: 60;
 }
 
-.navbar-left {
+.sidebar.collapsed {
+  width: 68px;
+}
+
+.sidebar-brand {
   display: flex;
   align-items: center;
+  gap: 12px;
+  height: 60px;
+  padding: 0 18px;
+  border-bottom: 1px solid var(--sidebar-border);
+  flex-shrink: 0;
+}
+
+.sidebar.collapsed .sidebar-brand {
+  justify-content: center;
+  padding: 0;
+}
+
+.sidebar-brand-mark {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  color: var(--on-brand);
+  background: linear-gradient(145deg, color-mix(in srgb, var(--brand) 80%, white), var(--brand-700));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25), 0 2px 6px rgba(0, 0, 0, 0.35);
+}
+
+.sidebar-brand-text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
+  min-width: 0;
+}
+
+.sidebar-brand-text strong {
+  color: #fff;
+  font-size: 14px;
+  font-weight: 650;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sidebar-brand-text small {
+  color: var(--sidebar-text-muted);
+  font-size: 11.5px;
+}
+
+.sidebar-nav {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px 10px;
+}
+
+.sidebar-nav::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.nav-menu {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.nav-item a,
+.nav-link-btn {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 9px 12px;
+  border-radius: var(--radius-sm);
+  color: var(--sidebar-text);
+  text-decoration: none;
+  font-size: 13.5px;
+  font-weight: 500;
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.nav-item a:hover,
+.nav-link-btn:hover {
+  background: var(--sidebar-hover);
+  color: #fff;
+}
+
+.nav-item.active a {
+  background: var(--sidebar-active);
+  color: #fff;
+  font-weight: 600;
+}
+
+/* Marca activa: barra del color del negocio pegada al borde. */
+.nav-item.active a::before {
+  content: '';
+  position: absolute;
+  left: -10px;
+  top: 8px;
+  bottom: 8px;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: var(--brand);
+}
+
+.nav-icon {
+  flex-shrink: 0;
+  color: var(--sidebar-text-muted);
+  transition: color 0.15s ease;
+}
+
+.nav-item a:hover .nav-icon,
+.nav-link-btn:hover .nav-icon {
+  color: var(--sidebar-text);
+}
+
+.nav-item.active .nav-icon {
+  color: color-mix(in srgb, var(--brand) 55%, white);
+}
+
+.nav-label {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sidebar.collapsed .nav-item a,
+.sidebar.collapsed .nav-link-btn {
+  justify-content: center;
+  padding: 10px;
+}
+
+.sidebar-footer {
+  padding: 10px;
+  border-top: 1px solid var(--sidebar-border);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.sidebar-version {
+  padding: 2px 12px;
+  font-size: 11px;
+  color: var(--sidebar-text-muted);
+}
+
+/* ============================================================
+   BARRA SUPERIOR
+   ============================================================ */
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   gap: 16px;
+  padding: 0 28px;
+  background: color-mix(in srgb, var(--bg) 82%, transparent);
+  backdrop-filter: saturate(160%) blur(12px);
+  -webkit-backdrop-filter: saturate(160%) blur(12px);
+  border-bottom: 1px solid var(--border);
+}
+
+.topbar-left,
+.topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
 }
 
 .btn-toggle-sidebar {
-  background: rgba(255, 255, 255, 0.08);
-  border: none;
-  color: var(--text-on-dark);
-  font-size: 18px;
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-muted);
   cursor: pointer;
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  transition: all 0.25s ease;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  box-shadow: var(--shadow-xs);
+  transition: color 0.15s ease, border-color 0.15s ease;
 }
 
 .btn-toggle-sidebar:hover {
-  background: rgba(255, 255, 255, 0.18);
-  transform: scale(1.08) rotate(90deg);
+  color: var(--text-strong);
+  border-color: var(--border-strong);
 }
 
-.btn-toggle-sidebar:active {
-  transform: scale(0.92) rotate(90deg);
-}
-
-.navbar-brand {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.navbar-brand h1 {
-  font-size: 20px;
-  font-weight: 700;
+.topbar-title {
   margin: 0;
-  color: var(--text-on-dark);
-  letter-spacing: -0.3px;
-  background: linear-gradient(90deg, #ffffff 60%, #cbd5e0 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-
-.navbar-modulo {
-  font-size: 11px;
-  background: rgba(255, 255, 255, 0.14);
-  padding: 4px 14px;
-  border-radius: 20px;
-  color: #f0f4f8;
-  font-weight: 500;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(4px);
+  font-size: 17px;
+  font-weight: 650;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-/* ============================================================
-   SELECTOR DE MÓDULO (navbar) — solo se usa cuando hay más de un
-   módulo disponible; con uno solo se muestra el .navbar-modulo de
-   siempre, sin selector.
-   ============================================================ */
-.navbar-modulo-selector {
+/* Chip del módulo activo (y selector cuando hay más de uno). */
+.modulo-selector {
   position: relative;
 }
 
-.navbar-modulo-btn {
-  display: flex;
+.modulo-chip {
+  display: inline-flex;
   align-items: center;
-  gap: 6px;
-  cursor: pointer;
-  transition: background 0.2s;
-}
-
-.navbar-modulo-btn:hover {
-  background: rgba(255, 255, 255, 0.22);
-}
-
-.navbar-modulo-arrow {
-  font-size: 10px;
-  opacity: 0.8;
-}
-
-.dropdown-modulo {
-  position: absolute;
-  top: calc(100% + 8px);
-  left: 0;
-  /* Mismo vidrio esmerilado que la tarjeta del login. */
-  background: rgba(255, 255, 255, 0.85);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border-radius: 12px;
-  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.2);
-  min-width: 220px;
-  max-height: 320px;
-  overflow-y: auto;
-  z-index: 1000;
+  gap: 8px;
+  height: 34px;
+  padding: 0 12px;
+  border-radius: 999px;
   border: 1px solid var(--border);
-  padding: 6px 0;
-  animation: dropdownSlide 0.25s ease;
-}
-
-.dropdown-modulo-item {
-  display: block;
-  width: 100%;
-  padding: 10px 18px;
-  background: none;
-  border: none;
-  cursor: pointer;
-  font-size: 14px;
-  color: var(--text-default);
-  text-align: left;
-  white-space: nowrap;
-  transition: background 0.2s;
-}
-
-.dropdown-modulo-item:hover {
-  background: var(--border-soft);
-}
-
-.dropdown-modulo-item.active {
-  color: var(--link);
-  font-weight: 700;
-  background: #fdf3ea;
-}
-
-/* ============================================================
-   NAVBAR DERECHA
-   ============================================================ */
-.navbar-right {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.navbar-search {
-  position: relative;
-}
-
-.navbar-search .search-input {
-  padding: 8px 16px 8px 38px;
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  border-radius: 10px;
-  font-size: 14px;
-  width: 200px;
-  background: rgba(255, 255, 255, 0.1);
-  color: var(--text-on-dark);
-  transition: all 0.3s ease;
-}
-
-.navbar-search .search-input::placeholder {
-  color: rgba(255, 255, 255, 0.6);
-}
-
-.navbar-search .search-input:focus {
-  outline: none;
-  background: rgba(255, 255, 255, 0.18);
-  border-color: rgba(255, 255, 255, 0.3);
-  width: 260px;
-  box-shadow: 0 0 0 3px rgba(168, 69, 47, 0.4);
-}
-
-.navbar-search::before {
-  content: '🔍';
-  position: absolute;
-  left: 12px;
-  top: 50%;
-  transform: translateY(-50%);
-  font-size: 14px;
-  opacity: 0.6;
-}
-
-.navbar-notificaciones {
-  position: relative;
-}
-
-.btn-notificaciones {
-  background: none;
-  border: none;
-  color: var(--text-on-dark);
-  font-size: 20px;
-  cursor: pointer;
-  padding: 8px 10px;
-  border-radius: 10px;
-  position: relative;
-  transition: all 0.3s ease;
-}
-
-.btn-notificaciones:hover {
-  background: rgba(255, 255, 255, 0.1);
-}
-
-.badge-notificacion {
-  position: absolute;
-  top: 4px;
-  right: 4px;
-  background: var(--danger);
-  color: white;
-  font-size: 10px;
-  font-weight: 700;
-  padding: 1px 6px;
-  border-radius: 10px;
-  min-width: 18px;
-  text-align: center;
-  box-shadow: 0 2px 6px rgba(197, 48, 48, 0.45);
-}
-
-/* ============================================================
-   DROPDOWN NOTIFICACIONES - CORREGIDO
-   ============================================================ */
-.dropdown-notificaciones {
-  position: absolute;
-  top: calc(100% + 8px);
-  right: 0;
-  /* Mismo vidrio esmerilado que la tarjeta del login — los hijos de abajo
-     (header, items, "sin notificaciones") van transparent a propósito
-     para que se vea uniforme en vez de un rectángulo blanco opaco encima. */
-  background: rgba(255, 255, 255, 0.85) !important;
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border-radius: 14px;
-  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.2);
-  min-width: 340px;
-  max-width: 400px;
-  max-height: 420px;
-  overflow-y: auto;
-  z-index: 1000;
-  border: 1px solid var(--border);
-  animation: dropdownSlide 0.25s ease;
-}
-
-@keyframes dropdownSlide {
-  from {
-    opacity: 0;
-    transform: translateY(-8px) scale(0.98);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
-}
-
-.dropdown-notificaciones::-webkit-scrollbar {
-  width: 4px;
-}
-
-.dropdown-notificaciones::-webkit-scrollbar-thumb {
-  background: #cbd5e0;
-  border-radius: 4px;
-}
-
-.dropdown-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 14px 18px;
-  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-strong);
+  font-size: 13px;
   font-weight: 600;
-  color: #1a202c !important; /* Forzado oscuro */
-  position: sticky;
-  top: 0;
-  /* Sticky: necesita tapar el contenido que pasa debajo al hacer scroll,
-     por eso lleva su propio blur en vez de quedar transparent como los
-     demás hijos del dropdown. */
-  background: rgba(255, 255, 255, 0.92) !important;
-  backdrop-filter: blur(16px);
-  border-radius: 14px 14px 0 0;
-  z-index: 1;
+  white-space: nowrap;
+  box-shadow: var(--shadow-xs);
 }
 
-.btn-marcar-leidas {
-  background: none;
-  border: none;
-  color: var(--link);
-  font-size: 12px;
+.modulo-chip-btn {
   cursor: pointer;
-  padding: 4px 10px;
-  border-radius: 6px;
-  font-weight: 500;
-  transition: all 0.2s;
+  transition: border-color 0.15s ease;
 }
 
-.btn-marcar-leidas:hover {
-  background: var(--link-bg-hover);
+.modulo-chip-btn:hover {
+  border-color: var(--border-strong);
 }
 
-.notificacion-item {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 10px 18px;
-  border-bottom: 1px solid var(--border-soft);
-  transition: background 0.2s;
-  cursor: default;
-  color: #1a202c !important; /* Forzado oscuro */
-  background: transparent !important;
+.modulo-chip-btn svg {
+  color: var(--text-muted);
 }
 
-.notificacion-item:hover {
-  background: rgba(253, 243, 234, 0.7) !important;
+.modulo-chip-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--brand);
+  box-shadow: 0 0 0 3px var(--brand-100);
 }
 
-.notificacion-item.leido {
-  opacity: 0.7;
-}
-
-.notificacion-icono {
-  font-size: 18px;
-}
-
-.notificacion-mensaje {
-  color: #1a202c !important; /* Forzado oscuro */
-  font-size: 14px;
-}
-
-.sin-notificaciones {
-  padding: 24px;
-  text-align: center;
-  color: #4a5568 !important;
-  font-size: 14px;
-  background: transparent !important;
-}
-
-/* ============================================================
-   MENÚ DE USUARIO
-   ============================================================ */
-.navbar-user {
+/* Usuario */
+.topbar-user {
   position: relative;
 }
 
@@ -415,32 +302,36 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  color: var(--text-on-dark);
+  padding: 3px 10px 3px 3px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  background: none;
   cursor: pointer;
-  padding: 4px 12px 4px 4px;
-  border-radius: 30px;
-  transition: all 0.3s ease;
+  transition: background 0.15s ease, border-color 0.15s ease;
 }
 
 .btn-user:hover {
-  background: rgba(255, 255, 255, 0.14);
-  border-color: rgba(255, 255, 255, 0.2);
+  background: var(--surface);
+  border-color: var(--border);
 }
 
 .user-avatar {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 36px;
-  height: 36px;
+  width: 32px;
+  height: 32px;
   border-radius: 50%;
-  background: linear-gradient(135deg, var(--accent-blue-soft), var(--accent-blue));
-  color: white;
-  font-weight: 700;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  font-weight: 650;
+  font-size: 13px;
+  color: var(--on-brand);
+  background: linear-gradient(145deg, color-mix(in srgb, var(--brand) 80%, white), var(--brand-700));
+}
+
+.user-avatar-lg {
+  width: 40px;
+  height: 40px;
   font-size: 16px;
-  box-shadow: 0 2px 8px rgba(168, 69, 47, 0.3);
 }
 
 .user-info {
@@ -451,495 +342,231 @@
 }
 
 .user-nombre {
+  font-size: 13px;
   font-weight: 600;
-  font-size: 14px;
-  color: var(--text-on-dark);
+  color: var(--text-strong);
 }
 
 .user-rol {
-  font-size: 10px;
-  color: var(--text-on-dark-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
+  font-size: 11.5px;
+  color: var(--text-muted);
 }
 
 .user-arrow {
-  font-size: 10px;
-  color: var(--text-on-dark-faint);
-  transition: transform 0.3s;
+  color: var(--text-faint);
 }
 
-.btn-user:hover .user-arrow {
-  transform: rotate(180deg);
-}
-
-/* Dropdown usuario */
-.dropdown-user {
+/* ============================================================
+   DROPDOWNS
+   ============================================================ */
+.dropdown {
   position: absolute;
   top: calc(100% + 8px);
-  right: 0;
-  background: rgba(255, 255, 255, 0.85);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border-radius: 14px;
-  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.2);
-  min-width: 280px;
-  z-index: 1000;
+  min-width: 220px;
+  padding: 6px;
+  background: var(--surface);
   border: 1px solid var(--border);
-  animation: dropdownSlide 0.25s ease;
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  z-index: 40;
+  animation: dropdownIn 0.14s ease;
+}
+
+.dropdown-modulo {
+  right: 0;
+}
+
+.dropdown-user {
+  right: 0;
+  min-width: 260px;
+}
+
+@keyframes dropdownIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.dropdown-label {
+  padding: 6px 10px 4px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-faint);
+}
+
+.dropdown-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--text-default);
+  font-size: 13.5px;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.12s ease;
+}
+
+.dropdown-user .dropdown-item {
+  justify-content: flex-start;
+}
+
+.dropdown-item:hover {
+  background: var(--surface-muted);
+}
+
+.dropdown-item.active {
+  color: var(--brand-700);
+  font-weight: 600;
+}
+
+.dropdown-item-danger {
+  color: var(--danger);
+}
+
+.dropdown-item-danger:hover {
+  background: var(--danger-50);
 }
 
 .dropdown-user-header {
   display: flex;
   align-items: center;
-  gap: 14px;
-  padding: 18px 20px;
+  gap: 12px;
+  padding: 10px 10px 12px;
+  margin-bottom: 4px;
   border-bottom: 1px solid var(--border);
-  background: var(--border-soft);
-  border-radius: 14px 14px 0 0;
 }
 
-.user-avatar-large {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 52px;
-  height: 52px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, var(--accent-blue-soft), var(--accent-blue));
-  color: white;
-  font-weight: 700;
-  font-size: 22px;
-  box-shadow: 0 2px 12px rgba(168, 69, 47, 0.3);
-}
-
-.user-info-large {
+.dropdown-user-info {
   display: flex;
   flex-direction: column;
+  min-width: 0;
+  line-height: 1.3;
 }
 
-.user-info-large strong {
-  font-size: 15px;
-  color: var(--text-default);
-}
-
-.user-info-large span {
-  font-size: 13px;
-  color: var(--text-muted-soft);
-}
-
-.user-rol-badge {
-  display: inline-block;
-  background: #fdf3ea;
-  padding: 2px 10px;
-  border-radius: 12px;
-  font-size: 10px;
-  font-weight: 600;
-  color: var(--link);
-  margin-top: 2px;
-  text-transform: uppercase;
-  letter-spacing: 0.3px;
-}
-
-.dropdown-user-menu {
-  list-style: none;
-  padding: 8px 0;
-  margin: 0;
-}
-
-.dropdown-user-menu li {
-  padding: 0;
-}
-
-.dropdown-user-menu button {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  width: 100%;
-  padding: 10px 20px;
-  background: none;
-  border: none;
-  cursor: pointer;
+.dropdown-user-info strong {
+  color: var(--text-strong);
   font-size: 14px;
-  color: var(--text-default);
-  transition: all 0.2s;
-  text-align: left;
 }
 
-.dropdown-user-menu button:hover {
-  background: var(--border-soft);
-}
-
-.btn-logout-dropdown {
-  color: var(--danger) !important;
-  font-weight: 500;
-}
-
-.btn-logout-dropdown:hover {
-  background: var(--danger-soft-bg) !important;
+.dropdown-user-info span {
+  color: var(--text-muted);
+  font-size: 12.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .dropdown-divider {
   height: 1px;
   background: var(--border);
-  margin: 4px 16px;
+  margin: 4px 6px;
 }
 
+/* Debe quedar por debajo de la topbar (z-index 30) para no tapar los
+   propios dropdowns, que viven dentro de ese stacking context. */
 .dropdown-overlay {
   position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  /* Debe quedar por debajo del stacking context de .navbar (z-index:100,
-     position:sticky). Si supera ese valor, tapa TODO lo que hay dentro del
-     navbar -incluido el dropdown-user con "Cerrar Sesión"- e intercepta el
-     click aunque ese botón tenga z-index:1000 (ese z-index solo compite
-     dentro del stacking context del navbar, no contra este overlay). */
-  z-index: 90;
+  inset: 0;
+  z-index: 20;
 }
 
-/* Backdrop del sidebar (drawer): solo visible en móvil, por detrás del
-   sidebar (z-index < 50) y por encima del contenido. */
 .sidebar-overlay {
   display: none;
 }
 
 /* ============================================================
-   MÓDULO SECTION
-   ============================================================ */
-.modulo-section {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 12px 24px;
-  background: white;
-  border-bottom: 1px solid var(--border);
-  flex-wrap: wrap;
-  gap: 12px;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.02);
-}
-
-.modulo-info {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-.modulo-label {
-  font-size: 13px;
-  color: var(--text-muted-soft);
-  font-weight: 500;
-}
-
-.modulo-nombre {
-  font-weight: 700;
-  font-size: 15px;
-  background: #fdf3ea;
-  padding: 4px 16px;
-  border-radius: 20px;
-  color: var(--link);
-  border: 1px solid #f0ddc9;
-}
-
-.modulo-descripcion {
-  font-size: 13px;
-  color: var(--text-muted-soft);
-  font-style: italic;
-}
-
-/* ============================================================
-   SIDEBAR - CORREGIDO CON COLORES FORZADOS
-   ============================================================ */
-.dashboard-container {
-  display: flex;
-  flex: 1;
-}
-
-.sidebar {
-  width: 240px;
-  min-height: calc(100vh - 68px - 58px);
-  background: #ffffff !important;
-  border-right: 1px solid var(--border);
-  display: flex;
-  flex-direction: column;
-  transition: width 0.3s ease;
-  overflow: hidden;
-}
-
-.sidebar.collapsed {
-  width: 64px;
-}
-
-.nav-menu {
-  list-style: none;
-  padding: 8px 0;
-  margin: 0;
-  flex: 1;
-}
-
-.nav-item {
-  padding: 0 12px;
-  margin: 2px 0;
-}
-
-/* ===== ESTILOS DEL MENÚ - CORREGIDOS ===== */
-.nav-item a,
-.nav-item .nav-link-btn {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 10px 14px;
-  border-radius: 10px;
-  color: #1a202c !important; /* Negro forzado */
-  text-decoration: none;
-  font-size: 14px;
-  font-weight: 500;
-  transition: all 0.2s ease;
-  width: 100%;
-  border: none;
-  background: none;
-  cursor: pointer;
-}
-
-.nav-item a:hover,
-.nav-item .nav-link-btn:hover {
-  background: #edf2f7 !important;
-  color: #000000 !important;
-}
-
-.nav-item.active a {
-  background: #fdf3ea !important;
-  color: var(--accent-blue) !important;
-  font-weight: 600;
-}
-
-.nav-item.active a .nav-icon {
-  transform: scale(1.05);
-}
-
-.nav-icon {
-  font-size: 18px;
-  width: 28px;
-  text-align: center;
-  flex-shrink: 0;
-  color: #4a5568 !important;
-}
-
-.nav-item.active a .nav-icon {
-  color: var(--accent-blue) !important;
-}
-
-.nav-label {
-  white-space: nowrap;
-  color: #1a202c !important; /* Negro forzado */
-}
-
-/* ===== FIN ESTILOS DEL MENÚ ===== */
-
-.nav-separator {
-  height: 1px;
-  background: var(--border);
-  margin: 8px 16px;
-}
-
-/* Footer sidebar */
-.sidebar-footer {
-  padding: 14px 16px;
-  border-top: 1px solid var(--border);
-  font-size: 11px;
-  color: var(--text-muted);
-}
-
-.sidebar-version {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.sidebar-modulos-count {
-  color: var(--text-muted-soft);
-  font-weight: 500;
-}
-
-/* Sidebar colapsado */
-.sidebar.collapsed .nav-item a,
-.sidebar.collapsed .nav-item .nav-link-btn {
-  justify-content: center;
-  padding: 10px;
-}
-
-.sidebar.collapsed .nav-label,
-.sidebar.collapsed .nav-separator,
-.sidebar.collapsed .sidebar-footer {
-  display: none;
-}
-
-/* ============================================================
-   CONTENIDO PRINCIPAL
+   CONTENIDO
    ============================================================ */
 .main-content {
   flex: 1;
-  padding: 24px;
-  overflow-y: auto;
-  min-height: calc(100vh - 68px - 58px);
+  padding: 28px;
+  min-width: 0;
 }
 
-/* Transición al cambiar de página — Dashboard.jsx le pone key={pathname}
-   a este div para que se remonte (y por lo tanto vuelva a animar) en cada
-   navegación. */
 .page-transition {
-  animation: pageFadeIn 0.28s ease;
+  max-width: 1440px;
+  margin: 0 auto;
+  animation: pageFadeIn 0.22s ease;
 }
 
 @keyframes pageFadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(8px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 /* ============================================================
    RESPONSIVE
    ============================================================ */
-@media (max-width: 1024px) {
-  .navbar-search .search-input {
-    width: 150px;
-  }
-
-  .navbar-search .search-input:focus {
-    width: 180px;
-  }
-}
-
 @media (max-width: 768px) {
-  .navbar {
-    padding: 0 12px;
-    height: 60px;
-  }
-
-  .navbar-brand h1 {
-    font-size: 16px;
-  }
-
-  .navbar-modulo {
-    display: none;
-  }
-
-  .navbar-search {
-    display: none;
-  }
-
-  .navbar-right {
-    gap: 8px;
-  }
-
-  .btn-user .user-info {
-    display: none;
-  }
-
-  .user-arrow {
-    display: none;
-  }
-
   .sidebar {
     position: fixed;
-    top: 60px;
     left: 0;
+    top: 0;
     bottom: 0;
-    z-index: 50;
+    height: 100%;
     width: 280px;
-    transform: translateX(-100%);
-    transition: transform 0.3s ease;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
-  }
-
-  .sidebar:not(.collapsed) {
     transform: translateX(0);
+    transition: transform 0.25s ease;
+    box-shadow: var(--shadow-lg);
+    /* Por encima de la barra de búsqueda fija y el botón flotante del
+       carrito en Ventas (z-index 998/999). */
+    z-index: 1100;
   }
 
   .sidebar.collapsed {
     width: 280px;
     transform: translateX(-100%);
+    box-shadow: none;
   }
 
   .sidebar-overlay {
     display: block;
     position: fixed;
-    top: 60px;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(0, 0, 0, 0.4);
-    z-index: 40;
+    inset: 0;
+    background: rgba(20, 15, 11, 0.45);
+    z-index: 1050;
+  }
+
+  .topbar {
+    padding: 0 14px;
+    height: 56px;
+  }
+
+  .topbar-title {
+    font-size: 16px;
+  }
+
+  .user-info,
+  .user-arrow {
+    display: none;
+  }
+
+  .btn-user {
+    padding: 2px;
   }
 
   .main-content {
     padding: 16px;
   }
-
-  .modulo-section {
-    padding: 10px 16px;
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .modulo-info {
-    justify-content: center;
-  }
-
-  .dropdown-notificaciones {
-    min-width: 300px;
-    right: -40px;
-  }
-
-  .dropdown-user {
-    right: -20px;
-    min-width: 250px;
-  }
 }
 
 @media (max-width: 480px) {
-  .navbar-brand h1 {
-    font-size: 14px;
-  }
-
-  .btn-toggle-sidebar {
-    padding: 6px 10px;
-    font-size: 18px;
-  }
-
-  .user-nombre {
-    font-size: 13px;
-  }
-
-  .modulo-nombre {
-    font-size: 14px;
+  .modulo-chip {
+    max-width: 140px;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .main-content {
     padding: 12px;
   }
-
-  .dropdown-notificaciones {
-    min-width: 280px;
-    right: -60px;
-  }
-
-  .dropdown-user {
-    right: -30px;
-    min-width: 220px;
-  }
 }
 
-/* ============================================================
-   ACCESIBILIDAD
-   ============================================================ */
 @media (prefers-reduced-motion: reduce) {
   * {
     animation-duration: 0.01ms !important;

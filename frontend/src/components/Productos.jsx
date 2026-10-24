@@ -241,13 +241,6 @@ const Productos = ({ user }) => {
 
   return (
     <div className="productos-container">
-      <div className="productos-header">
-        <h2>📦 Gestión de Productos</h2>
-        <div className="modulo-indicador">
-          <span className="badge">Módulo: {moduloActivo.nombre}</span>
-        </div>
-      </div>
-
       <div className="productos-actions">
         <div className="search-box">
           <input

@@ -2,7 +2,13 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import api from '../services/api';
 import { useModulo } from '../hooks/useModulo';
 import { Html5Qrcode } from 'html5-qrcode';
+import { Search, ScanBarcode, RotateCw, Trash2, Plus, Minus, X, ShoppingCart, Link2 } from 'lucide-react';
 import './Ventas.css';
+
+// Los precios llegan como numeric de Postgres (string "9000.00"):
+// toLocaleString sobre el string no formatea nada, por eso se veía
+// "$9000.00". Formato de pesos colombianos: "$ 9.000".
+const pesos = (valor) => `$ ${Number(valor || 0).toLocaleString('es-CO', { maximumFractionDigits: 2 })}`;
 
 const clienteVacio = () => ({ nombre: '', documento: '', direccion: '', telefono: '' });
 
@@ -799,45 +805,39 @@ const Ventas = ({ user }) => {
 
   return (
     <div className="ventas-container">
-      <div className="ventas-header">
-        <div className="header-left">
-          <h2>🛒 Punto de Venta</h2>
-          <div className="modulo-indicador">
-            <span className="badge">📁 {moduloActivo.nombre}</span>
-          </div>
-        </div>
-        <div className="header-right">
-          <div className="shortcuts-hint">
-            <kbd>F1</kbd> Scanner <kbd>F2</kbd> Vender <kbd>Esc</kbd> Limpiar
-          </div>
-          <button onClick={limpiarTodo} className="btn-limpiar-todo" title="Limpiar carrito">
-            🗑️
-          </button>
-        </div>
-      </div>
-
       {/* Scanner y búsqueda */}
       <div className={`busqueda-section ${vistaMobileActiva === 'productos' && !modoScanner ? 'busqueda-fija-movil' : ''}`}>
-        <div className="busqueda-input">
-          <input
-            ref={inputRef}
-            type="text"
-            value={busqueda}
-            onChange={handleSearch}
-            onKeyDown={handleScannerKeyDown}
-            placeholder={modoScanner ? "📷 Escanea un código..." : "🔍 Buscar por nombre o código..."}
-            className={modoScanner ? 'scanner-active' : ''}
-            autoFocus
-          />
-          <button
-            onClick={iniciarScanner}
-            className={`btn-scanner ${modoScanner ? 'active' : ''}`}
-            title="Activar/Desactivar scanner (F1)"
-          >
-            {modoScanner ? '📷' : '📷'}
-          </button>
-          <button onClick={cargarProductos} className="btn-refresh" title="Recargar productos">
-            🔄
+        <div className="busqueda-fila">
+          <div className="busqueda-input">
+            <Search size={18} className="busqueda-icono" />
+            <input
+              ref={inputRef}
+              type="text"
+              value={busqueda}
+              onChange={handleSearch}
+              onKeyDown={handleScannerKeyDown}
+              placeholder={modoScanner ? 'Escanea un código...' : 'Buscar por nombre o código...'}
+              className={modoScanner ? 'scanner-active' : ''}
+              autoFocus
+            />
+            <button
+              onClick={iniciarScanner}
+              className={`btn-scanner ${modoScanner ? 'active' : ''}`}
+              title="Activar/Desactivar scanner (F1)"
+            >
+              <ScanBarcode size={18} />
+              <span>Escanear</span>
+            </button>
+            <button onClick={cargarProductos} className="btn-refresh" title="Recargar productos" aria-label="Recargar productos">
+              <RotateCw size={17} />
+            </button>
+          </div>
+          <div className="shortcuts-hint">
+            <kbd>F1</kbd> Escanear <kbd>F2</kbd> Vender <kbd>Esc</kbd> Limpiar
+          </div>
+          <button onClick={limpiarTodo} className="btn-limpiar-todo" title="Limpiar carrito (Esc)">
+            <Trash2 size={17} />
+            <span>Limpiar</span>
           </button>
         </div>
         
@@ -865,7 +865,7 @@ const Ventas = ({ user }) => {
           {/* Resumen del carrito siempre visible mientras el scanner está
               activo, para no tener que cerrar la cámara para saber cómo va */}
           <div className="scanner-carrito-resumen">
-            🛒 {carrito.length} items · ${subtotal.toLocaleString()}
+            🛒 {carrito.length} items · {pesos(subtotal)}
           </div>
           <div id="scanner-container" className="scanner-container"></div>
           {scanToast && (
@@ -887,13 +887,13 @@ const Ventas = ({ user }) => {
           className={`ventas-mobile-tab ${vistaMobileActiva === 'productos' ? 'active' : ''}`}
           onClick={() => setVistaMobileActiva('productos')}
         >
-          🛍️ Productos
+          Productos
         </button>
         <button
           className={`ventas-mobile-tab ${vistaMobileActiva === 'carrito' ? 'active' : ''}`}
           onClick={() => setVistaMobileActiva('carrito')}
         >
-          🛒 Carrito{carrito.length > 0 ? ` (${carrito.length})` : ''}
+          Carrito{carrito.length > 0 ? ` (${carrito.length})` : ''}
         </button>
       </div>
 
@@ -920,28 +920,30 @@ const Ventas = ({ user }) => {
                   onClick={() => agregarAlCarrito(producto)}
                 >
                   <div className="producto-info">
-                    <h4>
-                      {producto.nombre}
-                      {producto.modulo_id !== moduloActivo.id && (
-                        <span className="badge badge-otro-modulo" title="Producto de otro módulo, compartido contigo">
-                          {' '}🔗 {producto.modulo_dueno_nombre}
-                        </span>
-                      )}
-                    </h4>
-                    <p className="producto-precio">${producto.precio_venta.toLocaleString()}</p>
-                    <p className={`producto-stock ${!producto.ignora_stock && producto.stock_actual <= producto.stock_minimo ? 'bajo' : ''}`}>
-                      {producto.ignora_stock ? 'Se prepara al pedir 🍳' : `Stock: ${producto.stock_actual}`}
-                      {!producto.ignora_stock && producto.stock_actual <= 0 && ' ❌'}
+                    <h4>{producto.nombre}</h4>
+                    {producto.modulo_id !== moduloActivo.id && (
+                      <span className="badge-otro-modulo" title="Producto de otro módulo, compartido contigo">
+                        <Link2 size={11} /> {producto.modulo_dueno_nombre}
+                      </span>
+                    )}
+                    <p className="producto-precio">{pesos(producto.precio_venta)}</p>
+                    <p className={`producto-stock ${!producto.ignora_stock && producto.stock_actual <= producto.stock_minimo ? 'bajo' : ''} ${!producto.ignora_stock && producto.stock_actual <= 0 ? 'agotado' : ''}`}>
+                      {producto.ignora_stock
+                        ? 'Se prepara al pedir'
+                        : producto.stock_actual <= 0
+                          ? 'Agotado'
+                          : `${producto.stock_actual} en stock`}
                     </p>
                     {producto.codigo_ean && (
-                      <small className="producto-ean">📷 {producto.codigo_ean}</small>
+                      <small className="producto-ean">{producto.codigo_ean}</small>
                     )}
                   </div>
                   <button
                     className="btn-agregar-carrito-item"
                     disabled={!producto.ignora_stock && producto.stock_actual <= 0}
+                    aria-label={`Agregar ${producto.nombre}`}
                   >
-                    {producto.ignora_stock || producto.stock_actual > 0 ? '+' : '🚫'}
+                    <Plus size={16} strokeWidth={2.5} />
                   </button>
                 </div>
               ))}
@@ -1107,35 +1109,41 @@ const Ventas = ({ user }) => {
           {/* Lista del carrito */}
           <div className="carrito-lista">
             {carrito.length === 0 ? (
-              <p className="carrito-vacio">🛒 El carrito está vacío</p>
+              <div className="carrito-vacio">
+                <ShoppingCart size={28} strokeWidth={1.5} />
+                <p>El carrito está vacío</p>
+                <small>Toca un producto o escanea un código para agregarlo</small>
+              </div>
             ) : (
               carrito.map(item => (
                 <div key={item.producto_id} className="carrito-item">
                   <div className="item-info">
                     <span className="item-nombre">{item.nombre}</span>
-                    <span className="item-precio">${item.precio_unitario.toLocaleString()}</span>
+                    <span className="item-precio">{pesos(item.precio_unitario)}</span>
                   </div>
                   <div className="item-controls">
                     <button 
                       onClick={() => cambiarCantidad(item.producto_id, item.cantidad - 1)}
                       className="btn-cantidad"
+                      aria-label="Restar uno"
                     >
-                      −
+                      <Minus size={14} />
                     </button>
                     <span className="item-cantidad">{item.cantidad}</span>
-                    <button 
+                    <button
                       onClick={() => cambiarCantidad(item.producto_id, item.cantidad + 1)}
                       className="btn-cantidad"
                       disabled={item.cantidad >= obtenerTopeCantidad(item)}
+                      aria-label="Sumar uno"
                     >
-                      +
+                      <Plus size={14} />
                     </button>
-                    <button 
-                      onClick={() => eliminarDelCarrito(item.producto_id)} 
+                    <button
+                      onClick={() => eliminarDelCarrito(item.producto_id)}
                       className="btn-eliminar"
                       title="Eliminar del carrito"
                     >
-                      ✕
+                      <X size={15} />
                     </button>
                   </div>
                 </div>
@@ -1147,16 +1155,16 @@ const Ventas = ({ user }) => {
           {carrito.length > 0 && (
             <div className="carrito-totales">
               <div className="totales-linea">
-                <span>Subtotal:</span>
-                <span>${subtotal.toLocaleString()}</span>
+                <span>Subtotal</span>
+                <span>{pesos(subtotal)}</span>
               </div>
               <div className="totales-linea total">
-                <span><strong>Total:</strong></span>
-                <span><strong>${subtotal.toLocaleString()}</strong></span>
+                <span>Total</span>
+                <span><strong>{pesos(subtotal)}</strong></span>
               </div>
 
               <div className="metodo-pago">
-                <label>💳 Método de pago:</label>
+                <label>Método de pago</label>
                 <select
                   value={metodoPago}
                   onChange={(e) => actualizarCuentaActiva({ metodoPago: e.target.value })}
@@ -1172,7 +1180,7 @@ const Ventas = ({ user }) => {
 
               {metodoPago === 'efectivo' && (
                 <div className="calculadora-cambio">
-                  <label>💵 Paga con:</label>
+                  <label>Paga con</label>
                   <input
                     type="number"
                     min="0"
@@ -1183,11 +1191,11 @@ const Ventas = ({ user }) => {
                   {montoRecibido && Number(montoRecibido) > 0 && (
                     Number(montoRecibido) >= subtotal ? (
                       <div className="cambio-resultado positivo">
-                        Cambio a devolver: <strong>${(Number(montoRecibido) - subtotal).toLocaleString()}</strong>
+                        Cambio a devolver: <strong>{pesos((Number(montoRecibido) - subtotal))}</strong>
                       </div>
                     ) : (
                       <div className="cambio-resultado negativo">
-                        ⚠️ Falta ${(subtotal - Number(montoRecibido)).toLocaleString()}
+                        ⚠️ Falta {pesos((subtotal - Number(montoRecibido)))}
                       </div>
                     )
                   )}
@@ -1199,7 +1207,7 @@ const Ventas = ({ user }) => {
                 className="btn-procesar-venta"
                 disabled={loading || (metodoPago === 'credito' && !clienteSeleccionado)}
               >
-                {loading ? '⏳ Procesando...' : '✅ Procesar Venta (F2)'}
+                {loading ? 'Procesando...' : <>Cobrar {pesos(subtotal)} <kbd>F2</kbd></>}
               </button>
             </div>
           )}
@@ -1207,15 +1215,15 @@ const Ventas = ({ user }) => {
       </div>
 
       {/* Botón flotante solo visible en móvil (CSS lo oculta en
-          desktop/tablet). Siempre lleva a la pestaña de carrito, sin
-          importar dónde esté el usuario (incluida la pestaña de productos
-          con el scanner activo). */}
-      {carrito.length > 0 && (
+          desktop/tablet). Lleva a la pestaña de carrito desde productos
+          (incluido el scanner activo); en la propia pestaña de carrito no
+          aporta nada y taparía el botón de cobrar. */}
+      {carrito.length > 0 && vistaMobileActiva !== 'carrito' && (
         <button
           className="carrito-fab"
           onClick={() => setVistaMobileActiva('carrito')}
         >
-          🛒 {carrito.length} · ${subtotal.toLocaleString()}
+          <ShoppingCart size={18} /> {carrito.length} · {pesos(subtotal)}
         </button>
       )}
 
@@ -1264,8 +1272,8 @@ const Ventas = ({ user }) => {
                       <tr key={index}>
                         <td>{detalle.producto_nombre}</td>
                         <td>{detalle.cantidad}</td>
-                        <td>${detalle.precio_unitario.toLocaleString()}</td>
-                        <td>${detalle.subtotal.toLocaleString()}</td>
+                        <td>{pesos(detalle.precio_unitario)}</td>
+                        <td>{pesos(detalle.subtotal)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -1274,12 +1282,12 @@ const Ventas = ({ user }) => {
 
               <div className="factura-totales">
                 <div className="total-linea">
-                  <span>Subtotal:</span>
-                  <span>${facturaData.subtotal.toLocaleString()}</span>
+                  <span>Subtotal</span>
+                  <span>{pesos(facturaData.subtotal)}</span>
                 </div>
                 <div className="total-linea total">
-                  <span><strong>Total:</strong></span>
-                  <span><strong>${facturaData.total.toLocaleString()}</strong></span>
+                  <span>Total</span>
+                  <span><strong>{pesos(facturaData.total)}</strong></span>
                 </div>
                 <div className="total-linea">
                   <span>Método de pago:</span>

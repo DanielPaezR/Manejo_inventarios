@@ -7,13 +7,13 @@
 .fn-header h2 {
   margin: 0 0 4px 0;
   font-size: 24px;
-  color: #2d3748;
+  color: var(--text-strong);
   font-weight: 700;
 }
 
 .fn-subtitulo {
   margin: 0 0 20px 0;
-  color: #718096;
+  color: var(--text-muted);
   font-size: 13px;
 }
 
@@ -22,15 +22,15 @@
   gap: 8px;
   flex-wrap: wrap;
   margin-bottom: 24px;
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid var(--border);
   padding-bottom: 8px;
 }
 
 .fn-tab {
   padding: 8px 16px;
   border: none;
-  background: #f7fafc;
-  color: #4a5568;
+  background: var(--surface-subtle);
+  color: var(--text-default);
   border-radius: 10px;
   cursor: pointer;
   font-weight: 600;
@@ -39,11 +39,11 @@
 }
 
 .fn-tab:hover {
-  background: #edf2f7;
+  background: var(--surface-muted);
 }
 
 .fn-tab.active {
-  background: var(--primary, #a8452f);
+  background: var(--brand);
   color: white;
 }
 
@@ -63,7 +63,7 @@
 
 .fn-nav-periodo button {
   padding: 6px 14px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--border);
   background: white;
   border-radius: 8px;
   cursor: pointer;
@@ -71,38 +71,38 @@
 }
 
 .fn-nav-periodo button:hover {
-  background: #f7fafc;
+  background: var(--surface-subtle);
 }
 
 .fn-nav-periodo strong {
   text-transform: capitalize;
-  color: #2d3748;
+  color: var(--text-strong);
 }
 
 .fn-info {
-  color: #718096;
+  color: var(--text-muted);
   font-size: 14px;
 }
 
 .fn-error, .fn-error-box p {
-  color: #c53030;
+  color: var(--danger);
   font-size: 14px;
 }
 
 .fn-error-box {
-  background: #fff5f5;
-  border: 1px solid #feb2b2;
+  background: var(--danger-50);
+  border: 1px solid var(--danger-50);
   border-radius: 10px;
   padding: 12px 16px;
 }
 
 .fn-exito {
-  color: #22543d;
+  color: var(--success);
   font-size: 14px;
 }
 
 .fn-nota {
-  color: #a0aec0;
+  color: var(--text-faint);
   font-size: 11px;
   margin: 4px 0 0 0;
 }
@@ -130,20 +130,20 @@
 .fn-card h3 {
   margin: 0 0 14px 0;
   font-size: 15px;
-  color: #2d3748;
+  color: var(--text-strong);
   display: flex;
   justify-content: space-between;
   align-items: center;
 }
 
 .fn-card-destacada {
-  background: #fdf3ea;
-  border: 1px solid #f0ddc9;
+  background: var(--brand-50);
+  border: 1px solid var(--brand-100);
 }
 
 .fn-total-card {
   font-size: 14px;
-  color: var(--primary-dark, #7c3220);
+  color: var(--primary-dark, var(--brand-700));
 }
 
 .fn-linea {
@@ -151,17 +151,17 @@
   justify-content: space-between;
   padding: 6px 0;
   font-size: 13px;
-  color: #4a5568;
-  border-bottom: 1px dashed #edf2f7;
+  color: var(--text-default);
+  border-bottom: 1px dashed var(--surface-muted);
 }
 
 .fn-linea-total {
   border-bottom: none;
-  border-top: 2px solid #2d3748;
+  border-top: 2px solid var(--text-strong);
   margin-top: 4px;
   padding-top: 10px;
   font-size: 14px;
-  color: #2d3748;
+  color: var(--text-strong);
 }
 
 /* ---- Simulador ---- */
@@ -177,7 +177,7 @@
 .fn-granularidad-selector {
   display: flex;
   gap: 4px;
-  background: #f7fafc;
+  background: var(--surface-subtle);
   padding: 4px;
   border-radius: 10px;
 }
@@ -190,13 +190,13 @@
   cursor: pointer;
   font-size: 13px;
   font-weight: 600;
-  color: #4a5568;
+  color: var(--text-default);
 }
 
 .fn-granularidad-selector button.active {
   background: white;
   box-shadow: 0 1px 4px rgba(0,0,0,0.1);
-  color: var(--primary, #a8452f);
+  color: var(--brand);
 }
 
 .fn-simulador-acciones {
@@ -208,8 +208,8 @@
 
 .fn-btn-secundario {
   padding: 8px 14px;
-  background: #edf2f7;
-  color: #2d3748;
+  background: var(--surface-muted);
+  color: var(--text-strong);
   border: none;
   border-radius: 8px;
   cursor: pointer;
@@ -219,9 +219,9 @@
 
 .fn-btn-peligro {
   padding: 8px 14px;
-  background: #fff5f5;
-  color: #c53030;
-  border: 1px solid #feb2b2;
+  background: var(--danger-50);
+  color: var(--danger);
+  border: 1px solid var(--danger-50);
   border-radius: 8px;
   cursor: pointer;
   font-size: 13px;
@@ -230,13 +230,13 @@
 
 .fn-guardando {
   font-size: 12px;
-  color: #a0aec0;
+  color: var(--text-faint);
   font-style: italic;
 }
 
 .fn-guardado-error {
   font-size: 12px;
-  color: #c53030;
+  color: var(--danger);
   display: flex;
   align-items: center;
   gap: 8px;
@@ -244,7 +244,7 @@
 
 .fn-guardado-error button {
   padding: 3px 10px;
-  background: #c53030;
+  background: var(--danger);
   color: white;
   border: none;
   border-radius: 6px;
@@ -268,11 +268,11 @@
   gap: 8px;
   margin-bottom: 10px;
   font-size: 13px;
-  color: #4a5568;
+  color: var(--text-default);
 }
 
 .fn-banco-header strong {
-  color: #2d3748;
+  color: var(--text-strong);
   font-size: 15px;
 }
 
@@ -283,7 +283,7 @@
 }
 
 .fn-zona-drop.sobre {
-  background: #fdf3ea;
+  background: var(--brand-50);
 }
 
 .fn-bloques-fila {
@@ -300,7 +300,7 @@
 .fn-bloque {
   width: 26px;
   height: 26px;
-  background: #4299e1;
+  background: var(--brand);
   border-radius: 4px;
   cursor: grab;
   touch-action: none;
@@ -318,7 +318,7 @@
   gap: 18px;
   flex-wrap: wrap;
   font-size: 12px;
-  color: #4a5568;
+  color: var(--text-default);
 }
 
 .fn-abaco-leyenda span {
@@ -334,10 +334,10 @@
   display: inline-block;
 }
 
-.fn-swatch-gris { background: #cbd5e0; }
-.fn-swatch-verde { background: #48bb78; }
-.fn-swatch-rojo { background: #e53e3e; }
-.fn-swatch-azul { background: #4299e1; }
+.fn-swatch-gris { background: var(--border-strong); }
+.fn-swatch-verde { background: var(--success); }
+.fn-swatch-rojo { background: var(--danger); }
+.fn-swatch-azul { background: var(--brand); }
 
 .fn-abaco {
   position: relative;
@@ -357,7 +357,7 @@
   right: 12px;
   top: 192px; /* altura de zona-arriba (180) + padding superior del contenedor (12) */
   height: 2px;
-  background: #2d3748;
+  background: var(--text-strong);
   z-index: 0;
 }
 
@@ -391,9 +391,9 @@
 .fn-abaco-zona-arriba .fn-barra { bottom: 0; }
 .fn-abaco-zona-abajo .fn-barra { top: 0; }
 
-.fn-barra-gris { width: 40px; background: #cbd5e0; z-index: 1; }
-.fn-barra-verde { width: 26px; background: #48bb78; z-index: 2; }
-.fn-barra-rojo { width: 26px; background: #e53e3e; z-index: 2; }
+.fn-barra-gris { width: 40px; background: var(--border-strong); z-index: 1; }
+.fn-barra-verde { width: 26px; background: var(--success); z-index: 2; }
+.fn-barra-rojo { width: 26px; background: var(--danger); z-index: 2; }
 
 /* El drop target de cada columna es TODA la zona-abajo (para poder soltar
    ahí aunque la categoría todavía tenga 0 bloques asignados) — el propio
@@ -404,7 +404,7 @@
 }
 
 .fn-abaco-slot .fn-zona-drop.sobre {
-  background: #fdf3ea;
+  background: var(--brand-50);
 }
 
 .fn-barra-azul-pila {
@@ -429,17 +429,17 @@
 }
 
 .fn-abaco-etiqueta strong {
-  color: #2d3748;
+  color: var(--text-strong);
   font-size: 12px;
 }
 
 .fn-abaco-tipo {
   font-size: 10px;
-  color: #a0aec0;
+  color: var(--text-faint);
 }
 
-.fn-abaco-cifra-verde { color: #2f855a; font-size: 11px; }
-.fn-abaco-cifra-gris { color: #a0aec0; font-size: 10px; }
+.fn-abaco-cifra-verde { color: var(--success); font-size: 11px; }
+.fn-abaco-cifra-gris { color: var(--text-faint); font-size: 10px; }
 
 .fn-abaco-cifras-abajo {
   display: flex;
@@ -450,11 +450,11 @@
   padding-bottom: 4px;
 }
 
-.fn-abaco-cifras-abajo .fn-abaco-cifra-rojo { color: #c53030; }
-.fn-abaco-cifras-abajo .fn-abaco-cifra-azul { color: #2b6cb0; font-weight: 600; }
+.fn-abaco-cifras-abajo .fn-abaco-cifra-rojo { color: var(--danger); }
+.fn-abaco-cifras-abajo .fn-abaco-cifra-azul { color: var(--brand-700); font-weight: 600; }
 
 .fn-gestion-categorias {
-  background: #f7fafc;
+  background: var(--surface-subtle);
 }
 
 .fn-form-inline {
@@ -467,14 +467,14 @@
 .fn-form-inline input,
 .fn-form-inline select {
   padding: 8px 10px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--border);
   border-radius: 8px;
   font-size: 13px;
 }
 
 .fn-form-inline button {
   padding: 8px 14px;
-  background: var(--primary, #a8452f);
+  background: var(--brand);
   color: white;
   border: none;
   border-radius: 8px;
@@ -503,7 +503,7 @@
 }
 
 .fn-lista-categorias li em {
-  color: #a0aec0;
+  color: var(--text-faint);
   font-style: normal;
   font-size: 11px;
 }
@@ -536,13 +536,13 @@
   flex-direction: column;
   gap: 4px;
   font-size: 13px;
-  color: #4a5568;
+  color: var(--text-default);
   font-weight: 600;
 }
 
 .fn-form-stack input {
   padding: 9px 12px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--border);
   border-radius: 8px;
   font-size: 14px;
   font-weight: 400;
@@ -550,7 +550,7 @@
 
 .fn-form-stack button {
   padding: 10px 16px;
-  background: var(--primary, #a8452f);
+  background: var(--brand);
   color: white;
   border: none;
   border-radius: 8px;
@@ -560,5 +560,5 @@
 }
 
 .fn-form-stack button:hover {
-  background: var(--primary-dark, #7c3220);
+  background: var(--primary-dark, var(--brand-700));
 }

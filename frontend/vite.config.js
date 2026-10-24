@@ -27,8 +27,8 @@ export default defineConfig({
         short_name: 'Mi Negocio',
         description: 'Sistema de inventario y ventas',
         lang: 'es',
-        theme_color: '#4299e1',
-        background_color: '#ffffff',
+        theme_color: '#1d1712',
+        background_color: '#f6f3ee',
         display: 'standalone',
         start_url: '/',
         icons: [

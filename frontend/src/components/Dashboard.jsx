@@ -1,9 +1,40 @@
 import React, { useState, useEffect } from 'react';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
-import SelectorModulo from './SelectorModulo';
+import {
+  ShoppingCart, Package, ChartColumn, FileText, Truck, ClipboardList,
+  ReceiptText, Bike, Users, FileSearch, Wallet, Landmark, Building2,
+  CircleHelp, ChevronDown, Menu, KeyRound, LogOut, Store, Check
+} from 'lucide-react';
 import CambiarPassword from './CambiarPassword';
 import { useModulo } from '../hooks/useModulo';
 import './Dashboard.css';
+
+const MENU = {
+  super_admin: [
+    { path: '/negocios', icon: Building2, label: 'Negocios' }
+  ],
+  admin: [
+    { path: '/ventas', icon: ShoppingCart, label: 'Ventas' },
+    { path: '/productos', icon: Package, label: 'Productos' },
+    { path: '/estadisticas', icon: ChartColumn, label: 'Estadísticas' },
+    { path: '/reportes', icon: FileText, label: 'Reportes' },
+    { path: '/proveedores', icon: Truck, label: 'Proveedores' },
+    { path: '/pedidos', icon: ClipboardList, label: 'Pedidos' },
+    { path: '/pedidos-cliente', icon: ReceiptText, label: 'Pedidos de Clientes' },
+    { path: '/ruta-entregas', icon: Bike, label: 'Ruta de Entregas' },
+    { path: '/clientes', icon: Users, label: 'Clientes' },
+    { path: '/facturas', icon: FileSearch, label: 'Buscar Factura' },
+    { path: '/finanzas', icon: Wallet, label: 'Finanzas' },
+    { path: '/finanzas-negocio', icon: Landmark, label: 'Finanzas del Negocio' }
+  ],
+  trabajador: [
+    { path: '/ventas', icon: ShoppingCart, label: 'Ventas' },
+    { path: '/pedidos-cliente', icon: ReceiptText, label: 'Pedidos de Clientes' },
+    { path: '/ruta-entregas', icon: Bike, label: 'Ruta de Entregas' }
+  ]
+};
+
+const ETIQUETA_ROL = { super_admin: 'Super admin', admin: 'Administrador', trabajador: 'Trabajador' };
 
 const Dashboard = ({ user, onLogout }) => {
   const location = useLocation();
@@ -11,71 +42,45 @@ const Dashboard = ({ user, onLogout }) => {
   const { moduloActivo, modulos, cambiarModulo } = useModulo();
   const [showCambiarPassword, setShowCambiarPassword] = useState(false);
   const [showModuloMenu, setShowModuloMenu] = useState(false);
+  const [showUserMenu, setShowUserMenu] = useState(false);
   // Solo tiene sentido mostrar un selector si hay más de un módulo entre
-  // los que elegir — con uno solo, el badge de siempre es más simple.
+  // los que elegir — con uno solo, el chip estático es más simple.
   const puedeCambiarModulo = modulos.length > 1;
   // En móvil el sidebar es un drawer: debe arrancar cerrado (collapsed=true).
   // En desktop arranca expandido (collapsed=false).
   const [sidebarCollapsed, setSidebarCollapsed] = useState(
     () => typeof window !== 'undefined' && window.innerWidth <= 768
   );
-  const [showUserMenu, setShowUserMenu] = useState(false);
-  const [notificaciones, setNotificaciones] = useState([]);
-  const [showNotificaciones, setShowNotificaciones] = useState(false);
 
-  // Verificar si estamos en una ruta que requiere módulo
   const requiereModulo = !['/negocios', '/', '/finanzas-negocio'].includes(location.pathname);
 
-  // Atajos de teclado
   useEffect(() => {
     const handleKeyDown = (e) => {
-      // Ctrl + B: Colapsar/Expandir sidebar
       if (e.ctrlKey && e.key === 'b') {
         e.preventDefault();
-        setSidebarCollapsed(!sidebarCollapsed);
+        setSidebarCollapsed(c => !c);
       }
-      
-      // Escape: Cerrar menús
       if (e.key === 'Escape') {
         setShowUserMenu(false);
-        setShowNotificaciones(false);
         setShowModuloMenu(false);
       }
     };
-
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [sidebarCollapsed]);
+  }, []);
 
   // En móvil, cerrar el sidebar automáticamente al navegar a otra ruta.
-  // En desktop no se toca el estado (respeta el colapso manual con Ctrl+B).
   useEffect(() => {
     if (typeof window !== 'undefined' && window.innerWidth <= 768) {
       setSidebarCollapsed(true);
     }
   }, [location.pathname]);
 
-  // Cargar notificaciones de stock bajo (simulado)
-  useEffect(() => {
-    // Aquí podrías cargar notificaciones desde la API
-    // Por ahora son simuladas
-    const notificacionesSimuladas = [
-      { id: 1, mensaje: '⚠️ 3 productos con stock bajo', tipo: 'warning', leido: false },
-      { id: 2, mensaje: '📦 Pedido #1234 en camino', tipo: 'info', leido: false },
-    ];
-    setNotificaciones(notificacionesSimuladas);
-  }, []);
-
   // Al cambiar de módulo, la página actual puede tener datos cargados del
-  // módulo anterior (productos, ventas, etc.) — en vez de auditar cada
-  // componente para que recargue bien sus propios datos, se hace un
-  // reload completo, la forma más simple y confiable de dejar todo el
-  // estado de la app limpio con el módulo nuevo.
+  // módulo anterior — un reload completo es la forma más simple y
+  // confiable de dejar todo el estado limpio con el módulo nuevo.
   useEffect(() => {
-    const handleModuloCambiado = () => {
-      window.location.reload();
-    };
-
+    const handleModuloCambiado = () => window.location.reload();
     window.addEventListener('moduloCambiado', handleModuloCambiado);
     return () => window.removeEventListener('moduloCambiado', handleModuloCambiado);
   }, []);
@@ -87,300 +92,167 @@ const Dashboard = ({ user, onLogout }) => {
     }
   };
 
-  const marcarNotificacionesLeidas = () => {
-    setNotificaciones(prev => prev.map(n => ({ ...n, leido: true })));
-    setShowNotificaciones(false);
-  };
-
-  // Menú de navegación con iconos - ACTUALIZADO CON PROVEEDORES Y PEDIDOS
-  const menuItems = {
-    super_admin: [
-      { path: '/negocios', icon: '🏢', label: 'Negocios' }
-    ],
-    admin: [
-      { path: '/ventas', icon: '🛒', label: 'Ventas' },
-      { path: '/productos', icon: '📦', label: 'Productos' },
-      { path: '/estadisticas', icon: '📊', label: 'Estadísticas' },
-      { path: '/reportes', icon: '📄', label: 'Reportes' },
-      { path: '/proveedores', icon: '🤝', label: 'Proveedores' },      // ✅ NUEVO
-      { path: '/pedidos', icon: '📦', label: 'Pedidos' },              // ✅ NUEVO
-      { path: '/pedidos-cliente', icon: '🧾', label: 'Pedidos de Clientes' },
-      { path: '/ruta-entregas', icon: '🛵', label: 'Ruta de Entregas' },
-      { path: '/clientes', icon: '👤', label: 'Clientes' },            // ✅ NUEVO
-      { path: '/facturas', icon: '🔎', label: 'Buscar Factura' },
-      { path: '/finanzas', icon: '💰', label: 'Finanzas' },            // ✅ NUEVO
-      { path: '/finanzas-negocio', icon: '🧮', label: 'Finanzas del Negocio' },
-    ],
-    trabajador: [
-      { path: '/ventas', icon: '🛒', label: 'Ventas' },
-      { path: '/pedidos-cliente', icon: '🧾', label: 'Pedidos de Clientes' },
-      { path: '/ruta-entregas', icon: '🛵', label: 'Ruta de Entregas' },
-    ]
-  };
-
-  // Obtener items según el rol
   const items = (user?.rol === 'super_admin'
-    ? menuItems.super_admin
+    ? MENU.super_admin
     : user?.rol === 'admin'
-      ? menuItems.admin
-      : menuItems.trabajador
+      ? MENU.admin
+      : MENU.trabajador
   ).filter(item => item.path !== '/ruta-entregas' || moduloActivo?.tiene_domicilio !== false);
 
-  // Contar notificaciones no leídas
-  const notificacionesNoLeidas = notificaciones.filter(n => !n.leido).length;
+  const paginaActual = items.find(item => item.path === location.pathname);
+  const inicial = user?.nombre?.charAt(0).toUpperCase() || 'U';
 
   return (
     <div className={`dashboard ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
-      {/* Navbar superior */}
-      <nav className="navbar">
-        <div className="navbar-left">
-          <button 
-            className="btn-toggle-sidebar"
-            onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-            title="Colapsar/Expandir menú (Ctrl+B)"
-          >
-            ☰
-          </button>
-          <div className="navbar-brand">
-            <h1>📊 Sistema de Inventario</h1>
-            {moduloActivo && (
-              puedeCambiarModulo ? (
-                <div className="navbar-modulo-selector">
-                  <button
-                    className="navbar-modulo navbar-modulo-btn"
-                    onClick={() => setShowModuloMenu(!showModuloMenu)}
-                    title="Cambiar módulo"
-                  >
-                    📁 {moduloActivo.nombre}
-                    <span className="navbar-modulo-arrow">▾</span>
-                  </button>
+      {/* Backdrop del drawer en móvil: tocar fuera lo cierra. */}
+      {!sidebarCollapsed && (
+        <div className="sidebar-overlay" onClick={() => setSidebarCollapsed(true)} />
+      )}
 
+      <aside className={`sidebar ${sidebarCollapsed ? 'collapsed' : ''}`}>
+        <div className="sidebar-brand">
+          <span className="sidebar-brand-mark"><Store size={18} strokeWidth={2.2} /></span>
+          {!sidebarCollapsed && (
+            <span className="sidebar-brand-text">
+              <strong>Sistema de Inventario</strong>
+              <small>Gestión del negocio</small>
+            </span>
+          )}
+        </div>
+
+        <nav className="sidebar-nav">
+          <ul className="nav-menu">
+            {items.map(({ path, icon: Icon, label }) => (
+              <li
+                key={path}
+                className={`nav-item ${location.pathname === path ? 'active' : ''}`}
+                title={sidebarCollapsed ? label : ''}
+              >
+                <Link to={path}>
+                  <Icon className="nav-icon" size={18} strokeWidth={1.9} />
+                  {!sidebarCollapsed && <span className="nav-label">{label}</span>}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </nav>
+
+        <div className="sidebar-footer">
+          <button
+            onClick={() => window.open('https://github.com/DanielPaezR/Manejo_inventarios', '_blank')}
+            className="nav-link-btn"
+            title={sidebarCollapsed ? 'Ayuda' : ''}
+          >
+            <CircleHelp className="nav-icon" size={18} strokeWidth={1.9} />
+            {!sidebarCollapsed && <span className="nav-label">Ayuda</span>}
+          </button>
+          {!sidebarCollapsed && <span className="sidebar-version">v2.0.0</span>}
+        </div>
+      </aside>
+
+      <div className="dashboard-main">
+        <header className="topbar">
+          <div className="topbar-left">
+            <button
+              className="btn-toggle-sidebar"
+              onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+              title="Colapsar/Expandir menú (Ctrl+B)"
+              aria-label="Colapsar o expandir menú"
+            >
+              <Menu size={18} />
+            </button>
+            {paginaActual && <h1 className="topbar-title">{paginaActual.label}</h1>}
+          </div>
+
+          <div className="topbar-right">
+            {requiereModulo && moduloActivo && (
+              puedeCambiarModulo ? (
+                <div className="modulo-selector">
+                  <button
+                    className="modulo-chip modulo-chip-btn"
+                    onClick={() => setShowModuloMenu(!showModuloMenu)}
+                    title={moduloActivo.descripcion || 'Cambiar módulo'}
+                  >
+                    <span className="modulo-chip-dot" />
+                    {moduloActivo.nombre}
+                    <ChevronDown size={14} />
+                  </button>
                   {showModuloMenu && (
-                    <div className="dropdown-modulo">
+                    <div className="dropdown dropdown-modulo">
+                      <div className="dropdown-label">Cambiar de módulo</div>
                       {modulos.map((modulo) => (
                         <button
                           key={modulo.id}
-                          className={`dropdown-modulo-item ${modulo.id === moduloActivo.id ? 'active' : ''}`}
+                          className={`dropdown-item ${modulo.id === moduloActivo.id ? 'active' : ''}`}
                           onClick={() => {
                             cambiarModulo(modulo);
                             setShowModuloMenu(false);
                           }}
                         >
-                          📁 {modulo.nombre}
+                          <span>{modulo.nombre}</span>
+                          {modulo.id === moduloActivo.id && <Check size={15} />}
                         </button>
                       ))}
                     </div>
                   )}
                 </div>
               ) : (
-                <span className="navbar-modulo">
-                  📁 {moduloActivo.nombre}
+                <span className="modulo-chip" title={moduloActivo.descripcion || ''}>
+                  <span className="modulo-chip-dot" />
+                  {moduloActivo.nombre}
                 </span>
               )
             )}
-          </div>
-        </div>
-        
-        <div className="navbar-right">
-          {/* Buscador rápido */}
-          <div className="navbar-search">
-            <input
-              type="text"
-              placeholder="🔍 Buscar..."
-              className="search-input"
-              onKeyPress={(e) => {
-                if (e.key === 'Enter' && e.target.value) {
-                  // Buscar en toda la aplicación
-                  console.log('Buscando:', e.target.value);
-                }
-              }}
-            />
-          </div>
 
-          {/* Notificaciones */}
-          <div className="navbar-notificaciones">
-            <button 
-              className="btn-notificaciones"
-              onClick={() => setShowNotificaciones(!showNotificaciones)}
-              title="Notificaciones"
-            >
-              🔔
-              {notificacionesNoLeidas > 0 && (
-                <span className="badge-notificacion">{notificacionesNoLeidas}</span>
-              )}
-            </button>
-            
-            {showNotificaciones && (
-              <div className="dropdown-notificaciones">
-                <div className="dropdown-header">
-                  <span>Notificaciones</span>
-                  {notificacionesNoLeidas > 0 && (
-                    <button onClick={marcarNotificacionesLeidas} className="btn-marcar-leidas">
-                      Marcar todas como leídas
-                    </button>
-                  )}
-                </div>
-                {notificaciones.length > 0 ? (
-                  <ul>
-                    {notificaciones.map(notif => (
-                      <li key={notif.id} className={`notificacion-item ${notif.leido ? 'leido' : ''}`}>
-                        <span className={`notificacion-icono ${notif.tipo}`}>
-                          {notif.tipo === 'warning' ? '⚠️' : '📌'}
-                        </span>
-                        <span className="notificacion-mensaje">{notif.mensaje}</span>
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p className="sin-notificaciones">No hay notificaciones</p>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* Menú de usuario */}
-          <div className="navbar-user">
-            <button 
-              className="btn-user"
-              onClick={() => setShowUserMenu(!showUserMenu)}
-              title="Menú de usuario"
-            >
-              <span className="user-avatar">
-                {user?.nombre?.charAt(0).toUpperCase() || 'U'}
-              </span>
-              <span className="user-info">
-                <span className="user-nombre">{user?.nombre}</span>
-                <span className="user-rol">{user?.rol}</span>
-              </span>
-              <span className="user-arrow">▼</span>
-            </button>
-
-            {showUserMenu && (
-              <div className="dropdown-user">
-                <div className="dropdown-user-header">
-                  <div className="user-avatar-large">
-                    {user?.nombre?.charAt(0).toUpperCase() || 'U'}
-                  </div>
-                  <div className="user-info-large">
-                    <strong>{user?.nombre}</strong>
-                    <span>{user?.email}</span>
-                    <span className="user-rol-badge">{user?.rol}</span>
-                  </div>
-                </div>
-                <ul className="dropdown-user-menu">
-                  <li>
-                    <button onClick={() => { setShowUserMenu(false); setShowCambiarPassword(true); }}>
-                      🔑 Cambiar Contraseña
-                    </button>
-                  </li>
-                  <li className="dropdown-divider"></li>
-                  <li>
-                    <button 
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleLogout();
-                      }} 
-                      className="btn-logout-dropdown"
-                    >
-                      🚪 Cerrar Sesión
-                    </button>
-                  </li>
-                </ul>
-              </div>
-            )}
-          </div>
-        </div>
-      </nav>
-
-      {/* Selector de módulo */}
-      {requiereModulo && moduloActivo && (
-        <div className="modulo-section">
-          <div className="modulo-info">
-            <span className="modulo-label">📁 Módulo activo:</span>
-            <span className="modulo-nombre">{moduloActivo.nombre}</span>
-            {moduloActivo.descripcion && (
-              <span className="modulo-descripcion">{moduloActivo.descripcion}</span>
-            )}
-          </div>
-          <SelectorModulo />
-        </div>
-      )}
-
-      {/* Overlay/backdrop del sidebar en móvil: tocar fuera cierra el drawer.
-          En desktop se oculta con CSS (display:none). */}
-      {!sidebarCollapsed && (
-        <div
-          className="sidebar-overlay"
-          onClick={() => setSidebarCollapsed(true)}
-        />
-      )}
-
-      <div className="dashboard-container">
-        {/* Sidebar */}
-        <aside className={`sidebar ${sidebarCollapsed ? 'collapsed' : ''}`}>
-          <ul className="nav-menu">
-            {items.map((item) => (
-              <li 
-                key={item.path} 
-                className={`nav-item ${location.pathname === item.path ? 'active' : ''}`}
-                title={sidebarCollapsed ? item.label : ''}
-              >
-                <Link to={item.path}>
-                  <span className="nav-icon">{item.icon}</span>
-                  {!sidebarCollapsed && <span className="nav-label">{item.label}</span>}
-                </Link>
-              </li>
-            ))}
-
-            {/* Separador y opciones adicionales */}
-            {!sidebarCollapsed && (
-              <>
-                <li className="nav-separator"></li>
-                <li className="nav-item nav-help">
-                  <button 
-                    onClick={() => window.open('https://github.com/DanielPaezR/Manejo_inventarios', '_blank')}
-                    className="nav-link-btn"
-                  >
-                    <span className="nav-icon">❓</span>
-                    <span className="nav-label">Ayuda</span>
-                  </button>
-                </li>
-              </>
-            )}
-          </ul>
-
-          {/* Footer del sidebar */}
-          {!sidebarCollapsed && (
-            <div className="sidebar-footer">
-              <div className="sidebar-version">
-                <span>v2.0.0</span>
-                <span className="sidebar-modulos-count">
-                  {modulos.length} módulos disponibles
+            <div className="topbar-user">
+              <button className="btn-user" onClick={() => setShowUserMenu(!showUserMenu)} title="Menú de usuario">
+                <span className="user-avatar">{inicial}</span>
+                <span className="user-info">
+                  <span className="user-nombre">{user?.nombre}</span>
+                  <span className="user-rol">{ETIQUETA_ROL[user?.rol] || user?.rol}</span>
                 </span>
-              </div>
-            </div>
-          )}
-        </aside>
+                <ChevronDown size={14} className="user-arrow" />
+              </button>
 
-        {/* Contenido principal */}
+              {showUserMenu && (
+                <div className="dropdown dropdown-user">
+                  <div className="dropdown-user-header">
+                    <span className="user-avatar user-avatar-lg">{inicial}</span>
+                    <div className="dropdown-user-info">
+                      <strong>{user?.nombre}</strong>
+                      <span>{user?.email}</span>
+                    </div>
+                  </div>
+                  <button className="dropdown-item" onClick={() => { setShowUserMenu(false); setShowCambiarPassword(true); }}>
+                    <KeyRound size={16} /> Cambiar contraseña
+                  </button>
+                  <div className="dropdown-divider" />
+                  <button
+                    className="dropdown-item dropdown-item-danger"
+                    onClick={(e) => { e.stopPropagation(); handleLogout(); }}
+                  >
+                    <LogOut size={16} /> Cerrar sesión
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </header>
+
         <main className="main-content">
-          {/* key={pathname}: fuerza a React a remontar este div en cada
-              cambio de ruta, para que la animación de entrada (definida en
-              Dashboard.css) se dispare de nuevo cada vez — sin esto, al
-              cambiar de página el contenido solo se reemplaza de golpe. */}
+          {/* key={pathname}: remonta el div en cada navegación para que la
+              animación de entrada se dispare de nuevo. */}
           <div key={location.pathname} className="page-transition">
             <Outlet />
           </div>
         </main>
       </div>
 
-      {/* Overlay para cerrar menús en móvil */}
-      {(showUserMenu || showNotificaciones || showModuloMenu) && (
+      {(showUserMenu || showModuloMenu) && (
         <div
           className="dropdown-overlay"
           onClick={() => {
             setShowUserMenu(false);
-            setShowNotificaciones(false);
             setShowModuloMenu(false);
           }}
         />

@@ -14,7 +14,7 @@
 .finanzas-header h2 {
   margin: 0;
   font-size: 24px;
-  color: #2d3748;
+  color: var(--text-strong);
   font-weight: 700;
 }
 
@@ -46,15 +46,15 @@
 }
 
 .mensaje-flotante.exito {
-  background: #f0fff4;
-  border: 1px solid #48bb78;
-  color: #22543d;
+  background: var(--success-50);
+  border: 1px solid var(--success);
+  color: var(--success);
 }
 
 .mensaje-flotante.error {
-  background: #fff5f5;
+  background: var(--danger-50);
   border: 1px solid #fc8181;
-  color: #742a2a;
+  color: var(--danger);
 }
 
 .btn-cerrar-mensaje {
@@ -78,14 +78,14 @@
   border-radius: 16px;
   padding: 24px;
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--border);
   margin-bottom: 20px;
 }
 
 .card h3 {
   margin: 0 0 16px 0;
   font-size: 17px;
-  color: #2d3748;
+  color: var(--text-strong);
   font-weight: 600;
 }
 
@@ -97,13 +97,13 @@
   flex-direction: column;
   align-items: center;
   text-align: center;
-  background: linear-gradient(135deg, #fdf3ea 0%, #f0fff4 100%);
-  border: 1px solid #f0ddc9;
+  background: linear-gradient(135deg, var(--brand-50) 0%, var(--success-50) 100%);
+  border: 1px solid var(--brand-100);
 }
 
 .balance-label {
   font-size: 14px;
-  color: #4a5568;
+  color: var(--text-default);
   font-weight: 600;
   margin-bottom: 6px;
 }
@@ -111,11 +111,11 @@
 .balance-valor {
   font-size: 36px;
   font-weight: 700;
-  color: #2f855a;
+  color: var(--success);
 }
 
 .balance-valor.negativo {
-  color: #e53e3e;
+  color: var(--danger);
 }
 
 /* ============================================================
@@ -131,9 +131,9 @@
   display: flex;
   justify-content: space-between;
   padding: 8px 0;
-  border-bottom: 1px solid #f0f4f8;
+  border-bottom: 1px solid var(--surface-muted);
   font-size: 14px;
-  color: #4a5568;
+  color: var(--text-default);
 }
 
 .desglose-item:last-child {
@@ -141,11 +141,11 @@
 }
 
 .desglose-item.positivo strong {
-  color: #2f855a;
+  color: var(--success);
 }
 
 .desglose-item.negativo strong {
-  color: #e53e3e;
+  color: var(--danger);
 }
 
 /* ============================================================
@@ -163,7 +163,7 @@
 }
 
 .categorias-gasto-toggle {
-  color: #a0aec0;
+  color: var(--text-faint);
   font-size: 13px;
 }
 
@@ -183,20 +183,20 @@
   align-items: center;
   gap: 8px;
   padding: 8px 12px;
-  border: 1px solid #edf2f7;
+  border: 1px solid var(--surface-muted);
   border-radius: 8px;
 }
 
 .categoria-gasto-nombre {
   flex: 1;
   font-size: 14px;
-  color: #2d3748;
+  color: var(--text-strong);
 }
 
 .categoria-gasto-tipo {
   font-style: normal;
   font-size: 11px;
-  color: #a0aec0;
+  color: var(--text-faint);
 }
 
 .categoria-gasto-item input {
@@ -218,7 +218,7 @@
 }
 
 .btn-icono:hover {
-  background: #f7fafc;
+  background: var(--surface-subtle);
 }
 
 .categoria-gasto-form {
@@ -229,7 +229,7 @@
 .categoria-gasto-form input {
   flex: 1;
   padding: 8px 12px;
-  border: 2px solid #e2e8f0;
+  border: 2px solid var(--border);
   border-radius: 8px;
   font-size: 14px;
 }
@@ -249,7 +249,7 @@
 .movimiento-categoria-gasto {
   font-size: 12px;
   color: var(--primary-dark);
-  background: #fdf3ea;
+  background: var(--brand-50);
   padding: 2px 8px;
   border-radius: 10px;
 }
@@ -271,7 +271,7 @@
   display: block;
   font-size: 14px;
   font-weight: 500;
-  color: #4a5568;
+  color: var(--text-default);
   margin-bottom: 4px;
 }
 
@@ -279,7 +279,7 @@
 .finanzas-form .form-group select {
   width: 100%;
   padding: 8px 12px;
-  border: 2px solid #e2e8f0;
+  border: 2px solid var(--border);
   border-radius: 8px;
   font-size: 14px;
   transition: all 0.3s ease;
@@ -295,7 +295,7 @@
 .btn-guardar {
   width: 100%;
   padding: 12px 24px;
-  background: linear-gradient(135deg, #48bb78 0%, #38a169 100%);
+  background: linear-gradient(135deg, var(--success) 0%, var(--success) 100%);
   color: white;
   border: none;
   border-radius: 10px;
@@ -332,7 +332,7 @@
   align-items: center;
   gap: 12px;
   padding: 10px 14px;
-  border: 1px solid #edf2f7;
+  border: 1px solid var(--surface-muted);
   border-radius: 10px;
   flex-wrap: wrap;
 }
@@ -351,28 +351,28 @@
   font-weight: 600;
   padding: 2px 10px;
   border-radius: 12px;
-  background: #f7fafc;
-  color: #4a5568;
+  background: var(--surface-subtle);
+  color: var(--text-default);
   white-space: nowrap;
 }
 
 .movimiento-concepto {
   font-size: 14px;
-  color: #2d3748;
+  color: var(--text-strong);
   font-weight: 500;
 }
 
 .movimiento-categoria {
   font-size: 12px;
-  color: #718096;
-  background: #f7fafc;
+  color: var(--text-muted);
+  background: var(--surface-subtle);
   padding: 2px 8px;
   border-radius: 10px;
 }
 
 .movimiento-fecha {
   font-size: 12px;
-  color: #a0aec0;
+  color: var(--text-faint);
   white-space: nowrap;
 }
 
@@ -383,11 +383,11 @@
 }
 
 .movimiento-monto.positivo {
-  color: #2f855a;
+  color: var(--success);
 }
 
 .movimiento-monto.negativo {
-  color: #e53e3e;
+  color: var(--danger);
 }
 
 /* ============================================================
@@ -415,13 +415,13 @@
 .registro-semanal-navegacion .btn-icono {
   font-size: 16px;
   font-weight: 700;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--border);
 }
 
 .registro-semanal-rango {
   font-size: 14px;
   font-weight: 600;
-  color: #2d3748;
+  color: var(--text-strong);
   white-space: nowrap;
 }
 
@@ -443,9 +443,9 @@
   gap: 12px;
   align-items: center;
   padding: 10px 0;
-  border-bottom: 1px solid #f0f4f8;
+  border-bottom: 1px solid var(--surface-muted);
   font-size: 14px;
-  color: #4a5568;
+  color: var(--text-default);
 }
 
 .registro-semanal-fila--titulos {
@@ -453,13 +453,13 @@
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.4px;
-  color: #a0aec0;
-  border-bottom: 2px solid #e2e8f0;
+  color: var(--text-faint);
+  border-bottom: 2px solid var(--border);
 }
 
 .registro-semanal-fila--subtotal {
   font-weight: 700;
-  color: #2d3748;
+  color: var(--text-strong);
 }
 
 .registro-semanal-fila--reinversion {
@@ -473,19 +473,19 @@
 }
 
 .registro-semanal-monto.positivo {
-  color: #2f855a;
+  color: var(--success);
 }
 
 .registro-semanal-monto.negativo {
-  color: #e53e3e;
+  color: var(--danger);
 }
 
 /* Utilidad bruta negativa: total de gastos superó a los ingresos de la
    semana — se resalta más fuerte que un simple "negativo" de fila para
    que sea obvio de un vistazo. */
 .registro-semanal-monto--alerta {
-  color: #c53030;
-  background: #fff5f5;
+  color: var(--danger);
+  background: var(--danger-50);
   padding: 2px 8px;
   border-radius: 6px;
 }
@@ -493,7 +493,7 @@
 .registro-semanal-input-monto,
 .registro-semanal-input-notas {
   padding: 8px 10px;
-  border: 2px solid #e2e8f0;
+  border: 2px solid var(--border);
   border-radius: 8px;
   font-size: 14px;
   width: 100%;
@@ -517,23 +517,23 @@
 .loading {
   text-align: center;
   padding: 30px 0;
-  color: #718096;
+  color: var(--text-muted);
   font-size: 15px;
 }
 
 .sin-datos {
   text-align: center;
   padding: 20px 0;
-  color: #a0aec0;
+  color: var(--text-faint);
   font-size: 14px;
 }
 
 .alert-warning {
   padding: 16px 20px;
-  background: #fff5f5;
+  background: var(--danger-50);
   border: 1px solid #fc8181;
   border-radius: 10px;
-  color: #742a2a;
+  color: var(--danger);
   text-align: center;
   font-weight: 500;
 }

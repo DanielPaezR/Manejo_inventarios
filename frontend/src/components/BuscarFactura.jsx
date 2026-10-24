@@ -98,7 +98,6 @@ const BuscarFactura = ({ user }) => {
   return (
     <div className="buscar-factura-container">
       <div className="bf-header">
-        <h2>🔎 Buscar Factura</h2>
         <p className="bf-subtitulo">
           Pega o escribe el número de factura (ej. <strong>FAC001231</strong>) para ver qué se compró, cuándo, y revisar si el cliente quedó debiendo.
         </p>

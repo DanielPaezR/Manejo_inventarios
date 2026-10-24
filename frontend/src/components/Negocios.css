@@ -40,11 +40,11 @@
 
 .negocio-card.negocio-inactivo {
   opacity: 0.6;
-  border-left-color: #e74c3c;
+  border-left-color: var(--danger);
 }
 
 .negocio-motivo-desactivacion {
-  color: #c0392b;
+  color: var(--danger);
   background: #fdf2f0;
   padding: 0.5rem 0.75rem;
   border-radius: var(--radius-sm, 10px);
@@ -59,7 +59,7 @@
 
 .negocio-header h3 {
   margin: 0;
-  color: #2c3e50;
+  color: var(--text-strong);
   flex: 1;
 }
 
@@ -72,12 +72,12 @@
 
 .estado.activo {
   background: #d5f4e6;
-  color: #27ae60;
+  color: var(--success);
 }
 
 .estado.inactivo {
   background: #fadbd8;
-  color: #e74c3c;
+  color: var(--danger);
 }
 
 .negocio-info {
@@ -160,27 +160,27 @@
 }
 
 .btn-eliminar-negocio {
-  background: #e74c3c;
+  background: var(--danger);
   color: white;
 }
 
 .btn-eliminar-negocio:hover {
-  background: #c0392b;
+  background: var(--danger);
   transform: translateY(-1px);
 }
 
 .btn-desactivar {
-  background: #e74c3c;
+  background: var(--danger);
   color: white;
 }
 
 .btn-desactivar:hover {
-  background: #c0392b;
+  background: var(--danger);
   transform: translateY(-1px);
 }
 
 .btn-reactivar {
-  background: #27ae60;
+  background: var(--success);
   color: white;
 }
 
@@ -192,7 +192,7 @@
 .empty-state {
   text-align: center;
   padding: 3rem;
-  color: #7f8c8d;
+  color: var(--text-muted);
 }
 
 .empty-state p {
@@ -238,13 +238,13 @@
   justify-content: space-between;
   align-items: center;
   padding: 1.5rem;
-  border-bottom: 1px solid #e0e0e0;
-  background: #f8f9fa;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-subtle);
 }
 
 .modal-header h2 {
   margin: 0;
-  color: #2c3e50;
+  color: var(--text-strong);
 }
 
 .btn-close {
@@ -252,12 +252,12 @@
   border: none;
   font-size: 1.5rem;
   cursor: pointer;
-  color: #7f8c8d;
+  color: var(--text-muted);
   padding: 0.5rem;
 }
 
 .btn-close:hover {
-  color: #e74c3c;
+  color: var(--danger);
 }
 
 .modal-content {
@@ -270,16 +270,16 @@
 .usuario-form-section {
   margin-bottom: 2rem;
   padding-bottom: 2rem;
-  border-bottom: 2px solid #e0e0e0;
+  border-bottom: 2px solid var(--border);
 }
 
 .usuario-form-section h3 {
   margin: 0 0 1rem 0;
-  color: #2c3e50;
+  color: var(--text-strong);
 }
 
 .usuario-form {
-  background: #f8f9fa;
+  background: var(--surface-subtle);
   padding: 1.5rem;
   border-radius: 8px;
 }
@@ -303,7 +303,7 @@
 .form-group label {
   margin-bottom: 0.5rem;
   font-weight: 500;
-  color: #2c3e50;
+  color: var(--text-strong);
 }
 
 .form-group input,
@@ -316,7 +316,7 @@
 
 .usuarios-list-section h3 {
   margin: 0 0 1rem 0;
-  color: #2c3e50;
+  color: var(--text-strong);
 }
 
 .usuarios-grid {
@@ -327,7 +327,7 @@
 
 .usuario-card {
   background: white;
-  border: 1px solid #e0e0e0;
+  border: 1px solid var(--border);
   border-radius: 8px;
   padding: 1rem;
   display: flex;
@@ -354,7 +354,7 @@
 .usuario-modulos-label {
   font-size: 0.85rem;
   font-weight: 500;
-  color: #2c3e50;
+  color: var(--text-strong);
 }
 
 .usuario-modulo-check {
@@ -373,7 +373,7 @@
 
 .usuario-info h4 {
   margin: 0 0 0.5rem 0;
-  color: #2c3e50;
+  color: var(--text-strong);
 }
 
 .usuario-info p {
@@ -396,12 +396,12 @@
 }
 
 .rol-badge.trabajador {
-  background: #27ae60;
+  background: var(--success);
   color: white;
 }
 
 .rol-badge.super_admin {
-  background: #e74c3c;
+  background: var(--danger);
   color: white;
 }
 
@@ -411,7 +411,7 @@
 }
 
 .btn-eliminar {
-  background: #e74c3c;
+  background: var(--danger);
   color: white;
   border: none;
   padding: 0.5rem 0.75rem;
@@ -421,11 +421,11 @@
 }
 
 .btn-eliminar:hover:not(:disabled) {
-  background: #c0392b;
+  background: var(--danger);
 }
 
 .btn-eliminar:disabled {
-  background: #bdc3c7;
+  background: var(--border-strong);
   cursor: not-allowed;
 }
 
@@ -437,7 +437,7 @@
 }
 
 .estadistica-card {
-  background: #f8f9fa;
+  background: var(--surface-subtle);
   border-radius: 8px;
   padding: 1.5rem;
   text-align: center;
@@ -449,19 +449,19 @@
 
 .estadistica-card h3 {
   margin: 0 0 1rem 0;
-  color: #2c3e50;
+  color: var(--text-strong);
   font-size: 1rem;
 }
 
 .estadistica-valor {
   font-size: 2rem;
   font-weight: bold;
-  color: #2c3e50;
+  color: var(--text-strong);
   margin: 0;
 }
 
 .estadistica-desc {
-  color: #7f8c8d;
+  color: var(--text-muted);
   margin: 0.5rem 0 0 0;
 }
 
@@ -501,7 +501,7 @@
 }
 
 .producto-vendido {
-  background: #27ae60;
+  background: var(--success);
   color: white;
   padding: 0.25rem 0.5rem;
   border-radius: 12px;
@@ -527,18 +527,18 @@
 
 .dia {
   font-weight: bold;
-  color: #2c3e50;
+  color: var(--text-strong);
   text-transform: capitalize;
 }
 
 .ventas-cantidad {
   font-size: 0.9rem;
-  color: #7f8c8d;
+  color: var(--text-muted);
 }
 
 .ventas-total {
   font-weight: bold;
-  color: #27ae60;
+  color: var(--success);
 }
 
 /* FORMULARIOS */
@@ -567,7 +567,7 @@
 
 .form-container h2 {
   margin-bottom: 1.5rem;
-  color: #2c3e50;
+  color: var(--text-strong);
 }
 
 .form-actions {
@@ -595,7 +595,7 @@
 }
 
 .btn-primary:disabled {
-  background: #bdc3c7;
+  background: var(--border-strong);
   cursor: not-allowed;
 }
 
@@ -611,7 +611,7 @@
 }
 
 .btn-secondary:hover {
-  background: #7f8c8d;
+  background: var(--text-muted);
   transform: translateY(-1px);
 }
 

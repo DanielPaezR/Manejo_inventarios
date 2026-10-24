@@ -18,7 +18,7 @@
   gap: 16px;
   margin-bottom: 24px;
   padding-bottom: 16px;
-  border-bottom: 2px solid #e2e8f0;
+  border-bottom: 2px solid var(--border);
 }
 
 .header-left {
@@ -30,24 +30,24 @@
 .header-left h2 {
   margin: 0;
   font-size: 24px;
-  color: #2d3748;
+  color: var(--text-strong);
   font-weight: 700;
 }
 
 .badge {
   display: inline-block;
   padding: 4px 14px;
-  background: #fdf3ea;
+  background: var(--brand-50);
   color: var(--primary-dark);
   border-radius: 20px;
   font-size: 13px;
   font-weight: 600;
-  border: 1px solid #f0ddc9;
+  border: 1px solid var(--brand-100);
 }
 
 .btn-agregar {
   padding: 10px 24px;
-  background: linear-gradient(135deg, #48bb78 0%, #38a169 100%);
+  background: linear-gradient(135deg, var(--success) 0%, var(--success) 100%);
   color: white;
   border: none;
   border-radius: 10px;
@@ -78,7 +78,7 @@
 .proveedor-card {
   background: white;
   border-radius: 16px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--border);
   padding: 20px;
   transition: all 0.3s ease;
   position: relative;
@@ -92,7 +92,7 @@
   left: 0;
   right: 0;
   height: 4px;
-  background: linear-gradient(90deg, var(--primary), #48bb78, var(--primary));
+  background: linear-gradient(90deg, var(--primary), var(--success), var(--primary));
   background-size: 200% 100%;
   opacity: 0;
   transition: opacity 0.3s ease;
@@ -124,7 +124,7 @@
 .proveedor-nombre h3 {
   margin: 0;
   font-size: 17px;
-  color: #2d3748;
+  color: var(--text-strong);
   font-weight: 700;
   word-break: break-word;
 }
@@ -133,8 +133,8 @@
   display: inline-block;
   margin-top: 4px;
   font-size: 13px;
-  color: #718096;
-  background: #f7fafc;
+  color: var(--text-muted);
+  background: var(--surface-subtle);
   padding: 2px 12px;
   border-radius: 12px;
 }
@@ -164,7 +164,7 @@
 }
 
 .proveedor-actions .btn-editar:hover {
-  background: #fdf3ea;
+  background: var(--brand-50);
   transform: scale(1.1);
 }
 
@@ -173,7 +173,7 @@
 }
 
 .proveedor-actions .btn-eliminar:hover {
-  background: #fff5f5;
+  background: var(--danger-50);
   transform: scale(1.1);
 }
 
@@ -184,8 +184,8 @@
   gap: 6px;
   margin-bottom: 14px;
   padding: 10px 0;
-  border-top: 1px solid #f0f4f8;
-  border-bottom: 1px solid #f0f4f8;
+  border-top: 1px solid var(--surface-muted);
+  border-bottom: 1px solid var(--surface-muted);
 }
 
 .proveedor-info-item {
@@ -193,7 +193,7 @@
   align-items: center;
   gap: 8px;
   font-size: 14px;
-  color: #4a5568;
+  color: var(--text-default);
   padding: 2px 0;
 }
 
@@ -237,13 +237,13 @@
 
 .productos-count {
   font-size: 13px;
-  color: #718096;
+  color: var(--text-muted);
   font-weight: 500;
 }
 
 .btn-asociar {
   padding: 4px 14px;
-  background: #fdf3ea;
+  background: var(--brand-50);
   color: var(--primary-dark);
   border: none;
   border-radius: 6px;
@@ -254,7 +254,7 @@
 }
 
 .btn-asociar:hover {
-  background: #f0ddc9;
+  background: var(--brand-100);
   transform: scale(1.05);
 }
 
@@ -265,21 +265,21 @@
   gap: 4px;
   margin-top: 10px;
   padding-top: 10px;
-  border-top: 1px solid #f0f4f8;
+  border-top: 1px solid var(--surface-muted);
 }
 
 .producto-tag {
-  background: #f7fafc;
+  background: var(--surface-subtle);
   padding: 2px 10px;
   border-radius: 12px;
   font-size: 11px;
-  color: #4a5568;
-  border: 1px solid #edf2f7;
+  color: var(--text-default);
+  border: 1px solid var(--surface-muted);
 }
 
 .producto-tag-mas {
   font-size: 11px;
-  color: #718096;
+  color: var(--text-muted);
   padding: 2px 8px;
   font-weight: 500;
 }
@@ -290,10 +290,10 @@
 .sin-datos {
   text-align: center;
   padding: 60px 20px;
-  color: #718096;
+  color: var(--text-muted);
   background: white;
   border-radius: 16px;
-  border: 2px dashed #e2e8f0;
+  border: 2px dashed var(--border);
   grid-column: 1 / -1;
 }
 
@@ -365,7 +365,7 @@
 }
 
 .modal-content::-webkit-scrollbar-thumb {
-  background: #cbd5e0;
+  background: var(--border-strong);
   border-radius: 4px;
 }
 
@@ -375,13 +375,13 @@
   align-items: center;
   margin-bottom: 24px;
   padding-bottom: 16px;
-  border-bottom: 2px solid #e2e8f0;
+  border-bottom: 2px solid var(--border);
 }
 
 .modal-header h3 {
   margin: 0;
   font-size: 20px;
-  color: #2d3748;
+  color: var(--text-strong);
   font-weight: 700;
 }
 
@@ -390,13 +390,13 @@
   border: none;
   font-size: 24px;
   cursor: pointer;
-  color: #a0aec0;
+  color: var(--text-faint);
   transition: all 0.2s;
   padding: 0 8px;
 }
 
 .modal-header button:hover {
-  color: #e53e3e;
+  color: var(--danger);
   transform: rotate(90deg);
 }
 
@@ -417,12 +417,12 @@
   display: block;
   font-size: 14px;
   font-weight: 600;
-  color: #2d3748;
+  color: var(--text-strong);
   margin-bottom: 6px;
 }
 
 .form-group label .required {
-  color: #e53e3e;
+  color: var(--danger);
   margin-left: 2px;
 }
 
@@ -430,11 +430,11 @@
 .form-group select {
   width: 100%;
   padding: 10px 14px;
-  border: 2px solid #e2e8f0;
+  border: 2px solid var(--border);
   border-radius: 10px;
   font-size: 14px;
-  color: #2d3748;
-  background: #f7fafc;
+  color: var(--text-strong);
+  background: var(--surface-subtle);
   transition: all 0.3s ease;
   font-family: inherit;
 }
@@ -448,7 +448,7 @@
 }
 
 .form-group input::placeholder {
-  color: #a0aec0;
+  color: var(--text-faint);
 }
 
 .form-group select {
@@ -467,7 +467,7 @@
   gap: 12px;
   margin-top: 24px;
   padding-top: 20px;
-  border-top: 2px solid #e2e8f0;
+  border-top: 2px solid var(--border);
 }
 
 .btn-guardar {
@@ -496,8 +496,8 @@
 
 .btn-cancelar {
   padding: 12px 24px;
-  background: #edf2f7;
-  color: #4a5568;
+  background: var(--surface-muted);
+  color: var(--text-default);
   border: none;
   border-radius: 10px;
   font-size: 16px;
@@ -507,7 +507,7 @@
 }
 
 .btn-cancelar:hover {
-  background: #e2e8f0;
+  background: var(--border);
 }
 
 /* ============================================================
@@ -528,19 +528,19 @@
 .gestion-seccion h4 {
   margin: 0 0 12px 0;
   font-size: 15px;
-  color: #2d3748;
+  color: var(--text-strong);
   font-weight: 700;
 }
 
 .sin-datos-mini {
-  color: #718096;
+  color: var(--text-muted);
   font-size: 14px;
   padding: 12px 0;
 }
 
 .tabla-asociados-wrapper {
   overflow-x: auto;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--border);
   border-radius: 12px;
   margin-bottom: 12px;
 }
@@ -554,16 +554,16 @@
 .tabla-asociados th {
   text-align: left;
   padding: 10px 12px;
-  background: #f7fafc;
-  color: #4a5568;
+  background: var(--surface-subtle);
+  color: var(--text-default);
   font-weight: 600;
   white-space: nowrap;
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid var(--border);
 }
 
 .tabla-asociados td {
   padding: 8px 12px;
-  border-bottom: 1px solid #f0f4f8;
+  border-bottom: 1px solid var(--surface-muted);
   vertical-align: middle;
 }
 
@@ -574,10 +574,10 @@
 .tabla-asociados input {
   width: 90px;
   padding: 6px 8px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--border);
   border-radius: 6px;
   font-size: 13px;
-  background: #f7fafc;
+  background: var(--surface-subtle);
 }
 
 .tabla-asociados input:focus {
@@ -597,7 +597,7 @@
 }
 
 .btn-quitar-producto:hover {
-  background: #fff5f5;
+  background: var(--danger-50);
   transform: scale(1.1);
 }
 
@@ -627,10 +627,10 @@
 .input-busqueda-productos {
   width: 100%;
   padding: 10px 14px;
-  border: 2px solid #e2e8f0;
+  border: 2px solid var(--border);
   border-radius: 10px;
   font-size: 14px;
-  background: #f7fafc;
+  background: var(--surface-subtle);
   margin-bottom: 12px;
   font-family: inherit;
 }
@@ -645,7 +645,7 @@
 .lista-productos-disponibles {
   max-height: 280px;
   overflow-y: auto;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--border);
   border-radius: 12px;
   padding: 8px;
   margin-bottom: 16px;
@@ -658,7 +658,7 @@
 }
 
 .producto-disponible-item.marcado {
-  background: #fdf3ea;
+  background: var(--brand-50);
 }
 
 .producto-disponible-check {
@@ -667,7 +667,7 @@
   gap: 10px;
   cursor: pointer;
   font-size: 14px;
-  color: #2d3748;
+  color: var(--text-strong);
 }
 
 .producto-disponible-check input[type="checkbox"] {
@@ -678,7 +678,7 @@
 }
 
 .producto-disponible-check small {
-  color: #718096;
+  color: var(--text-muted);
   font-weight: 400;
 }
 
@@ -711,16 +711,16 @@
 .loading {
   text-align: center;
   padding: 40px 0;
-  color: #718096;
+  color: var(--text-muted);
   font-size: 15px;
 }
 
 .alert-warning {
   padding: 16px 20px;
-  background: #fff5f5;
+  background: var(--danger-50);
   border: 1px solid #fc8181;
   border-radius: 10px;
-  color: #742a2a;
+  color: var(--danger);
   text-align: center;
   font-weight: 500;
 }

@@ -365,12 +365,6 @@ const Pedidos = ({ user }) => {
   return (
     <div className="pedidos-container">
       <div className="pedidos-header">
-        <div className="header-left">
-          <h2>📦 Gestión de Pedidos</h2>
-          <div className="modulo-indicador">
-            <span className="badge">📁 {moduloActivo.nombre}</span>
-          </div>
-        </div>
         <button
           onClick={() => setShowCrearModal(true)}
           className="btn-agregar"

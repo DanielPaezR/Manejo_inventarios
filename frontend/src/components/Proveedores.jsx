@@ -305,12 +305,6 @@ const Proveedores = ({ user }) => {
   return (
     <div className="proveedores-container">
       <div className="proveedores-header">
-        <div className="header-left">
-          <h2>🤝 Gestión de Proveedores</h2>
-          <div className="modulo-indicador">
-            <span className="badge">📁 {moduloActivo.nombre}</span>
-          </div>
-        </div>
         <button 
           onClick={() => { setEditProveedor(null); setFormData({ nombre: '', contacto: '', telefono: '', email: '', direccion: '', dias_entrega: '' }); setShowModal(true); }} 
           className="btn-agregar"

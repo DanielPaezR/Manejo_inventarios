@@ -16,7 +16,7 @@
   height: 120px;
   object-fit: cover;
   border-radius: 10px;
-  border: 2px solid #e2e8f0;
+  border: 2px solid var(--border);
   flex-shrink: 0;
 }
 
@@ -33,9 +33,9 @@
 
 .btn-subida-imagen {
   padding: 8px 16px;
-  background: #edf2f7;
-  color: #2d3748;
-  border: 2px solid #e2e8f0;
+  background: var(--surface-muted);
+  color: var(--text-strong);
+  border: 2px solid var(--border);
   border-radius: 8px;
   font-size: 14px;
   font-weight: 600;
@@ -44,7 +44,7 @@
 }
 
 .btn-subida-imagen:hover:not(:disabled) {
-  background: #e2e8f0;
+  background: var(--border);
 }
 
 .btn-subida-imagen:disabled {
@@ -55,7 +55,7 @@
 .btn-quitar-imagen {
   padding: 6px 12px;
   background: none;
-  color: #c53030;
+  color: var(--danger);
   border: none;
   font-size: 13px;
   font-weight: 600;
@@ -74,5 +74,5 @@
 .subida-imagen-error {
   margin: 0;
   font-size: 13px;
-  color: #c53030;
+  color: var(--danger);
 }

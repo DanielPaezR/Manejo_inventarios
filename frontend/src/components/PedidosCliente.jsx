@@ -413,12 +413,6 @@ const PedidosCliente = ({ user }) => {
   return (
     <div className="pedidos-cliente-container">
       <div className="pedidos-cliente-header">
-        <div className="header-left">
-          <h2>🧾 Pedidos de Clientes</h2>
-          <div className="modulo-indicador">
-            <span className="badge">📁 {moduloActivo.nombre}</span>
-          </div>
-        </div>
         <div className="pedidos-cliente-header-acciones">
           {pedidos.some(p => p.estado === 'cancelado') && (
             <button

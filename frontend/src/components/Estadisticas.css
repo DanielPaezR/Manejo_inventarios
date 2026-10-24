@@ -18,7 +18,7 @@
   gap: 16px;
   margin-bottom: 24px;
   padding-bottom: 16px;
-  border-bottom: 2px solid #e2e8f0;
+  border-bottom: 2px solid var(--border);
 }
 
 .header-left {
@@ -30,19 +30,19 @@
 .header-left h2 {
   margin: 0;
   font-size: 24px;
-  color: #2d3748;
+  color: var(--text-strong);
   font-weight: 700;
 }
 
 .badge {
   display: inline-block;
   padding: 4px 14px;
-  background: #fdf3ea;
+  background: var(--brand-50);
   color: var(--primary-dark);
   border-radius: 20px;
   font-size: 13px;
   font-weight: 600;
-  border: 1px solid #f0ddc9;
+  border: 1px solid var(--brand-100);
 }
 
 .header-right {
@@ -53,18 +53,18 @@
 
 .btn-vista {
   padding: 8px 18px;
-  border: 2px solid #e2e8f0;
+  border: 2px solid var(--border);
   background: white;
   border-radius: 10px;
   cursor: pointer;
   font-size: 14px;
   font-weight: 500;
-  color: #4a5568;
+  color: var(--text-default);
   transition: all 0.3s ease;
 }
 
 .btn-vista:hover {
-  background: #f7fafc;
+  background: var(--surface-subtle);
   transform: translateY(-1px);
 }
 
@@ -87,7 +87,7 @@
   padding: 16px 20px;
   border-radius: 12px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--border);
   margin-bottom: 24px;
 }
 
@@ -104,20 +104,20 @@
   border-radius: 8px;
   cursor: pointer;
   font-size: 14px;
-  color: #4a5568;
+  color: var(--text-default);
   transition: all 0.2s ease;
   font-weight: 500;
 }
 
 .btn-periodo:hover {
-  background: #edf2f7;
+  background: var(--surface-muted);
 }
 
 .btn-periodo.active {
-  background: #fdf3ea;
+  background: var(--brand-50);
   color: var(--primary-dark);
   font-weight: 600;
-  box-shadow: 0 0 0 2px #f0ddc9;
+  box-shadow: 0 0 0 2px var(--brand-100);
 }
 
 .fechas-personalizadas {
@@ -129,10 +129,10 @@
 
 .input-fecha {
   padding: 6px 12px;
-  border: 2px solid #e2e8f0;
+  border: 2px solid var(--border);
   border-radius: 8px;
   font-size: 14px;
-  background: #f7fafc;
+  background: var(--surface-subtle);
   transition: all 0.2s;
 }
 
@@ -144,13 +144,13 @@
 }
 
 .fecha-separador {
-  color: #a0aec0;
+  color: var(--text-faint);
   font-weight: 600;
 }
 
 .btn-aplicar {
   padding: 6px 16px;
-  background: linear-gradient(135deg, #48bb78 0%, #38a169 100%);
+  background: linear-gradient(135deg, var(--success) 0%, var(--success) 100%);
   color: white;
   border: none;
   border-radius: 8px;
@@ -172,18 +172,18 @@
 
 .btn-icono {
   background: none;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--border);
   cursor: pointer;
   font-size: 16px;
   font-weight: 700;
   padding: 4px 10px;
   border-radius: 6px;
-  color: #4a5568;
+  color: var(--text-default);
   transition: background 0.2s;
 }
 
 .btn-icono:hover:not(:disabled) {
-  background: #f7fafc;
+  background: var(--surface-subtle);
 }
 
 .btn-icono:disabled {
@@ -194,7 +194,7 @@
 .periodo-navegacion-rango {
   font-size: 13px;
   font-weight: 600;
-  color: #2d3748;
+  color: var(--text-strong);
   white-space: nowrap;
 }
 
@@ -209,13 +209,13 @@
   padding: 60px 20px;
   background: white;
   border-radius: 16px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--border);
 }
 
 .spinner {
   width: 48px;
   height: 48px;
-  border: 4px solid #e2e8f0;
+  border: 4px solid var(--border);
   border-top: 4px solid var(--primary);
   border-radius: 50%;
   animation: spin 1s linear infinite;
@@ -228,7 +228,7 @@
 
 .loading-container p {
   margin-top: 16px;
-  color: #718096;
+  color: var(--text-muted);
   font-size: 16px;
 }
 
@@ -246,7 +246,7 @@
   border-radius: 16px;
   padding: 24px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--border);
   transition: box-shadow 0.3s ease;
 }
 
@@ -257,7 +257,7 @@
 .card h3 {
   margin: 0 0 20px 0;
   font-size: 16px;
-  color: #2d3748;
+  color: var(--text-strong);
   font-weight: 600;
 }
 
@@ -279,7 +279,7 @@
   align-items: center;
   gap: 14px;
   padding: 16px 20px;
-  background: #f7fafc;
+  background: var(--surface-subtle);
   border-radius: 12px;
   transition: all 0.3s ease;
 }
@@ -309,13 +309,13 @@
 .metrica-valor {
   font-size: 22px;
   font-weight: 700;
-  color: #2d3748;
+  color: var(--text-strong);
   line-height: 1.2;
 }
 
 .metrica-label {
   font-size: 13px;
-  color: #718096;
+  color: var(--text-muted);
   font-weight: 500;
 }
 
@@ -326,16 +326,16 @@
 }
 
 .metrica-comparacion.positivo {
-  color: #38a169;
+  color: var(--success);
 }
 
 .metrica-comparacion.negativo {
-  color: #e53e3e;
+  color: var(--danger);
 }
 
 .metrica-nota {
   font-size: 12px;
-  color: #a0aec0;
+  color: var(--text-faint);
   font-style: italic;
   margin-top: 2px;
 }
@@ -400,7 +400,7 @@
   transform: translateX(-50%);
   font-size: 10px;
   font-weight: 600;
-  color: #2d3748;
+  color: var(--text-strong);
   white-space: nowrap;
   opacity: 0;
   transition: opacity 0.3s ease;
@@ -412,7 +412,7 @@
 
 .barra-fecha {
   font-size: 11px;
-  color: #718096;
+  color: var(--text-muted);
   margin-top: 10px;
   font-weight: 500;
 }
@@ -432,14 +432,14 @@
 
 .producto-top-item {
   padding: 12px 16px;
-  background: #f7fafc;
+  background: var(--surface-subtle);
   border-radius: 10px;
   transition: all 0.2s ease;
   cursor: default;
 }
 
 .producto-top-item:hover {
-  background: #edf2f7;
+  background: var(--surface-muted);
   transform: translateX(4px);
 }
 
@@ -467,20 +467,20 @@
 .producto-top-nombre {
   flex: 1;
   font-weight: 500;
-  color: #2d3748;
+  color: var(--text-strong);
   font-size: 14px;
 }
 
 .producto-top-cantidad {
   font-size: 13px;
-  color: #718096;
+  color: var(--text-muted);
   font-weight: 500;
 }
 
 .producto-top-bar {
   width: 100%;
   height: 6px;
-  background: #edf2f7;
+  background: var(--surface-muted);
   border-radius: 4px;
   overflow: hidden;
 }
@@ -496,7 +496,7 @@
   text-align: right;
   font-size: 14px;
   font-weight: 600;
-  color: #2d3748;
+  color: var(--text-strong);
   margin-top: 4px;
 }
 
@@ -518,13 +518,13 @@
   align-items: center;
   gap: 14px;
   padding: 14px 16px;
-  background: #f7fafc;
+  background: var(--surface-subtle);
   border-radius: 10px;
   transition: all 0.2s ease;
 }
 
 .rapida-item:hover {
-  background: #edf2f7;
+  background: var(--surface-muted);
 }
 
 .rapida-icono {
@@ -537,13 +537,13 @@
   display: block;
   font-size: 20px;
   font-weight: 700;
-  color: #2d3748;
+  color: var(--text-strong);
   line-height: 1.2;
 }
 
 .rapida-label {
   font-size: 12px;
-  color: #718096;
+  color: var(--text-muted);
   font-weight: 500;
 }
 
@@ -567,7 +567,7 @@
 
 .stat-item {
   padding: 16px;
-  background: #f7fafc;
+  background: var(--surface-subtle);
   border-radius: 10px;
   text-align: center;
 }
@@ -575,7 +575,7 @@
 .stat-item span {
   display: block;
   font-size: 13px;
-  color: #718096;
+  color: var(--text-muted);
   font-weight: 500;
 }
 
@@ -583,15 +583,15 @@
   display: block;
   font-size: 28px;
   margin-top: 4px;
-  color: #2d3748;
+  color: var(--text-strong);
 }
 
 .text-warning {
-  color: #ed8936 !important;
+  color: var(--warning) !important;
 }
 
 .text-danger {
-  color: #e53e3e !important;
+  color: var(--danger) !important;
 }
 
 .tabla-top-productos {
@@ -603,25 +603,25 @@
 .tabla-top-productos th {
   text-align: left;
   padding: 10px 14px;
-  background: #f7fafc;
+  background: var(--surface-subtle);
   font-weight: 600;
-  color: #4a5568;
-  border-bottom: 2px solid #e2e8f0;
+  color: var(--text-default);
+  border-bottom: 2px solid var(--border);
 }
 
 .tabla-top-productos td {
   padding: 10px 14px;
-  border-bottom: 1px solid #edf2f7;
+  border-bottom: 1px solid var(--surface-muted);
 }
 
 .tabla-top-productos tr:hover td {
-  background: #f7fafc;
+  background: var(--surface-subtle);
 }
 
 .porcentaje-badge {
   display: inline-block;
   padding: 2px 12px;
-  background: #fdf3ea;
+  background: var(--brand-50);
   color: var(--primary-dark);
   border-radius: 12px;
   font-size: 12px;
@@ -635,7 +635,7 @@
 .productos-sin-venta h4 {
   margin: 0 0 12px 0;
   font-size: 15px;
-  color: #2d3748;
+  color: var(--text-strong);
 }
 
 /* ============================================================
@@ -686,13 +686,13 @@
   align-items: center;
   gap: 16px;
   padding: 18px 20px;
-  background: #f7fafc;
+  background: var(--surface-subtle);
   border-radius: 10px;
   transition: all 0.2s ease;
 }
 
 .venta-metrica:hover {
-  background: #edf2f7;
+  background: var(--surface-muted);
 }
 
 .venta-metrica-icono {
@@ -703,13 +703,13 @@
   display: block;
   font-size: 22px;
   font-weight: 700;
-  color: #2d3748;
+  color: var(--text-strong);
   line-height: 1.2;
 }
 
 .venta-metrica-label {
   font-size: 13px;
-  color: #718096;
+  color: var(--text-muted);
   font-weight: 500;
 }
 
@@ -719,7 +719,7 @@
 
 .ventas-metodos h4 {
   font-size: 15px;
-  color: #4a5568;
+  color: var(--text-default);
   margin: 0 0 12px 0;
 }
 
@@ -728,25 +728,25 @@
   justify-content: space-between;
   align-items: center;
   padding: 14px 20px;
-  background: #f0fff4;
+  background: var(--success-50);
   border-radius: 10px;
-  border: 1px solid #c6f6d5;
+  border: 1px solid var(--success-50);
 }
 
 .metodo-nombre {
   font-weight: 600;
-  color: #22543d;
+  color: var(--success);
   font-size: 16px;
 }
 
 .metodo-detalle {
-  color: #2d3748;
+  color: var(--text-strong);
   font-size: 14px;
 }
 
 .ventas-periodo-info h4 {
   font-size: 15px;
-  color: #4a5568;
+  color: var(--text-default);
   margin: 0 0 12px 0;
 }
 
@@ -758,10 +758,10 @@
 
 .periodo-detalles span {
   padding: 10px 14px;
-  background: #f7fafc;
+  background: var(--surface-subtle);
   border-radius: 8px;
   font-size: 14px;
-  color: #2d3748;
+  color: var(--text-strong);
 }
 
 /* ============================================================
@@ -783,25 +783,25 @@
 }
 
 .finanzas-total-item.ingreso {
-  background: #f0fff4;
-  border: 1px solid #c6f6d5;
+  background: var(--success-50);
+  border: 1px solid var(--success-50);
 }
 
 .finanzas-total-item.egreso {
-  background: #fff5f5;
-  border: 1px solid #fed7d7;
+  background: var(--danger-50);
+  border: 1px solid var(--danger-50);
 }
 
 .finanzas-total-label {
   font-size: 14px;
   font-weight: 600;
-  color: #4a5568;
+  color: var(--text-default);
 }
 
 .finanzas-total-valor {
   font-size: 28px;
   font-weight: 700;
-  color: #2d3748;
+  color: var(--text-strong);
 }
 
 .grafico-horizontal-card {
@@ -829,19 +829,19 @@
 }
 
 .barra-horizontal-nombre {
-  color: #2d3748;
+  color: var(--text-strong);
   font-weight: 600;
 }
 
 .barra-horizontal-valor {
-  color: #718096;
+  color: var(--text-muted);
   white-space: nowrap;
 }
 
 .barra-horizontal-track {
   width: 100%;
   height: 14px;
-  background: #f0f4f8;
+  background: var(--surface-muted);
   border-radius: 7px;
   overflow: hidden;
 }
@@ -853,18 +853,18 @@
 }
 
 .barra-horizontal-fill.ingreso {
-  background: linear-gradient(90deg, #48bb78, #38a169);
+  background: linear-gradient(90deg, var(--success), var(--success));
 }
 
 .barra-horizontal-fill.egreso {
-  background: linear-gradient(90deg, #fc8181, #e53e3e);
+  background: linear-gradient(90deg, #fc8181, var(--danger));
 }
 
 .cruzadas-productos-lista {
   list-style: none;
   margin: 2px 0 0;
   padding: 0 0 0 8px;
-  border-left: 2px solid #edf2f7;
+  border-left: 2px solid var(--surface-muted);
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -875,7 +875,7 @@
   justify-content: space-between;
   gap: 12px;
   font-size: 12.5px;
-  color: #718096;
+  color: var(--text-muted);
 }
 
 .cruzadas-producto-nombre {
@@ -907,7 +907,7 @@
 
 .pagado-dia-fecha {
   font-weight: 600;
-  color: #2d3748;
+  color: var(--text-strong);
 }
 
 .pagado-badge {
@@ -918,25 +918,25 @@
 }
 
 .pagado-badge.pagado {
-  background: #c6f6d5;
-  color: #22543d;
+  background: var(--success-50);
+  color: var(--success);
 }
 
 .pagado-badge.pendiente {
-  background: #feebc8;
+  background: var(--warning-50);
   color: #7b341e;
 }
 
 .pagado-dia-nota {
   font-size: 12.5px;
-  color: #a0aec0;
+  color: var(--text-faint);
 }
 
 .btn-toggle-pagado {
   padding: 8px 16px;
   border: none;
   border-radius: 8px;
-  background: var(--primary, #a8452f);
+  background: var(--brand);
   color: white;
   font-size: 13px;
   font-weight: 600;
@@ -964,17 +964,17 @@
 .sin-datos {
   padding: 30px 20px;
   text-align: center;
-  color: #a0aec0;
+  color: var(--text-faint);
   font-style: italic;
   font-size: 15px;
 }
 
 .alert-warning {
   padding: 16px 20px;
-  background: #fff5f5;
+  background: var(--danger-50);
   border: 1px solid #fc8181;
   border-radius: 10px;
-  color: #742a2a;
+  color: var(--danger);
   text-align: center;
   font-weight: 500;
 }
@@ -1231,21 +1231,21 @@
 }
 
 .tendencia-creciendo {
-  background: #f0fff4;
-  color: #22543d;
-  border: 1px solid #c6f6d5;
+  background: var(--success-50);
+  color: var(--success);
+  border: 1px solid var(--success-50);
 }
 
 .tendencia-empeorando {
-  background: #fff5f5;
-  color: #742a2a;
-  border: 1px solid #fed7d7;
+  background: var(--danger-50);
+  color: var(--danger);
+  border: 1px solid var(--danger-50);
 }
 
 .tendencia-estable {
-  background: #fdf3ea;
-  color: var(--primary-dark, #7c3220);
-  border: 1px solid #f0ddc9;
+  background: var(--brand-50);
+  color: var(--primary-dark, var(--brand-700));
+  border: 1px solid var(--brand-100);
 }
 
 .tendencia-factores {
@@ -1259,8 +1259,8 @@
   flex-direction: column;
   gap: 4px;
   padding: 14px 16px;
-  background: #fbf6ef;
-  border: 1px solid #f0ddc9;
+  background: var(--surface-subtle);
+  border: 1px solid var(--brand-100);
   border-radius: var(--radius-sm, 10px);
 }
 
@@ -1273,7 +1273,7 @@
 .tendencia-factor-valor {
   font-size: 18px;
   font-weight: 700;
-  color: #3b2a20;
+  color: var(--text-default);
 }
 
 .tendencia-factor-cambio {
@@ -1285,26 +1285,26 @@
 }
 
 .tendencia-factor-cambio.positivo {
-  background: #f0fff4;
-  color: #22543d;
+  background: var(--success-50);
+  color: var(--success);
 }
 
 .tendencia-factor-cambio.negativo {
-  background: #fff5f5;
-  color: #742a2a;
+  background: var(--danger-50);
+  color: var(--danger);
 }
 
 .tendencia-factor-cambio.neutral {
-  background: #edf2f7;
-  color: #4a5568;
+  background: var(--surface-muted);
+  color: var(--text-default);
 }
 
 .tendencia-stock-aviso {
   margin: 16px 0 0;
   padding: 10px 14px;
-  background: #fffaf0;
-  border: 1px solid #feebc8;
+  background: var(--warning-50);
+  border: 1px solid var(--warning-50);
   border-radius: var(--radius-sm, 10px);
   font-size: 13px;
-  color: #9c4221;
+  color: var(--warning);
 }

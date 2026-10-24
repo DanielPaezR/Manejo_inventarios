@@ -456,7 +456,6 @@ const Negocios = ({ user }) => {
 
       {/* Contenido Principal */}
       <div className="negocios-header">
-        <h1>🏢 Gestión de Negocios</h1>
         <button 
           onClick={() => setShowForm(true)}
           className="btn-primary"

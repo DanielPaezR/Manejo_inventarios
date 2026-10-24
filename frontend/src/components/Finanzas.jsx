@@ -317,10 +317,6 @@ const Finanzas = ({ user }) => {
 
   return (
     <div className="finanzas-container">
-      <div className="finanzas-header">
-        <h2>💰 Finanzas</h2>
-      </div>
-
       {mensaje && (
         <div className={`mensaje-flotante ${mensaje.includes('✅') ? 'exito' : 'error'}`}>
           {mensaje}

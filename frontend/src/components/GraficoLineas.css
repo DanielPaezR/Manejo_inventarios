@@ -8,17 +8,17 @@
 }
 
 .grafico-lineas-guia line {
-  stroke: #e2e8f0;
+  stroke: var(--border);
   stroke-width: 1;
 }
 
 .grafico-lineas-guia text {
-  fill: #a0aec0;
+  fill: var(--text-faint);
   font-size: 11px;
 }
 
 .grafico-lineas-base-cero {
-  stroke: #cbd5e0;
+  stroke: var(--border-strong);
   stroke-width: 1.5;
   stroke-dasharray: 6 6;
 }
@@ -31,7 +31,7 @@
 }
 
 .grafico-lineas-etiqueta-x {
-  fill: #718096;
+  fill: var(--text-muted);
   font-size: 11px;
   text-anchor: middle;
 }
@@ -42,7 +42,7 @@
   gap: 16px;
   margin-top: 14px;
   padding-top: 12px;
-  border-top: 1px solid #edf2f7;
+  border-top: 1px solid var(--surface-muted);
 }
 
 .grafico-lineas-leyenda-item {
@@ -60,11 +60,11 @@
 }
 
 .grafico-lineas-leyenda-nombre {
-  color: #4a5568;
+  color: var(--text-default);
   font-weight: 500;
 }
 
 .grafico-lineas-leyenda-total {
-  color: #2d3748;
+  color: var(--text-strong);
   font-weight: 700;
 }

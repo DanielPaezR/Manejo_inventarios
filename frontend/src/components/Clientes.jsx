@@ -212,12 +212,6 @@ const Clientes = ({ user }) => {
   return (
     <div className="clientes-container">
       <div className="clientes-header">
-        <div className="header-left">
-          <h2>👤 Clientes</h2>
-          <div className="modulo-indicador">
-            <span className="badge">📁 {moduloActivo.nombre}</span>
-          </div>
-        </div>
         <button
           onClick={() => { setEditCliente(null); resetForm(); setShowModal(true); }}
           className="btn-agregar"

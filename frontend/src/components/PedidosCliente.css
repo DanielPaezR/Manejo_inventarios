@@ -29,8 +29,8 @@
 }
 
 .btn-eliminar-cancelados {
-  background: #fff5f5;
-  color: #c53030;
+  background: var(--danger-50);
+  color: var(--danger);
   border: none;
   padding: 8px 14px;
   border-radius: 8px;
@@ -42,7 +42,7 @@
 }
 
 .btn-eliminar-cancelados:hover:not(:disabled) {
-  background: #fed7d7;
+  background: var(--danger-50);
 }
 
 .btn-eliminar-cancelados:disabled {
@@ -61,7 +61,7 @@
 .config-menu-card h3 {
   margin: 0 0 12px;
   font-size: 15px;
-  color: #2d3748;
+  color: var(--text-strong);
 }
 
 .config-menu-fila {
@@ -83,7 +83,7 @@
 .config-menu-hint {
   margin: 0 0 14px;
   font-size: 13px;
-  color: #718096;
+  color: var(--text-muted);
 }
 
 .config-menu-preview {
@@ -144,13 +144,13 @@
 .notificaciones-estado {
   margin: 0;
   font-size: 13px;
-  color: #4a5568;
+  color: var(--text-default);
 }
 
 .notificaciones-mensaje {
   margin: 10px 0 0;
   font-size: 13px;
-  color: #4a5568;
+  color: var(--text-default);
 }
 
 .pedidos-cliente-lista {
@@ -177,7 +177,7 @@
 }
 
 .pedido-cliente-resumen:hover {
-  background: #f7fafc;
+  background: var(--surface-subtle);
 }
 
 .pedido-cliente-resumen-principal {
@@ -188,7 +188,7 @@
 
 .pedido-cliente-mesa {
   font-weight: 700;
-  color: #2d3748;
+  color: var(--text-strong);
   font-size: 15px;
 }
 
@@ -205,12 +205,12 @@
   display: flex;
   gap: 16px;
   font-size: 13px;
-  color: #718096;
+  color: var(--text-muted);
 }
 
 .pedido-cliente-detalle {
   padding: 0 18px 18px;
-  border-top: 1px solid #edf2f7;
+  border-top: 1px solid var(--surface-muted);
 }
 
 .tabla-pedido-cliente-detalle,
@@ -225,23 +225,23 @@
 .tabla-pedido-cliente-edicion th {
   text-align: left;
   padding: 8px;
-  color: #718096;
+  color: var(--text-muted);
   font-size: 12px;
   text-transform: uppercase;
-  border-bottom: 2px solid #edf2f7;
+  border-bottom: 2px solid var(--surface-muted);
 }
 
 .tabla-pedido-cliente-detalle td,
 .tabla-pedido-cliente-edicion td {
   padding: 8px;
-  border-bottom: 1px solid #edf2f7;
-  color: #2d3748;
+  border-bottom: 1px solid var(--surface-muted);
+  color: var(--text-strong);
 }
 
 .pedido-cliente-monto-recibido {
   margin: 10px 0 0;
   font-size: 13px;
-  color: #718096;
+  color: var(--text-muted);
 }
 
 .pedido-cliente-domicilio-badge {
@@ -251,15 +251,15 @@
   font-size: 12px;
   font-weight: 700;
   white-space: nowrap;
-  background: #feebc8;
-  color: #9c4221;
+  background: var(--warning-50);
+  color: var(--warning);
 }
 
 .pedido-cliente-domicilio {
   margin: 6px 0 0;
   font-size: 13px;
   font-weight: 600;
-  color: #9c4221;
+  color: var(--warning);
 }
 
 .pedido-cliente-acciones {
@@ -285,25 +285,25 @@
 }
 
 .btn-confirmar-pedido-cliente {
-  background: #fdf3ea;
+  background: var(--brand-50);
   color: var(--primary-dark);
 }
 
 .btn-confirmar-pedido-cliente:hover:not(:disabled) {
-  background: #f0ddc9;
+  background: var(--brand-100);
 }
 
 .btn-editar-pedido-cliente {
-  background: #edf2f7;
-  color: #4a5568;
+  background: var(--surface-muted);
+  color: var(--text-default);
 }
 
 .btn-editar-pedido-cliente:hover:not(:disabled) {
-  background: #e2e8f0;
+  background: var(--border);
 }
 
 .btn-completar-pedido-cliente {
-  background: linear-gradient(135deg, #48bb78 0%, #38a169 100%);
+  background: linear-gradient(135deg, var(--success) 0%, var(--success) 100%);
   color: white;
 }
 
@@ -312,16 +312,16 @@
 }
 
 .btn-cancelar-pedido-cliente-panel {
-  background: #fff5f5;
-  color: #c53030;
+  background: var(--danger-50);
+  color: var(--danger);
 }
 
 .btn-cancelar-pedido-cliente-panel:hover:not(:disabled) {
-  background: #fed7d7;
+  background: var(--danger-50);
 }
 
 .btn-eliminar-pedido-cliente {
-  background: #c53030;
+  background: var(--danger);
   color: white;
 }
 
@@ -339,7 +339,7 @@
 .pedido-cliente-agregar-producto select {
   width: 100%;
   padding: 8px 10px;
-  border: 2px solid #e2e8f0;
+  border: 2px solid var(--border);
   border-radius: 8px;
   font-size: 14px;
 }
@@ -359,7 +359,7 @@
 .pedido-cliente-modal-completar select {
   width: 100%;
   padding: 8px 10px;
-  border: 2px solid #e2e8f0;
+  border: 2px solid var(--border);
   border-radius: 8px;
   font-size: 14px;
 }

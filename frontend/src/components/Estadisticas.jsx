@@ -395,12 +395,6 @@ const Estadisticas = ({ user }) => {
     <div className="estadisticas-container">
       {/* Header */}
       <div className="estadisticas-header">
-        <div className="header-left">
-          <h2>📊 Panel de Estadísticas</h2>
-          <div className="modulo-indicador">
-            <span className="badge">📁 {moduloActivo.nombre}</span>
-          </div>
-        </div>
         <div className="header-right">
           <button 
             className={`btn-vista ${vistaActiva === 'general' ? 'active' : ''}`}

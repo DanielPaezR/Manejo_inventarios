@@ -18,25 +18,25 @@
   gap: 16px;
   margin-bottom: 24px;
   padding-bottom: 16px;
-  border-bottom: 2px solid #e2e8f0;
+  border-bottom: 2px solid var(--border);
 }
 
 .productos-header h2 {
   margin: 0;
   font-size: 24px;
-  color: #2d3748;
+  color: var(--text-strong);
   font-weight: 700;
 }
 
 .badge {
   display: inline-block;
   padding: 4px 14px;
-  background: #fdf3ea;
+  background: var(--brand-50);
   color: var(--primary-dark);
   border-radius: 20px;
   font-size: 13px;
   font-weight: 600;
-  border: 1px solid #f0ddc9;
+  border: 1px solid var(--brand-100);
 }
 
 .badge-otro-modulo {
@@ -61,7 +61,7 @@
   padding: 16px 20px;
   border-radius: 12px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--border);
 }
 
 .search-box {
@@ -74,11 +74,11 @@
 .search-box input {
   flex: 1;
   padding: 10px 16px;
-  border: 2px solid #e2e8f0;
+  border: 2px solid var(--border);
   border-radius: 10px;
   font-size: 14px;
   transition: all 0.3s ease;
-  background: #f7fafc;
+  background: var(--surface-subtle);
   min-width: 200px;
 }
 
@@ -90,7 +90,7 @@
 }
 
 .search-box input::placeholder {
-  color: #a0aec0;
+  color: var(--text-faint);
 }
 
 .btn-buscar {
@@ -114,8 +114,8 @@
 
 .btn-limpiar {
   padding: 10px 20px;
-  background: #edf2f7;
-  color: #4a5568;
+  background: var(--surface-muted);
+  color: var(--text-default);
   border: none;
   border-radius: 10px;
   cursor: pointer;
@@ -125,12 +125,12 @@
 }
 
 .btn-limpiar:hover {
-  background: #e2e8f0;
+  background: var(--border);
 }
 
 .btn-agregar {
   padding: 10px 24px;
-  background: linear-gradient(135deg, #48bb78 0%, #38a169 100%);
+  background: linear-gradient(135deg, var(--success) 0%, var(--success) 100%);
   color: white;
   border: none;
   border-radius: 10px;
@@ -152,7 +152,7 @@
 .productos-table {
   background: white;
   border-radius: 16px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--border);
   overflow: hidden;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
 }
@@ -163,7 +163,7 @@
 }
 
 .productos-table thead {
-  background: #f7fafc;
+  background: var(--surface-subtle);
 }
 
 .productos-table th {
@@ -171,18 +171,18 @@
   text-align: left;
   font-weight: 600;
   font-size: 13px;
-  color: #4a5568;
+  color: var(--text-default);
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  border-bottom: 2px solid #e2e8f0;
+  border-bottom: 2px solid var(--border);
   white-space: nowrap;
 }
 
 .productos-table td {
   padding: 12px 18px;
-  border-bottom: 1px solid #f7fafc;
+  border-bottom: 1px solid var(--surface-subtle);
   font-size: 14px;
-  color: #2d3748;
+  color: var(--text-strong);
   vertical-align: middle;
 }
 
@@ -191,7 +191,7 @@
 }
 
 .productos-table tbody tr:hover {
-  background: #f7fafc;
+  background: var(--surface-subtle);
 }
 
 .productos-table tbody tr:last-child td {
@@ -200,7 +200,7 @@
 
 /* Estado de stock */
 .stock-bajo {
-  color: #e53e3e;
+  color: var(--danger);
   font-weight: 600;
 }
 
@@ -224,7 +224,7 @@
 }
 
 .productos-table .btn-editar:hover {
-  background: #fdf3ea;
+  background: var(--brand-50);
   transform: scale(1.1);
 }
 
@@ -240,7 +240,7 @@
 }
 
 .productos-table .btn-eliminar:hover {
-  background: #fff5f5;
+  background: var(--danger-50);
   transform: scale(1.1);
 }
 
@@ -296,7 +296,7 @@
 }
 
 .modal-content::-webkit-scrollbar-thumb {
-  background: #cbd5e0;
+  background: var(--border-strong);
   border-radius: 4px;
 }
 
@@ -306,13 +306,13 @@
   align-items: center;
   margin-bottom: 24px;
   padding-bottom: 16px;
-  border-bottom: 2px solid #e2e8f0;
+  border-bottom: 2px solid var(--border);
 }
 
 .modal-header h3 {
   margin: 0;
   font-size: 22px;
-  color: #2d3748;
+  color: var(--text-strong);
   font-weight: 700;
 }
 
@@ -321,13 +321,13 @@
   border: none;
   font-size: 24px;
   cursor: pointer;
-  color: #a0aec0;
+  color: var(--text-faint);
   transition: all 0.2s;
   padding: 0 8px;
 }
 
 .modal-header button:hover {
-  color: #e53e3e;
+  color: var(--danger);
   transform: rotate(90deg);
 }
 
@@ -348,12 +348,12 @@
   display: block;
   font-size: 14px;
   font-weight: 600;
-  color: #2d3748;
+  color: var(--text-strong);
   margin-bottom: 6px;
 }
 
 .form-group label .required {
-  color: #e53e3e;
+  color: var(--danger);
   margin-left: 2px;
 }
 
@@ -362,11 +362,11 @@
 .form-group textarea {
   width: 100%;
   padding: 10px 14px;
-  border: 2px solid #e2e8f0;
+  border: 2px solid var(--border);
   border-radius: 10px;
   font-size: 14px;
-  color: #2d3748;
-  background: #f7fafc;
+  color: var(--text-strong);
+  background: var(--surface-subtle);
   transition: all 0.3s ease;
   font-family: inherit;
 }
@@ -382,7 +382,7 @@
 
 .form-group input::placeholder,
 .form-group textarea::placeholder {
-  color: #a0aec0;
+  color: var(--text-faint);
 }
 
 .form-group textarea {
@@ -404,7 +404,7 @@
   gap: 8px;
   font-size: 14px;
   font-weight: 600;
-  color: #2d3748;
+  color: var(--text-strong);
   cursor: pointer;
   margin-bottom: 0;
 }
@@ -424,7 +424,7 @@
   gap: 12px;
   margin-top: 24px;
   padding-top: 20px;
-  border-top: 2px solid #e2e8f0;
+  border-top: 2px solid var(--border);
 }
 
 .btn-guardar {
@@ -447,8 +447,8 @@
 
 .btn-cancelar {
   padding: 12px 24px;
-  background: #edf2f7;
-  color: #4a5568;
+  background: var(--surface-muted);
+  color: var(--text-default);
   border: none;
   border-radius: 10px;
   font-size: 16px;
@@ -458,7 +458,7 @@
 }
 
 .btn-cancelar:hover {
-  background: #e2e8f0;
+  background: var(--border);
 }
 
 /* ============================================================
@@ -505,14 +505,14 @@
   align-items: center;
   gap: 8px;
   padding: 8px 12px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--border);
   border-radius: 8px;
 }
 
 .categoria-nombre {
   flex: 1;
   font-size: 14px;
-  color: #2d3748;
+  color: var(--text-strong);
 }
 
 .categoria-item input {
@@ -534,7 +534,7 @@
 }
 
 .btn-icono:hover {
-  background: #f7fafc;
+  background: var(--surface-subtle);
 }
 
 .categoria-form-agregar {
@@ -545,7 +545,7 @@
 .categoria-form-agregar input {
   flex: 1;
   padding: 8px 12px;
-  border: 2px solid #e2e8f0;
+  border: 2px solid var(--border);
   border-radius: 8px;
   font-size: 14px;
 }
@@ -565,7 +565,7 @@
 .sin-datos {
   text-align: center;
   padding: 20px 0;
-  color: #a0aec0;
+  color: var(--text-faint);
   font-size: 14px;
 }
 
@@ -575,7 +575,7 @@
 .loading {
   text-align: center;
   padding: 60px 20px;
-  color: #718096;
+  color: var(--text-muted);
   font-size: 16px;
 }
 
@@ -593,10 +593,10 @@
 
 .alert-warning {
   padding: 16px 20px;
-  background: #fff5f5;
+  background: var(--danger-50);
   border: 1px solid #fc8181;
   border-radius: 10px;
-  color: #742a2a;
+  color: var(--danger);
   text-align: center;
   font-weight: 500;
 }

@@ -277,15 +277,6 @@ const RutaEntregas = ({ user }) => {
 
   return (
     <div className="ruta-entregas-container">
-      <div className="ruta-entregas-header">
-        <div className="header-left">
-          <h2>🛵 Ruta de Entregas</h2>
-          <div className="modulo-indicador">
-            <span className="badge">📁 {moduloActivo.nombre}</span>
-          </div>
-        </div>
-      </div>
-
       {mensaje && (
         <div className={`mensaje-flotante ${mensaje.includes('✅') ? 'exito' : 'error'}`}>
           {mensaje}
