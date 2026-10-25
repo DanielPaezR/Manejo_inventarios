@@ -17,7 +17,7 @@ const clienteVacio = () => ({ nombre: '', documento: '', direccion: '', telefono
 // razonable en vez de dejarlos sin límite por error. Recibe tanto un
 // producto del catálogo como un item ya agregado al carrito (ambos
 // tienen ignora_stock/stock_actual, sea el original o el snapshot).
-const TOPE_CANTIDAD_SIN_STOCK = 20;
+const TOPE_CANTIDAD_SIN_STOCK = 50;
 const obtenerTopeCantidad = (item) => (item.ignora_stock ? TOPE_CANTIDAD_SIN_STOCK : item.stock_actual);
 
 const crearCuentaVacia = (id, nombre) => ({

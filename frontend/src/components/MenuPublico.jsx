@@ -66,7 +66,7 @@ const obtenerIniciales = (nombre) =>
 // Productos con ignora_stock = true (se preparan al pedir, ej.
 // "Preparados") no dependen de stock_actual — se les da un tope fijo
 // razonable en el stepper en vez de dejarlo sin límite por error.
-const TOPE_CANTIDAD_SIN_STOCK = 20;
+const TOPE_CANTIDAD_SIN_STOCK = 50;
 const obtenerTopeCantidad = (producto) => (producto.ignora_stock ? TOPE_CANTIDAD_SIN_STOCK : producto.stock_actual);
 
 // Compartido entre las tarjetas de categoría y las del carrusel de
