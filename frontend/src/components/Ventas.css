@@ -465,7 +465,10 @@ kbd,
   position: sticky;
   top: 80px;
   padding: 18px;
-  max-height: calc(100vh - 60px - 40px);
+  /* Alto disponible bajo la barra superior (60), el margen (28), la fila
+     de búsqueda (68) y un respiro abajo: así el botón Cobrar siempre cabe
+     en pantalla aunque el carrito tenga muchos productos. */
+  max-height: calc(100vh - 164px);
   display: flex;
   flex-direction: column;
   /* La propia tarjeta scrollea como respaldo si el contenido (varios
@@ -842,9 +845,15 @@ kbd,
 
 /* Lista del carrito */
 .carrito-lista {
-  flex: 1;
-  margin-bottom: 4px;
-  min-height: 80px;
+  /* La lista es la que scrollea (no la tarjeta): crece con su contenido
+     hasta donde quepa y, si hay más productos, muestra su propia barra
+     en vez de quedar escondida detrás del bloque de totales. */
+  flex: 1 1 auto;
+  min-height: 96px;
+  overflow-y: auto;
+  margin: 0 -6px 4px 0;
+  padding-right: 6px;
+  overscroll-behavior: contain;
 }
 
 .carrito-lista::-webkit-scrollbar {
@@ -967,14 +976,10 @@ kbd,
    TOTALES Y MÉTODO DE PAGO
    ============================================================ */
 .carrito-totales {
-  /* Pegado al fondo del panel: si el carrito crece y la tarjeta scrollea,
-     el total y el botón de cobrar siguen siempre a la vista. */
-  position: sticky;
-  bottom: -18px;
-  margin: 0 -18px -18px;
-  padding: 12px 18px 18px;
-  background: var(--surface);
+  flex-shrink: 0;
   border-top: 1px solid var(--border);
+  padding-top: 12px;
+  background: var(--surface);
   font-variant-numeric: tabular-nums;
 }
 
@@ -990,8 +995,6 @@ kbd,
   align-items: baseline;
   font-size: 15px;
   font-weight: 600;
-  padding-top: 6px;
-  margin-top: 2px;
   color: var(--text-strong);
 }
 
@@ -1005,10 +1008,11 @@ kbd,
   display: flex;
   align-items: center;
   gap: 10px;
-  margin: 12px 0 8px;
+  margin: 8px 0;
 }
 
 .metodo-pago label {
+  min-width: 96px;
   font-size: 13px;
   font-weight: 500;
   color: var(--text-muted);
@@ -1033,23 +1037,23 @@ kbd,
 
 .calculadora-cambio {
   display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin: 8px 0 12px;
-  padding: 12px;
-  background: var(--surface-subtle);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  margin: 0 0 10px;
 }
 
 .calculadora-cambio label {
+  min-width: 96px;
   font-size: 13px;
   font-weight: 500;
   color: var(--text-muted);
 }
 
 .calculadora-cambio input {
-  height: 40px;
+  flex: 1;
+  min-width: 0;
+  height: 38px;
   padding: 0 12px;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
@@ -1063,9 +1067,10 @@ kbd,
 }
 
 .cambio-resultado {
+  flex-basis: 100%;
   font-size: 14px;
-  padding: 8px 10px;
-  border-radius: 6px;
+  padding: 7px 10px;
+  border-radius: var(--radius-sm);
 }
 
 .cambio-resultado.positivo {
@@ -1467,17 +1472,20 @@ kbd,
     display: none;
   }
 
-  /* Sin scroll propio en móvil (scrollea la página): así el bloque de
-     totales queda pegado al fondo de la pantalla, no de la tarjeta. */
+  /* En móvil scrollea la página completa, no la tarjeta ni la lista:
+     la lista muestra todos sus productos y el total queda al final. */
   .carrito-section {
     overflow: visible;
   }
 
+  .carrito-lista {
+    overflow: visible;
+    margin-right: 0;
+    padding-right: 0;
+  }
+
   .carrito-totales {
-    bottom: 0;
-    padding-bottom: calc(14px + env(safe-area-inset-bottom, 0px));
-    border-radius: 0 0 var(--radius-lg) var(--radius-lg);
-    box-shadow: 0 -10px 18px -14px rgba(31, 24, 19, 0.25);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
   }
 
   /* Botón flotante del carrito: por encima de la barra de búsqueda fija

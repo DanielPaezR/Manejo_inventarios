@@ -1154,10 +1154,6 @@ const Ventas = ({ user }) => {
           {/* Totales y método de pago */}
           {carrito.length > 0 && (
             <div className="carrito-totales">
-              <div className="totales-linea">
-                <span>Subtotal</span>
-                <span>{pesos(subtotal)}</span>
-              </div>
               <div className="totales-linea total">
                 <span>Total</span>
                 <span><strong>{pesos(subtotal)}</strong></span>
