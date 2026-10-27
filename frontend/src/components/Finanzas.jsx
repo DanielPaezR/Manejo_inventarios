@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import api from '../services/api';
+import Bolsillos from './Bolsillos';
 import './Finanzas.css';
 
 const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
@@ -29,6 +30,8 @@ const TIPOS_CATEGORIA_GASTO = [
   { value: 'otro', label: '🗂️ Otro' }
 ];
 
+const ETIQUETA_BOLSILLO = { caja: '💵 Caja', cartera: '👛 Cartera', nequi: '📱 Nequi', otros_modulos: '🏪 Otros módulos' };
+
 const formatearRangoSemana = (inicioStr, finStr) => {
   if (!inicioStr || !finStr) return '';
   const [, mi, di] = inicioStr.split('-').map(Number);
@@ -46,6 +49,8 @@ const Finanzas = ({ user }) => {
   const [guardando, setGuardando] = useState(false);
   const [mensaje, setMensaje] = useState('');
   const [formData, setFormData] = useState({ tipo: 'ingreso', monto: '', concepto: '', categoria: '' });
+  // De qué bolsillo sale (egreso) o a cuál entra (ingreso) el movimiento.
+  const [bolsilloMov, setBolsilloMov] = useState('caja');
   const [pedidosSinRegistrar, setPedidosSinRegistrar] = useState([]);
   const [pedidoSeleccionadoId, setPedidoSeleccionadoId] = useState('');
   // Categorías de gasto: clasificación propia para egresos, independiente
@@ -186,6 +191,7 @@ const Finanzas = ({ user }) => {
   // saldo inicial.
   const handleTipoChange = (nuevoTipo) => {
     setFormData(prev => ({ ...prev, tipo: nuevoTipo }));
+    setBolsilloMov(nuevoTipo === 'egreso' ? 'cartera' : 'caja');
     if (nuevoTipo !== 'egreso') {
       setPedidoSeleccionadoId('');
       setCategoriaGastoId('');
@@ -228,9 +234,11 @@ const Finanzas = ({ user }) => {
         concepto: formData.concepto.trim(),
         categoria: formData.categoria.trim() || undefined,
         pedido_id: formData.tipo === 'egreso' && pedidoSeleccionadoId ? pedidoSeleccionadoId : undefined,
-        categoria_gasto_id: formData.tipo === 'egreso' && categoriaGastoId ? categoriaGastoId : undefined
+        categoria_gasto_id: formData.tipo === 'egreso' && categoriaGastoId ? categoriaGastoId : undefined,
+        bolsillo: formData.tipo === 'saldo_inicial' ? undefined : bolsilloMov
       });
       setFormData({ tipo: 'ingreso', monto: '', concepto: '', categoria: '' });
+      setBolsilloMov('caja');
       setPedidoSeleccionadoId('');
       setCategoriaGastoId('');
       setMensaje('✅ Movimiento registrado correctamente');
@@ -335,6 +343,8 @@ const Finanzas = ({ user }) => {
             </span>
           </div>
 
+          <Bolsillos categoriasGasto={categoriasGasto} onCambio={cargarDatos} />
+
           <div className="card desglose-card">
             <h3>📊 Desglose</h3>
             <div className="desglose-lista">
@@ -350,6 +360,10 @@ const Finanzas = ({ user }) => {
                 <span>+ Ingresos manuales</span>
                 <strong>{formatearMoneda(balance?.ingresos_manuales)}</strong>
               </div>
+              <div className="desglose-item positivo">
+                <span>+ Abonos de clientes (fiado)</span>
+                <strong>{formatearMoneda(balance?.total_abonos_credito)}</strong>
+              </div>
               <div className="desglose-item negativo">
                 <span>- Pedidos a proveedor (pagados)</span>
                 <strong>{formatearMoneda(balance?.total_pedidos)}</strong>
@@ -358,6 +372,12 @@ const Finanzas = ({ user }) => {
                 <span>- Egresos manuales</span>
                 <strong>{formatearMoneda(balance?.egresos_manuales)}</strong>
               </div>
+              {Number(balance?.ajustes_cuadre || 0) !== 0 && (
+                <div className={`desglose-item ${Number(balance.ajustes_cuadre) < 0 ? 'negativo' : 'positivo'}`}>
+                  <span>{Number(balance.ajustes_cuadre) < 0 ? '- Faltantes' : '+ Sobrantes'} en cuadres de caja</span>
+                  <strong>{formatearMoneda(Math.abs(Number(balance.ajustes_cuadre)))}</strong>
+                </div>
+              )}
             </div>
           </div>
 
@@ -460,6 +480,17 @@ const Finanzas = ({ user }) => {
                 </div>
               </div>
 
+              {formData.tipo !== 'saldo_inicial' && (
+                <div className="form-group">
+                  <label>{formData.tipo === 'egreso' ? '¿De dónde salió?' : '¿A dónde entró?'}</label>
+                  <select value={bolsilloMov} onChange={(e) => setBolsilloMov(e.target.value)}>
+                    <option value="caja">💵 Caja</option>
+                    <option value="cartera">👛 Cartera</option>
+                    <option value="nequi">📱 Nequi</option>
+                  </select>
+                </div>
+              )}
+
               {formData.tipo === 'egreso' && (
                 <div className="form-group">
                   <label>Vincular a un pedido (opcional)</label>
@@ -531,6 +562,7 @@ const Finanzas = ({ user }) => {
                       <div className="movimiento-info">
                         <span className="movimiento-origen-badge">{icono} {label}</span>
                         <span className="movimiento-concepto">{mov.concepto}</span>
+                        {mov.bolsillo && <span className="movimiento-categoria">{ETIQUETA_BOLSILLO[mov.bolsillo]}</span>}
                         {mov.categoria && <span className="movimiento-categoria">{mov.categoria}</span>}
                         {mov.categoria_gasto_nombre && (
                           <span className="movimiento-categoria-gasto">🗂️ {mov.categoria_gasto_nombre}</span>

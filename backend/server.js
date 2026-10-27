@@ -32,7 +32,23 @@ const { geocodificar } = require('./src/helpers/geocodificar');
 // productos, sin importar desde qué módulo se vendieron. El reporte de
 // "cuánto vendí de productos ajenos" sigue existiendo aparte en
 // GET /api/estadisticas/ventas-cruzadas, que no cambia con esto.
-const registrarIngresosVenta = async (client, { negocioId, ventaId, numeroFactura, usuarioId, detalles, duenoPorProducto }) => {
+//
+// Bolsillos: el dinero de cada módulo se lleva separado según dónde está
+// físicamente — 'caja' (base + monedas), 'cartera' (lo que se guarda de la
+// caja cada noche), 'nequi' (transferencias) y 'otros_modulos' (dinero de
+// productos de otro módulo que pasó por esta caja, o al revés). La venta
+// en efectivo cae en 'caja' y la transferencia/tarjeta en 'nequi'. Cuando
+// la línea es de otro módulo, el ingreso del dueño queda en su
+// 'otros_modulos' (lo tiene otro módulo) y el módulo que vendió registra
+// un traslado otros_modulos -> caja/nequi (el billete sí entró a su caja,
+// pero se lo debe al dueño hasta que se lo entregue).
+const BOLSILLOS = ['caja', 'cartera', 'nequi', 'otros_modulos'];
+const BOLSILLOS_MANUALES = ['caja', 'cartera', 'nequi'];
+const bolsilloPorMetodo = (metodoPago) =>
+  (metodoPago === 'transferencia' || metodoPago === 'tarjeta') ? 'nequi' : 'caja';
+
+const registrarIngresosVenta = async (client, { negocioId, moduloVendedorId, metodoPago, ventaId, numeroFactura, usuarioId, detalles, duenoPorProducto }) => {
+  const bolsillo = bolsilloPorMetodo(metodoPago);
   const montoPorDueno = new Map();
   for (const detalle of detalles) {
     const duenoId = duenoPorProducto.get(detalle.producto_id);
@@ -41,12 +57,20 @@ const registrarIngresosVenta = async (client, { negocioId, ventaId, numeroFactur
   }
 
   for (const [duenoId, monto] of montoPorDueno) {
+    const esAjeno = Number(duenoId) !== Number(moduloVendedorId);
     await client.query(
       `INSERT INTO movimientos_caja
-       (negocio_id, modulo_id, tipo, origen, monto, concepto, venta_id, usuario_id)
-       VALUES ($1, $2, 'ingreso', 'venta', $3, $4, $5, $6)`,
-      [negocioId, duenoId, monto, `Venta #${numeroFactura}`, ventaId, usuarioId]
+       (negocio_id, modulo_id, tipo, origen, monto, concepto, venta_id, usuario_id, bolsillo)
+       VALUES ($1, $2, 'ingreso', 'venta', $3, $4, $5, $6, $7)`,
+      [negocioId, duenoId, monto, `Venta #${numeroFactura}`, ventaId, usuarioId, esAjeno ? 'otros_modulos' : bolsillo]
     );
+    if (esAjeno && monto > 0) {
+      await client.query(
+        `INSERT INTO traslados_bolsillo (negocio_id, modulo_id, origen, destino, monto, tipo, concepto, venta_id, usuario_id)
+         VALUES ($1, $2, 'otros_modulos', $3, $4, 'venta_cruzada', $5, $6, $7)`,
+        [negocioId, moduloVendedorId, bolsillo, monto, `Venta #${numeroFactura} (producto de otro módulo)`, ventaId, usuarioId]
+      );
+    }
   }
 };
 const { JWT_SECRET } = require('./src/config/jwtSecret');
@@ -1374,6 +1398,8 @@ app.post('/api/ventas', authenticateToken, checkAccess, async (req, res) => {
     if (metodo_pago !== 'credito' && metodo_pago !== 'consumo_propio') {
       await registrarIngresosVenta(client, {
         negocioId,
+        moduloVendedorId: moduloId,
+        metodoPago: metodo_pago,
         ventaId: venta.id,
         numeroFactura: numero_factura,
         usuarioId: usuario_id,
@@ -1708,7 +1734,13 @@ app.post('/api/clientes/:id/abonos', authenticateToken, checkAccess, requireAdmi
     const negocioId = req.negocioId;
     const moduloId = req.moduloId;
     const usuarioId = req.user.id;
-    const { monto, concepto } = req.body;
+    const { monto, concepto, bolsillo } = req.body;
+
+    // El abono cae en caja (efectivo) o nequi (transferencia).
+    const bolsilloAbono = bolsillo === undefined || bolsillo === null || bolsillo === '' ? 'caja' : bolsillo;
+    if (!BOLSILLOS_MANUALES.includes(bolsilloAbono)) {
+      return res.status(400).json({ error: 'bolsillo inválido' });
+    }
 
     const clienteResult = await pool.query(
       'SELECT id FROM clientes WHERE id = $1 AND modulo_id = $2',
@@ -1731,10 +1763,10 @@ app.post('/api/clientes/:id/abonos', authenticateToken, checkAccess, requireAdmi
     // cualquiera en el resto de las consultas de finanzas/deuda.
     const result = await pool.query(
       `INSERT INTO movimientos_caja
-       (negocio_id, modulo_id, tipo, origen, monto, concepto, categoria, cliente_id, usuario_id)
-       VALUES ($1, $2, 'ingreso', 'manual', $3, $4, 'abono_credito', $5, $6)
+       (negocio_id, modulo_id, tipo, origen, monto, concepto, categoria, cliente_id, usuario_id, bolsillo)
+       VALUES ($1, $2, 'ingreso', 'manual', $3, $4, 'abono_credito', $5, $6, $7)
        RETURNING *`,
-      [negocioId, moduloId, montoNum, conceptoFinal, id, usuarioId]
+      [negocioId, moduloId, montoNum, conceptoFinal, id, usuarioId, bolsilloAbono]
     );
 
     // Deuda actualizada tras el abono. No se bloquea si el abono supera la
@@ -2358,11 +2390,89 @@ app.get('/api/estadisticas/ventas-cruzadas', authenticateToken, checkAccess, req
   }
 });
 
+// Marca/desmarca un día de ventas cruzadas como pagado y mueve el dinero
+// entre bolsillos: el módulo que vendió entrega lo de cada dueño (sale de
+// su bolsillo 'origenPago' hacia 'otros_modulos', saldando la deuda que
+// dejaron las ventas) y cada dueño lo recibe en su caja. Desmarcar borra
+// esos traslados. Se puede llamar dentro de una transacción ya abierta.
+// Rango de un día para cobrar ventas cruzadas. El día de la apertura de
+// bolsillos solo cuenta lo vendido después de abrir: lo de antes ya se
+// entregó antes de contar el dinero.
+const rangoCruzadas = (fecha, apertura) => {
+  const inicioDia = moment(`${fecha} 00:00:00-05:00`).toDate();
+  const desde = apertura && new Date(apertura) > inicioDia ? new Date(apertura) : inicioDia;
+  return [desde, moment(`${fecha} 23:59:59-05:00`).toDate()];
+};
+
+const marcarPagoCruzadas = async (db, { negocioId, moduloVendedorId, fecha, pagado, usuarioId, origenPago = 'caja' }) => {
+  await db.query(
+    `DELETE FROM traslados_bolsillo WHERE negocio_id = $1 AND tipo = 'pago_cruzada' AND ref_fecha = $2`,
+    [negocioId, fecha]
+  );
+
+  await db.query(
+    `INSERT INTO ventas_cruzadas_pagos (negocio_id, fecha, pagado, marcado_por, fecha_actualizacion)
+     VALUES ($1, $2, $3, $4, now())
+     ON CONFLICT (negocio_id, fecha)
+     DO UPDATE SET pagado = $3, marcado_por = $4, fecha_actualizacion = now()`,
+    [negocioId, fecha, pagado, usuarioId]
+  );
+
+  if (!pagado) return 0;
+
+  // Los días anteriores a la apertura de bolsillos solo cambian la marca:
+  // sus ventas no dejaron deuda en 'otros_modulos' que haya que saldar.
+  const apertura = await bolsillosActivos(db, moduloVendedorId);
+  if (!apertura || fecha < moment(apertura).utcOffset(-300).format('YYYY-MM-DD')) return 0;
+
+  const porDueno = await db.query(
+    `SELECT dv.modulo_dueno_id, m.nombre, SUM(dv.subtotal) AS monto
+     FROM detalle_venta dv
+     JOIN ventas v ON dv.venta_id = v.id
+     JOIN modulos m ON m.id = dv.modulo_dueno_id
+     WHERE v.modulo_id = $1 AND dv.modulo_dueno_id != $1
+     AND v.fecha_venta BETWEEN $2 AND $3
+     AND v.es_ajuste_manual = false AND v.metodo_pago != 'consumo_propio'
+     GROUP BY dv.modulo_dueno_id, m.nombre`,
+    [moduloVendedorId, ...rangoCruzadas(fecha, apertura)]
+  );
+
+  let total = 0;
+  for (const fila of porDueno.rows) {
+    const monto = Number(fila.monto);
+    if (monto <= 0) continue;
+    total += monto;
+    await db.query(
+      `INSERT INTO traslados_bolsillo (negocio_id, modulo_id, origen, destino, monto, tipo, concepto, ref_fecha, usuario_id)
+       VALUES ($1, $2, 'otros_modulos', 'caja', $3, 'pago_cruzada', $4, $5, $6)`,
+      [negocioId, fila.modulo_dueno_id, monto, `Recibido por ventas cruzadas del ${fecha}`, fecha, usuarioId]
+    );
+  }
+
+  if (total > 0) {
+    await db.query(
+      `INSERT INTO traslados_bolsillo (negocio_id, modulo_id, origen, destino, monto, tipo, concepto, ref_fecha, usuario_id)
+       VALUES ($1, $2, $3, 'otros_modulos', $4, 'pago_cruzada', $5, $6, $7)`,
+      [negocioId, moduloVendedorId, origenPago, total, `Entregado a otros módulos (ventas del ${fecha})`, fecha, usuarioId]
+    );
+  }
+  return total;
+};
+
+const esModuloPorDefecto = async (db, negocioId, moduloId) => {
+  const result = await db.query(
+    'SELECT id FROM modulos WHERE negocio_id = $1 ORDER BY fecha_creacion ASC LIMIT 1',
+    [negocioId]
+  );
+  return result.rows[0]?.id === Number(moduloId);
+};
+
 app.put('/api/estadisticas/ventas-cruzadas/pagado', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+  let client;
   try {
     const moduloId = req.moduloId;
     const negocioId = req.negocioId;
-    const { fecha, pagado } = req.body;
+    const { fecha, pagado, bolsillo } = req.body;
 
     if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha || '')) {
       return res.status(400).json({ error: 'fecha debe tener el formato YYYY-MM-DD' });
@@ -2370,27 +2480,29 @@ app.put('/api/estadisticas/ventas-cruzadas/pagado', authenticateToken, checkAcce
     if (typeof pagado !== 'boolean') {
       return res.status(400).json({ error: 'pagado debe ser true o false' });
     }
+    const origenPago = bolsillo || 'caja';
+    if (!BOLSILLOS_MANUALES.includes(origenPago)) {
+      return res.status(400).json({ error: 'bolsillo inválido' });
+    }
 
-    const moduloDefectoResult = await pool.query(
-      'SELECT id FROM modulos WHERE negocio_id = $1 ORDER BY fecha_creacion ASC LIMIT 1',
-      [negocioId]
-    );
-    if (moduloDefectoResult.rows[0]?.id !== Number(moduloId)) {
+    if (!(await esModuloPorDefecto(pool, negocioId, moduloId))) {
       return res.status(403).json({ error: 'Solo se puede marcar como pagado desde el módulo por defecto del negocio' });
     }
 
-    await pool.query(
-      `INSERT INTO ventas_cruzadas_pagos (negocio_id, fecha, pagado, marcado_por, fecha_actualizacion)
-       VALUES ($1, $2, $3, $4, now())
-       ON CONFLICT (negocio_id, fecha)
-       DO UPDATE SET pagado = $3, marcado_por = $4, fecha_actualizacion = now()`,
-      [negocioId, fecha, pagado, req.user.id]
-    );
+    client = await pool.connect();
+    await client.query('BEGIN');
+    await marcarPagoCruzadas(client, {
+      negocioId, moduloVendedorId: moduloId, fecha, pagado, usuarioId: req.user.id, origenPago
+    });
+    await client.query('COMMIT');
 
     res.json({ fecha, pagado });
   } catch (error) {
+    if (client) await client.query('ROLLBACK').catch(() => {});
     console.error('Error actualizando pagado de ventas cruzadas:', error);
     res.status(500).json({ error: 'Error interno del servidor' });
+  } finally {
+    if (client) client.release();
   }
 });
 
@@ -3492,10 +3604,17 @@ app.post('/api/finanzas/movimientos', authenticateToken, checkAccess, requireAdm
     const moduloId = req.moduloId;
     const negocioId = req.negocioId;
     const usuarioId = req.user.id;
-    const { tipo, monto, concepto, categoria, pedido_id, categoria_gasto_id } = req.body;
+    const { tipo, monto, concepto, categoria, pedido_id, categoria_gasto_id, bolsillo } = req.body;
 
     if (!moduloId) {
       return res.status(400).json({ error: 'Se requiere un módulo' });
+    }
+
+    // De qué bolsillo sale / a cuál entra. Opcional para no romper clientes
+    // viejos; sin bolsillo queda "sin asignar".
+    const bolsilloMov = bolsillo === undefined || bolsillo === null || bolsillo === '' ? null : bolsillo;
+    if (bolsilloMov !== null && !BOLSILLOS_MANUALES.includes(bolsilloMov)) {
+      return res.status(400).json({ error: 'bolsillo inválido' });
     }
 
     if (!['saldo_inicial', 'ingreso', 'egreso'].includes(tipo)) {
@@ -3570,10 +3689,10 @@ app.post('/api/finanzas/movimientos', authenticateToken, checkAccess, requireAdm
 
     const result = await pool.query(
       `INSERT INTO movimientos_caja
-       (negocio_id, modulo_id, tipo, origen, monto, concepto, categoria, pedido_id, usuario_id, categoria_gasto_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+       (negocio_id, modulo_id, tipo, origen, monto, concepto, categoria, pedido_id, usuario_id, categoria_gasto_id, bolsillo)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
        RETURNING *`,
-      [negocioId, moduloId, tipo, origen, montoNum, concepto.trim(), categoria || null, origen === 'pedido' ? pedido_id : null, usuarioId, categoriaGastoIdValida]
+      [negocioId, moduloId, tipo, origen, montoNum, concepto.trim(), categoria || null, origen === 'pedido' ? pedido_id : null, usuarioId, categoriaGastoIdValida, bolsilloMov]
     );
 
     res.status(201).json(result.rows[0]);
@@ -3657,16 +3776,22 @@ app.get('/api/finanzas/balance', authenticateToken, checkAccess, requireAdmin, a
       return res.status(400).json({ error: 'Se requiere un módulo' });
     }
 
+    // Los ajustes del cuadre de caja (categoria = 'ajuste_cuadre') van en su
+    // propia línea del desglose en vez de sumarse a ingresos/egresos
+    // manuales, para que se vea cuánto se ha corregido por faltantes o
+    // sobrantes de dinero.
     const result = await pool.query(
       `SELECT
           COALESCE(SUM(monto) FILTER (WHERE tipo IN ('saldo_inicial','ingreso')), 0)
           - COALESCE(SUM(monto) FILTER (WHERE tipo = 'egreso'), 0) as balance_actual,
           COALESCE(SUM(monto) FILTER (WHERE tipo = 'saldo_inicial'), 0) as saldo_inicial,
-          COALESCE(SUM(monto) FILTER (WHERE tipo = 'ingreso' AND origen = 'manual' AND (categoria IS DISTINCT FROM 'abono_credito')), 0) as ingresos_manuales,
+          COALESCE(SUM(monto) FILTER (WHERE tipo = 'ingreso' AND origen = 'manual' AND (categoria IS DISTINCT FROM 'abono_credito') AND (categoria IS DISTINCT FROM 'ajuste_cuadre')), 0) as ingresos_manuales,
           COALESCE(SUM(monto) FILTER (WHERE tipo = 'ingreso' AND origen = 'venta'), 0) as total_ventas,
           COALESCE(SUM(monto) FILTER (WHERE tipo = 'egreso' AND origen = 'pedido'), 0) as total_pedidos,
-          COALESCE(SUM(monto) FILTER (WHERE tipo = 'egreso' AND origen = 'manual'), 0) as egresos_manuales,
-          COALESCE(SUM(monto) FILTER (WHERE origen = 'manual' AND categoria = 'abono_credito'), 0) as total_abonos_credito
+          COALESCE(SUM(monto) FILTER (WHERE tipo = 'egreso' AND origen = 'manual' AND (categoria IS DISTINCT FROM 'ajuste_cuadre')), 0) as egresos_manuales,
+          COALESCE(SUM(monto) FILTER (WHERE origen = 'manual' AND categoria = 'abono_credito'), 0) as total_abonos_credito,
+          COALESCE(SUM(monto) FILTER (WHERE categoria = 'ajuste_cuadre' AND tipo = 'ingreso'), 0)
+          - COALESCE(SUM(monto) FILTER (WHERE categoria = 'ajuste_cuadre' AND tipo = 'egreso'), 0) as ajustes_cuadre
        FROM movimientos_caja
        WHERE modulo_id = $1`,
       [moduloId]
@@ -3675,6 +3800,952 @@ app.get('/api/finanzas/balance', authenticateToken, checkAccess, requireAdmin, a
     res.json(result.rows[0]);
   } catch (error) {
     console.error('Error obteniendo balance de caja:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// ==================== BOLSILLOS Y CUADRE DE CAJA ====================
+// El dinero de cada módulo se lleva repartido en bolsillos (ver
+// BOLSILLOS arriba). Saldo de un bolsillo = sus movimientos_caja con signo
+// + traslados que le entran − traslados que le salen. Los traslados solo
+// mueven dinero de un bolsillo a otro: no son ingresos ni egresos, por eso
+// viven en su propia tabla y no tocan ningún reporte. Lo que no tiene
+// bolsillo (historia de antes de esto) queda como "sin asignar" hasta la
+// apertura, que lo reparte según el dinero contado de verdad.
+
+const calcularSaldosBolsillos = async (db, moduloId) => {
+  const result = await db.query(
+    `SELECT b AS bolsillo, SUM(m) AS saldo FROM (
+       SELECT bolsillo AS b, CASE WHEN tipo = 'egreso' THEN -monto ELSE monto END AS m
+       FROM movimientos_caja WHERE modulo_id = $1
+       UNION ALL
+       SELECT destino, monto FROM traslados_bolsillo WHERE modulo_id = $1
+       UNION ALL
+       SELECT origen, -monto FROM traslados_bolsillo WHERE modulo_id = $1
+     ) x
+     GROUP BY b`,
+    [moduloId]
+  );
+  const saldos = { caja: 0, cartera: 0, nequi: 0, otros_modulos: 0, sin_asignar: 0 };
+  for (const fila of result.rows) {
+    saldos[fila.bolsillo ?? 'sin_asignar'] = Math.round(Number(fila.saldo) * 100) / 100;
+  }
+  return saldos;
+};
+
+const calcularSaldoModulo = async (db, moduloId) => {
+  const result = await db.query(
+    `SELECT COALESCE(SUM(monto) FILTER (WHERE tipo IN ('saldo_inicial','ingreso')), 0)
+            - COALESCE(SUM(monto) FILTER (WHERE tipo = 'egreso'), 0) AS saldo
+     FROM movimientos_caja WHERE modulo_id = $1`,
+    [moduloId]
+  );
+  return Number(result.rows[0].saldo);
+};
+
+// La apertura se marca con una fila de cuadres_caja con bolsillo='apertura'.
+const bolsillosActivos = async (db, moduloId) => {
+  const result = await db.query(
+    `SELECT fecha FROM cuadres_caja WHERE modulo_id = $1 AND bolsillo = 'apertura' LIMIT 1`,
+    [moduloId]
+  );
+  return result.rows[0]?.fecha || null;
+};
+
+// Lo vendido en el día de productos de otros módulos (lo que hay que
+// entregarles en el cierre). Solo aplica al módulo por defecto, que es el
+// único que puede marcar "pagado" en ventas cruzadas.
+const cruzadasDelDia = async (db, { negocioId, moduloId, fecha }) => {
+  if (!(await esModuloPorDefecto(db, negocioId, moduloId))) return null;
+  const apertura = await bolsillosActivos(db, moduloId);
+  const detalle = await db.query(
+    `SELECT m.nombre, SUM(dv.subtotal) AS monto
+     FROM detalle_venta dv
+     JOIN ventas v ON dv.venta_id = v.id
+     JOIN modulos m ON m.id = dv.modulo_dueno_id
+     WHERE v.modulo_id = $1 AND dv.modulo_dueno_id != $1
+     AND v.fecha_venta BETWEEN $2 AND $3
+     AND v.es_ajuste_manual = false AND v.metodo_pago != 'consumo_propio'
+     GROUP BY m.nombre ORDER BY m.nombre`,
+    [moduloId, ...rangoCruzadas(fecha, apertura)]
+  );
+  const pagado = await db.query(
+    'SELECT pagado FROM ventas_cruzadas_pagos WHERE negocio_id = $1 AND fecha = $2',
+    [negocioId, fecha]
+  );
+  const entregado = await db.query(
+    `SELECT COALESCE(SUM(monto), 0) AS monto FROM traslados_bolsillo
+     WHERE modulo_id = $1 AND tipo = 'pago_cruzada' AND ref_fecha = $2 AND destino = 'otros_modulos'`,
+    [moduloId, fecha]
+  );
+  const modulos = detalle.rows.map(r => ({ nombre: r.nombre, monto: Number(r.monto) }));
+  const total = modulos.reduce((s, m) => s + m.monto, 0);
+  const yaEntregado = Number(entregado.rows[0].monto);
+  const estaPagado = pagado.rows[0]?.pagado ?? false;
+  return {
+    fecha,
+    modulos,
+    total,
+    pagado: estaPagado,
+    entregado: yaEntregado,
+    // Lo que falta entregar hoy, incluidas ventas hechas después de
+    // marcar el día como pagado. Sin bolsillos abiertos, todo o nada.
+    pendiente: apertura ? Math.max(0, total - yaEntregado) : (estaPagado ? 0 : total)
+  };
+};
+
+const leerMonto = (valor, { permitirCero = false } = {}) => {
+  if (valor === '' || valor === null || valor === undefined) return null;
+  const n = Number(valor);
+  if (!Number.isFinite(n) || n < 0 || (!permitirCero && n === 0)) return null;
+  return Math.round(n * 100) / 100;
+};
+
+app.get('/api/finanzas/bolsillos', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+  try {
+    const moduloId = req.moduloId;
+    const negocioId = req.negocioId;
+    if (!moduloId) {
+      return res.status(400).json({ error: 'Se requiere un módulo' });
+    }
+
+    const hoy = ahoraColombia().format('YYYY-MM-DD');
+    const [saldos, apertura, cruzadas, ultimoCierre] = await Promise.all([
+      calcularSaldosBolsillos(pool, moduloId),
+      bolsillosActivos(pool, moduloId),
+      cruzadasDelDia(pool, { negocioId, moduloId, fecha: hoy }),
+      pool.query(
+        `SELECT monto, concepto, fecha FROM traslados_bolsillo
+         WHERE modulo_id = $1 AND tipo = 'cierre' ORDER BY fecha DESC LIMIT 1`,
+        [moduloId]
+      )
+    ]);
+
+    res.json({
+      activo: !!apertura,
+      fecha_apertura: apertura,
+      saldos,
+      total: Math.round(Object.values(saldos).reduce((s, v) => s + v, 0) * 100) / 100,
+      cruzadas_hoy: cruzadas,
+      ultimo_cierre: ultimoCierre.rows[0]
+        ? { ...ultimoCierre.rows[0], monto: Number(ultimoCierre.rows[0].monto) }
+        : null
+    });
+  } catch (error) {
+    console.error('Error obteniendo bolsillos:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// Apertura (una sola vez por módulo): el dueño cuenta lo que hay de verdad
+// en caja (billetes + monedas), cartera y Nequi. La diferencia entre ese
+// total y lo que la app tenía queda como ajuste de cuadre, y luego todo
+// se reparte en los bolsillos.
+app.post('/api/finanzas/bolsillos/apertura', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+  let client;
+  try {
+    const moduloId = req.moduloId;
+    const negocioId = req.negocioId;
+    if (!moduloId) {
+      return res.status(400).json({ error: 'Se requiere un módulo' });
+    }
+
+    const reales = {};
+    for (const b of BOLSILLOS_MANUALES) {
+      const monto = leerMonto(req.body[b], { permitirCero: true });
+      if (monto === null) {
+        return res.status(400).json({ error: `Escribe cuánto hay en ${b} (puede ser 0)` });
+      }
+      reales[b] = monto;
+    }
+
+    client = await pool.connect();
+    await client.query('BEGIN');
+    await client.query('SELECT pg_advisory_xact_lock($1)', [700000 + Number(moduloId)]);
+
+    if (await bolsillosActivos(client, moduloId)) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'Los bolsillos de este módulo ya fueron abiertos' });
+    }
+
+    // Se cuenta después de entregar lo de los otros módulos: lo de hoy
+    // queda marcado como pagado y la cuenta con ellos arranca en cero.
+    const hoy = ahoraColombia().format('YYYY-MM-DD');
+    const cruzadas = await cruzadasDelDia(client, { negocioId, moduloId, fecha: hoy });
+    if (cruzadas && !cruzadas.pagado && cruzadas.total > 0) {
+      await marcarPagoCruzadas(client, { negocioId, moduloVendedorId: moduloId, fecha: hoy, pagado: true, usuarioId: req.user.id });
+    }
+
+    const saldos = await calcularSaldosBolsillos(client, moduloId);
+    if (saldos.otros_modulos !== 0) {
+      await client.query(
+        `INSERT INTO traslados_bolsillo (negocio_id, modulo_id, origen, destino, monto, tipo, concepto, usuario_id)
+         VALUES ($1, $2, $3, $4, $5, 'apertura', 'Apertura de bolsillos: cuenta con otros módulos en cero', $6)`,
+        [negocioId, moduloId, saldos.otros_modulos > 0 ? 'otros_modulos' : null, saldos.otros_modulos > 0 ? null : 'otros_modulos',
+          Math.abs(saldos.otros_modulos), req.user.id]
+      );
+      saldos.sin_asignar += saldos.otros_modulos;
+      saldos.otros_modulos = 0;
+    }
+    const totalReal = BOLSILLOS_MANUALES.reduce((s, b) => s + reales[b], 0);
+    const saldoARepartir = saldos.sin_asignar + BOLSILLOS_MANUALES.reduce((s, b) => s + saldos[b], 0);
+    const ajuste = Math.round((totalReal - saldoARepartir) * 100) / 100;
+
+    let movimientoId = null;
+    if (ajuste !== 0) {
+      const mov = await client.query(
+        `INSERT INTO movimientos_caja (negocio_id, modulo_id, tipo, origen, monto, concepto, categoria, usuario_id)
+         VALUES ($1, $2, $3, 'manual', $4, $5, 'ajuste_cuadre', $6)
+         RETURNING id`,
+        [negocioId, moduloId, ajuste > 0 ? 'ingreso' : 'egreso', Math.abs(ajuste),
+          ajuste > 0 ? 'Apertura de bolsillos: sobrante' : 'Apertura de bolsillos: faltante', req.user.id]
+      );
+      movimientoId = mov.rows[0].id;
+    }
+
+    for (const b of BOLSILLOS_MANUALES) {
+      const diferencia = Math.round((reales[b] - saldos[b]) * 100) / 100;
+      if (diferencia === 0) continue;
+      await client.query(
+        `INSERT INTO traslados_bolsillo (negocio_id, modulo_id, origen, destino, monto, tipo, concepto, usuario_id)
+         VALUES ($1, $2, $3, $4, $5, 'apertura', 'Apertura de bolsillos', $6)`,
+        [negocioId, moduloId, diferencia > 0 ? null : b, diferencia > 0 ? b : null, Math.abs(diferencia), req.user.id]
+      );
+    }
+
+    await client.query(
+      `INSERT INTO cuadres_caja (negocio_id, modulo_id, saldo_app, saldo_real, diferencia, nota, movimiento_id, usuario_id, bolsillo)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'apertura')`,
+      [negocioId, moduloId, saldoARepartir, totalReal, ajuste,
+        `Apertura: caja ${reales.caja}, cartera ${reales.cartera}, nequi ${reales.nequi}`, movimientoId, req.user.id]
+    );
+
+    await client.query('COMMIT');
+    res.status(201).json({ ajuste, saldos: await calcularSaldosBolsillos(pool, moduloId) });
+  } catch (error) {
+    if (client) await client.query('ROLLBACK').catch(() => {});
+    console.error('Error en apertura de bolsillos:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  } finally {
+    if (client) client.release();
+  }
+});
+
+// Cierre de la noche: se cuentan solo los billetes de la caja; lo que pasa
+// de la base se guarda en la cartera. Opcionalmente, en el mismo paso, se
+// entrega a los otros módulos lo vendido hoy de sus productos (y se marca
+// el día como pagado en ventas cruzadas).
+app.post('/api/finanzas/bolsillos/cierre', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+  let client;
+  try {
+    const moduloId = req.moduloId;
+    const negocioId = req.negocioId;
+    const { entregar_cruzadas } = req.body;
+    if (!moduloId) {
+      return res.status(400).json({ error: 'Se requiere un módulo' });
+    }
+
+    const billetes = leerMonto(req.body.billetes, { permitirCero: true });
+    const base = leerMonto(req.body.base, { permitirCero: true });
+    if (billetes === null || base === null) {
+      return res.status(400).json({ error: 'Escribe los billetes contados y la base' });
+    }
+
+    client = await pool.connect();
+    await client.query('BEGIN');
+    await client.query('SELECT pg_advisory_xact_lock($1)', [700000 + Number(moduloId)]);
+
+    const hoy = ahoraColombia().format('YYYY-MM-DD');
+    let entregado = 0;
+    if (entregar_cruzadas) {
+      const cruzadas = await cruzadasDelDia(client, { negocioId, moduloId, fecha: hoy });
+      if (cruzadas && cruzadas.pendiente > 0) {
+        const totalEntregado = await marcarPagoCruzadas(client, {
+          negocioId, moduloVendedorId: moduloId, fecha: hoy, pagado: true, usuarioId: req.user.id, origenPago: 'caja'
+        });
+        entregado = totalEntregado - cruzadas.entregado;
+      }
+    }
+
+    // Los billetes se cuentan después de sacar lo de los otros módulos.
+    const excedente = Math.max(0, Math.round((billetes - base) * 100) / 100);
+    if (excedente > 0) {
+      await client.query(
+        `INSERT INTO traslados_bolsillo (negocio_id, modulo_id, origen, destino, monto, tipo, concepto, ref_fecha, usuario_id)
+         VALUES ($1, $2, 'caja', 'cartera', $3, 'cierre', $4, $5, $6)`,
+        [negocioId, moduloId, excedente, `Cierre: billetes contados ${billetes}, base ${base}`, hoy, req.user.id]
+      );
+    }
+
+    const saldos = await calcularSaldosBolsillos(client, moduloId);
+    await client.query('COMMIT');
+
+    res.status(201).json({
+      excedente,
+      entregado_otros_modulos: entregado,
+      falta_para_base: Math.max(0, Math.round((base - billetes) * 100) / 100),
+      // Lo que queda en caja fuera de los billetes de la base: si nada se
+      // perdió, son las monedas.
+      monedas_estimadas: Math.round((saldos.caja - Math.min(billetes, base)) * 100) / 100,
+      saldos
+    });
+  } catch (error) {
+    if (client) await client.query('ROLLBACK').catch(() => {});
+    console.error('Error en cierre de caja:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  } finally {
+    if (client) client.release();
+  }
+});
+
+// Mover dinero entre bolsillos: favores (me transfieren y entrego efectivo,
+// me dan efectivo y hago una recarga/transferencia), cambio de monedas,
+// guardar o sacar de Nequi... Si el favor deja una ganancia, entra como
+// ingreso real al bolsillo que recibe.
+const TIPOS_TRASLADO = ['traslado', 'favor', 'monedas'];
+
+app.post('/api/finanzas/bolsillos/traslados', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+  let client;
+  try {
+    const moduloId = req.moduloId;
+    const negocioId = req.negocioId;
+    const { origen, destino, concepto } = req.body;
+    const tipo = req.body.tipo || 'traslado';
+    if (!moduloId) {
+      return res.status(400).json({ error: 'Se requiere un módulo' });
+    }
+    if (!BOLSILLOS_MANUALES.includes(origen) || !BOLSILLOS_MANUALES.includes(destino) || origen === destino) {
+      return res.status(400).json({ error: 'Elige dos bolsillos distintos' });
+    }
+    if (!TIPOS_TRASLADO.includes(tipo)) {
+      return res.status(400).json({ error: 'tipo inválido' });
+    }
+    const monto = leerMonto(req.body.monto);
+    if (monto === null) {
+      return res.status(400).json({ error: 'El monto debe ser mayor a cero' });
+    }
+    const ganancia = leerMonto(req.body.ganancia, { permitirCero: true }) || 0;
+
+    client = await pool.connect();
+    await client.query('BEGIN');
+
+    let movimientoId = null;
+    if (ganancia > 0) {
+      const mov = await client.query(
+        `INSERT INTO movimientos_caja (negocio_id, modulo_id, tipo, origen, monto, concepto, categoria, usuario_id, bolsillo)
+         VALUES ($1, $2, 'ingreso', 'manual', $3, $4, 'comision_favor', $5, $6)
+         RETURNING id`,
+        [negocioId, moduloId, ganancia, `Ganancia: ${concepto?.trim() || 'favor'}`, req.user.id, destino]
+      );
+      movimientoId = mov.rows[0].id;
+    }
+
+    const result = await client.query(
+      `INSERT INTO traslados_bolsillo (negocio_id, modulo_id, origen, destino, monto, tipo, concepto, usuario_id, movimiento_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+       RETURNING *`,
+      [negocioId, moduloId, origen, destino, monto, tipo, concepto?.trim() || null, req.user.id, movimientoId]
+    );
+
+    await client.query('COMMIT');
+    res.status(201).json({ ...result.rows[0], monto: Number(result.rows[0].monto) });
+  } catch (error) {
+    if (client) await client.query('ROLLBACK').catch(() => {});
+    console.error('Error registrando traslado:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  } finally {
+    if (client) client.release();
+  }
+});
+
+app.get('/api/finanzas/bolsillos/traslados', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+  try {
+    const moduloId = req.moduloId;
+    if (!moduloId) {
+      return res.status(400).json({ error: 'Se requiere un módulo' });
+    }
+    // Los traslados de cada venta cruzada se omiten: son uno por venta y
+    // ya se ven en Ventas cruzadas.
+    const result = await pool.query(
+      `SELECT t.id, t.origen, t.destino, t.monto, t.tipo, t.concepto, t.fecha,
+              mc.monto AS ganancia, u.nombre AS usuario_nombre
+       FROM traslados_bolsillo t
+       LEFT JOIN movimientos_caja mc ON mc.id = t.movimiento_id
+       LEFT JOIN usuarios u ON u.id = t.usuario_id
+       WHERE t.modulo_id = $1 AND t.tipo != 'venta_cruzada'
+       ORDER BY t.fecha DESC
+       LIMIT 30`,
+      [moduloId]
+    );
+    res.json(result.rows.map(r => ({
+      ...r,
+      monto: Number(r.monto),
+      ganancia: r.ganancia === null ? null : Number(r.ganancia)
+    })));
+  } catch (error) {
+    console.error('Error obteniendo traslados:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// Deshacer un traslado hecho a mano (por si se registró mal). Los de
+// apertura, ventas cruzadas y pagos cruzados no se borran desde aquí.
+app.delete('/api/finanzas/bolsillos/traslados/:id', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+  let client;
+  try {
+    const moduloId = req.moduloId;
+    client = await pool.connect();
+    await client.query('BEGIN');
+    const result = await client.query(
+      `DELETE FROM traslados_bolsillo
+       WHERE id = $1 AND modulo_id = $2 AND tipo IN ('traslado','favor','monedas','cierre')
+       RETURNING movimiento_id`,
+      [req.params.id, moduloId]
+    );
+    if (result.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Movimiento no encontrado o no se puede deshacer' });
+    }
+    if (result.rows[0].movimiento_id) {
+      await client.query('DELETE FROM movimientos_caja WHERE id = $1 AND modulo_id = $2', [result.rows[0].movimiento_id, moduloId]);
+    }
+    await client.query('COMMIT');
+    res.json({ ok: true });
+  } catch (error) {
+    if (client) await client.query('ROLLBACK').catch(() => {});
+    console.error('Error deshaciendo traslado:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  } finally {
+    if (client) client.release();
+  }
+});
+
+app.get('/api/finanzas/cuadres', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+  try {
+    const moduloId = req.moduloId;
+    if (!moduloId) {
+      return res.status(400).json({ error: 'Se requiere un módulo' });
+    }
+
+    const result = await pool.query(
+      `SELECT c.id, c.saldo_app, c.saldo_real, c.diferencia, c.nota, c.fecha, c.bolsillo, u.nombre AS usuario_nombre
+       FROM cuadres_caja c
+       LEFT JOIN usuarios u ON u.id = c.usuario_id
+       WHERE c.modulo_id = $1
+       ORDER BY c.fecha DESC
+       LIMIT 20`,
+      [moduloId]
+    );
+
+    res.json(result.rows.map(r => ({
+      ...r,
+      saldo_app: Number(r.saldo_app),
+      saldo_real: Number(r.saldo_real),
+      diferencia: Number(r.diferencia)
+    })));
+  } catch (error) {
+    console.error('Error obteniendo cuadres de caja:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// Cuadre: se cuenta el dinero real y la diferencia con la app queda como
+// ajuste (faltante/sobrante). Con bolsillo, cuadra solo ese bolsillo; sin
+// él, el saldo total del módulo (antes de abrir bolsillos).
+app.post('/api/finanzas/cuadres', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+  let client;
+  try {
+    const moduloId = req.moduloId;
+    const negocioId = req.negocioId;
+    const { saldo_real, nota } = req.body;
+    const bolsillo = req.body.bolsillo || null;
+
+    if (!moduloId) {
+      return res.status(400).json({ error: 'Se requiere un módulo' });
+    }
+    if (bolsillo !== null && !BOLSILLOS_MANUALES.includes(bolsillo)) {
+      return res.status(400).json({ error: 'bolsillo inválido' });
+    }
+
+    const saldoReal = Number(saldo_real);
+    if (saldo_real === '' || saldo_real === null || saldo_real === undefined || !Number.isFinite(saldoReal) || saldoReal < 0) {
+      return res.status(400).json({ error: 'El dinero contado debe ser un número mayor o igual a cero' });
+    }
+
+    client = await pool.connect();
+    await client.query('BEGIN');
+    // Serializa cuadres simultáneos del mismo módulo: el saldo que se
+    // compara debe ser el del momento exacto del registro.
+    await client.query('SELECT pg_advisory_xact_lock($1)', [700000 + Number(moduloId)]);
+
+    const saldoApp = bolsillo
+      ? (await calcularSaldosBolsillos(client, moduloId))[bolsillo]
+      : await calcularSaldoModulo(client, moduloId);
+    const diferencia = Math.round((saldoReal - saldoApp) * 100) / 100;
+
+    let movimientoId = null;
+    if (diferencia !== 0) {
+      const sobrante = diferencia > 0;
+      const mov = await client.query(
+        `INSERT INTO movimientos_caja (negocio_id, modulo_id, tipo, origen, monto, concepto, categoria, usuario_id, bolsillo)
+         VALUES ($1, $2, $3, 'manual', $4, $5, 'ajuste_cuadre', $6, $7)
+         RETURNING id`,
+        [
+          negocioId,
+          moduloId,
+          sobrante ? 'ingreso' : 'egreso',
+          Math.abs(diferencia),
+          `Cuadre${bolsillo ? ` de ${bolsillo}` : ' de caja'}: ${sobrante ? 'sobrante' : 'faltante'}`,
+          req.user.id,
+          bolsillo
+        ]
+      );
+      movimientoId = mov.rows[0].id;
+    }
+
+    const cuadre = await client.query(
+      `INSERT INTO cuadres_caja (negocio_id, modulo_id, saldo_app, saldo_real, diferencia, nota, movimiento_id, usuario_id, bolsillo)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+       RETURNING *`,
+      [negocioId, moduloId, saldoApp, saldoReal, diferencia, nota?.trim() || null, movimientoId, req.user.id, bolsillo]
+    );
+
+    await client.query('COMMIT');
+    const c = cuadre.rows[0];
+    res.status(201).json({
+      ...c,
+      saldo_app: Number(c.saldo_app),
+      saldo_real: Number(c.saldo_real),
+      diferencia: Number(c.diferencia)
+    });
+  } catch (error) {
+    if (client) await client.query('ROLLBACK').catch(() => {});
+    console.error('Error registrando cuadre de caja:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  } finally {
+    if (client) client.release();
+  }
+});
+
+// ==================== PAGOS FIJOS ====================
+// Suscripciones y pagos que se repiten cada mes (Claude, Railway, Spotify,
+// plan de datos...). "Pagar" registra el egreso en su bolsillo y categoría;
+// el listado dice si ya se pagó este mes.
+
+app.get('/api/finanzas/pagos-fijos', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+  try {
+    const moduloId = req.moduloId;
+    if (!moduloId) {
+      return res.status(400).json({ error: 'Se requiere un módulo' });
+    }
+    // Mismo criterio de fechas que el resto de filtros de Finanzas.
+    const inicioMes = ahoraColombia().startOf('month').toDate();
+    const result = await pool.query(
+      `SELECT pf.id, pf.nombre, pf.monto, pf.dia_mes, pf.bolsillo, pf.categoria_gasto_id,
+              cg.nombre AS categoria_nombre,
+              ult.fecha AS ultimo_pago, ult.monto AS ultimo_monto,
+              (ult.fecha >= $2) AS pagado_este_mes
+       FROM pagos_fijos pf
+       LEFT JOIN categorias_gasto cg ON cg.id = pf.categoria_gasto_id
+       LEFT JOIN LATERAL (
+         SELECT fecha, monto FROM movimientos_caja
+         WHERE pago_fijo_id = pf.id ORDER BY fecha DESC LIMIT 1
+       ) ult ON true
+       WHERE pf.modulo_id = $1 AND pf.activo = true
+       ORDER BY pf.dia_mes, pf.nombre`,
+      [moduloId, inicioMes]
+    );
+    res.json(result.rows.map(r => ({
+      ...r,
+      monto: Number(r.monto),
+      ultimo_monto: r.ultimo_monto === null ? null : Number(r.ultimo_monto),
+      pagado_este_mes: r.pagado_este_mes === true
+    })));
+  } catch (error) {
+    console.error('Error obteniendo pagos fijos:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+const validarPagoFijo = async (body, moduloId) => {
+  const nombre = body.nombre?.trim();
+  if (!nombre) return { error: 'El nombre es requerido' };
+  const monto = leerMonto(body.monto);
+  if (monto === null) return { error: 'El monto debe ser mayor a cero' };
+  const dia = Number(body.dia_mes);
+  if (!Number.isInteger(dia) || dia < 1 || dia > 31) return { error: 'El día debe estar entre 1 y 31' };
+  if (!BOLSILLOS_MANUALES.includes(body.bolsillo)) return { error: 'bolsillo inválido' };
+  let categoria = null;
+  if (body.categoria_gasto_id) {
+    const cat = await pool.query('SELECT id FROM categorias_gasto WHERE id = $1 AND modulo_id = $2', [body.categoria_gasto_id, moduloId]);
+    if (cat.rows.length === 0) return { error: 'Categoría de gasto no encontrada' };
+    categoria = cat.rows[0].id;
+  }
+  return { valores: [nombre, monto, dia, body.bolsillo, categoria] };
+};
+
+app.post('/api/finanzas/pagos-fijos', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+  try {
+    const moduloId = req.moduloId;
+    if (!moduloId) {
+      return res.status(400).json({ error: 'Se requiere un módulo' });
+    }
+    const { error, valores } = await validarPagoFijo(req.body, moduloId);
+    if (error) return res.status(400).json({ error });
+    const result = await pool.query(
+      `INSERT INTO pagos_fijos (negocio_id, modulo_id, nombre, monto, dia_mes, bolsillo, categoria_gasto_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+      [req.negocioId, moduloId, ...valores]
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error('Error creando pago fijo:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+app.put('/api/finanzas/pagos-fijos/:id', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+  try {
+    const moduloId = req.moduloId;
+    const { error, valores } = await validarPagoFijo(req.body, moduloId);
+    if (error) return res.status(400).json({ error });
+    const result = await pool.query(
+      `UPDATE pagos_fijos SET nombre = $1, monto = $2, dia_mes = $3, bolsillo = $4, categoria_gasto_id = $5
+       WHERE id = $6 AND modulo_id = $7 AND activo = true RETURNING *`,
+      [...valores, req.params.id, moduloId]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Pago fijo no encontrado' });
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error actualizando pago fijo:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+app.delete('/api/finanzas/pagos-fijos/:id', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+  try {
+    const result = await pool.query(
+      'UPDATE pagos_fijos SET activo = false WHERE id = $1 AND modulo_id = $2 RETURNING id',
+      [req.params.id, req.moduloId]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Pago fijo no encontrado' });
+    res.json({ ok: true });
+  } catch (error) {
+    console.error('Error eliminando pago fijo:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// El monto puede variar (ej. el dólar movió el precio de Claude): si viene
+// en el body se usa ese, si no el configurado.
+app.post('/api/finanzas/pagos-fijos/:id/pagar', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+  try {
+    const moduloId = req.moduloId;
+    const fijo = await pool.query(
+      'SELECT * FROM pagos_fijos WHERE id = $1 AND modulo_id = $2 AND activo = true',
+      [req.params.id, moduloId]
+    );
+    if (fijo.rows.length === 0) return res.status(404).json({ error: 'Pago fijo no encontrado' });
+    const pf = fijo.rows[0];
+    const monto = req.body.monto === undefined || req.body.monto === '' ? Number(pf.monto) : leerMonto(req.body.monto);
+    if (monto === null) return res.status(400).json({ error: 'El monto debe ser mayor a cero' });
+
+    const result = await pool.query(
+      `INSERT INTO movimientos_caja
+       (negocio_id, modulo_id, tipo, origen, monto, concepto, usuario_id, categoria_gasto_id, bolsillo, pago_fijo_id)
+       VALUES ($1, $2, 'egreso', 'manual', $3, $4, $5, $6, $7, $8)
+       RETURNING *`,
+      [req.negocioId, moduloId, monto, pf.nombre, req.user.id, pf.categoria_gasto_id, pf.bolsillo, pf.id]
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error('Error pagando pago fijo:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// ==================== INVENTARIO: DATOS DE COMPRA Y CONTEO FÍSICO ====================
+
+// Productos activos del módulo a los que les falta precio de compra o
+// proveedor — sin esos datos no se puede calcular cuánto cuesta un pedido
+// ni a quién pedirle cada cosa.
+app.get('/api/inventario/productos-incompletos', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+  try {
+    const moduloId = req.moduloId;
+    if (!moduloId) {
+      return res.status(400).json({ error: 'Se requiere un módulo' });
+    }
+
+    const result = await pool.query(
+      `SELECT p.id, p.nombre, p.codigo_ean, p.precio_venta, p.precio_compra, p.ignora_stock,
+              c.nombre AS categoria_nombre,
+              prov.proveedor_id
+       FROM productos p
+       LEFT JOIN categorias c ON c.id = p.categoria_id
+       LEFT JOIN LATERAL (
+         SELECT pp.proveedor_id
+         FROM producto_proveedor pp
+         JOIN proveedores pr ON pr.id = pp.proveedor_id AND pr.activo = true
+         WHERE pp.producto_id = p.id AND pp.activo = true
+         ORDER BY pp.id
+         LIMIT 1
+       ) prov ON true
+       WHERE p.modulo_id = $1 AND p.activo = true
+         AND (COALESCE(p.precio_compra, 0) = 0 OR prov.proveedor_id IS NULL)
+       ORDER BY p.nombre`,
+      [moduloId]
+    );
+
+    res.json(result.rows.map(r => ({
+      ...r,
+      precio_venta: Number(r.precio_venta),
+      precio_compra: r.precio_compra === null ? null : Number(r.precio_compra)
+    })));
+  } catch (error) {
+    console.error('Error obteniendo productos incompletos:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// Guarda precio de compra y/o proveedor de un producto. El proveedor
+// elegido queda como el único activo del producto (en la práctica cada
+// producto se le compra a un solo proveedor).
+app.put('/api/inventario/productos/:id/datos-compra', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+  let client;
+  try {
+    const moduloId = req.moduloId;
+    const { id } = req.params;
+    const { precio_compra, proveedor_id } = req.body;
+
+    if (!moduloId) {
+      return res.status(400).json({ error: 'Se requiere un módulo' });
+    }
+
+    const tienePrecio = precio_compra !== undefined && precio_compra !== null && precio_compra !== '';
+    const precioNum = Number(precio_compra);
+    if (tienePrecio && (!Number.isFinite(precioNum) || precioNum < 0)) {
+      return res.status(400).json({ error: 'El precio de compra debe ser un número mayor o igual a cero' });
+    }
+    const tieneProveedor = proveedor_id !== undefined && proveedor_id !== null && proveedor_id !== '';
+    if (!tienePrecio && !tieneProveedor) {
+      return res.status(400).json({ error: 'Indica el precio de compra, el proveedor o ambos' });
+    }
+
+    client = await pool.connect();
+    await client.query('BEGIN');
+
+    const productoResult = await client.query(
+      'SELECT id, precio_compra FROM productos WHERE id = $1 AND modulo_id = $2 AND activo = true FOR UPDATE',
+      [id, moduloId]
+    );
+    if (productoResult.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Producto no encontrado' });
+    }
+
+    if (tienePrecio) {
+      await client.query('UPDATE productos SET precio_compra = $1 WHERE id = $2', [precioNum, id]);
+      await client.query(
+        'UPDATE producto_proveedor SET precio_compra = $1 WHERE producto_id = $2 AND activo = true',
+        [precioNum, id]
+      );
+    }
+
+    if (tieneProveedor) {
+      const proveedorResult = await client.query(
+        'SELECT id, dias_entrega FROM proveedores WHERE id = $1 AND modulo_id = $2 AND activo = true',
+        [proveedor_id, moduloId]
+      );
+      if (proveedorResult.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return res.status(404).json({ error: 'Proveedor no encontrado' });
+      }
+      const precioVinculo = tienePrecio ? precioNum : Number(productoResult.rows[0].precio_compra || 0);
+      await client.query(
+        'UPDATE producto_proveedor SET activo = false WHERE producto_id = $1 AND proveedor_id <> $2',
+        [id, proveedor_id]
+      );
+      await client.query(
+        `INSERT INTO producto_proveedor (producto_id, proveedor_id, precio_compra, tiempo_entrega_dias, cantidad_minima_pedido, unidades_por_paquete)
+         VALUES ($1, $2, $3, $4, 1, 1)
+         ON CONFLICT (producto_id, proveedor_id)
+         DO UPDATE SET precio_compra = $3, activo = true`,
+        [id, proveedor_id, precioVinculo, proveedorResult.rows[0].dias_entrega || 3]
+      );
+    }
+
+    await client.query('COMMIT');
+    res.json({ success: true });
+  } catch (error) {
+    if (client) await client.query('ROLLBACK').catch(() => {});
+    console.error('Error guardando datos de compra:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  } finally {
+    if (client) client.release();
+  }
+});
+
+// Productos para el conteo físico (los preparados no llevan stock, se
+// excluyen). proveedor: id numérico, 'sin' (sin proveedor) o vacío (todos).
+app.get('/api/inventario/conteo', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+  try {
+    const moduloId = req.moduloId;
+    const { proveedor } = req.query;
+    if (!moduloId) {
+      return res.status(400).json({ error: 'Se requiere un módulo' });
+    }
+
+    const params = [moduloId];
+    let filtro = '';
+    if (proveedor === 'sin') {
+      filtro = `AND NOT EXISTS (SELECT 1 FROM producto_proveedor pp WHERE pp.producto_id = p.id AND pp.activo = true)`;
+    } else if (proveedor !== undefined && proveedor !== '') {
+      if (!/^\d+$/.test(String(proveedor))) {
+        return res.status(400).json({ error: 'proveedor inválido' });
+      }
+      params.push(parseInt(proveedor, 10));
+      filtro = `AND EXISTS (SELECT 1 FROM producto_proveedor pp WHERE pp.producto_id = p.id AND pp.activo = true AND pp.proveedor_id = $2)`;
+    }
+
+    const result = await pool.query(
+      `SELECT p.id, p.nombre, p.codigo_ean, p.stock_actual, p.precio_compra, c.nombre AS categoria_nombre
+       FROM productos p
+       LEFT JOIN categorias c ON c.id = p.categoria_id
+       WHERE p.modulo_id = $1 AND p.activo = true AND p.ignora_stock = false ${filtro}
+       ORDER BY c.nombre NULLS LAST, p.nombre`,
+      params
+    );
+
+    res.json(result.rows.map(r => ({ ...r, precio_compra: Number(r.precio_compra || 0) })));
+  } catch (error) {
+    console.error('Error obteniendo productos para conteo:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// Registra un conteo físico: deja el stock de cada producto contado igual
+// a lo que hay de verdad y guarda la diferencia (en unidades y en plata a
+// precio de compra) para ver cuánto se pierde sin registrar.
+app.post('/api/inventario/conteos', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+  let client;
+  try {
+    const moduloId = req.moduloId;
+    const negocioId = req.negocioId;
+    const { items, proveedor_id } = req.body;
+
+    if (!moduloId) {
+      return res.status(400).json({ error: 'Se requiere un módulo' });
+    }
+    if (!Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ error: 'Cuenta al menos un producto' });
+    }
+    for (const it of items) {
+      const cantidad = Number(it.stock_contado);
+      if (!Number.isInteger(cantidad) || cantidad < 0 || !it.producto_id) {
+        return res.status(400).json({ error: 'Cada producto contado necesita una cantidad entera mayor o igual a cero' });
+      }
+    }
+
+    client = await pool.connect();
+    await client.query('BEGIN');
+
+    let proveedorValido = null;
+    if (proveedor_id !== undefined && proveedor_id !== null && proveedor_id !== '' && proveedor_id !== 'sin') {
+      const prov = await client.query('SELECT id FROM proveedores WHERE id = $1 AND modulo_id = $2', [proveedor_id, moduloId]);
+      if (prov.rows.length > 0) proveedorValido = prov.rows[0].id;
+    }
+
+    const conteo = await client.query(
+      `INSERT INTO conteos_inventario (negocio_id, modulo_id, proveedor_id, usuario_id, productos_contados, unidades_diferencia, valor_diferencia)
+       VALUES ($1, $2, $3, $4, 0, 0, 0) RETURNING id`,
+      [negocioId, moduloId, proveedorValido, req.user.id]
+    );
+    const conteoId = conteo.rows[0].id;
+
+    const detalle = [];
+    let unidadesDiferencia = 0;
+    let valorDiferencia = 0;
+
+    for (const it of items) {
+      const prod = await client.query(
+        'SELECT id, nombre, stock_actual, precio_compra FROM productos WHERE id = $1 AND modulo_id = $2 AND activo = true AND ignora_stock = false FOR UPDATE',
+        [it.producto_id, moduloId]
+      );
+      if (prod.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return res.status(404).json({ error: `Producto ${it.producto_id} no encontrado` });
+      }
+      const p = prod.rows[0];
+      const contado = Number(it.stock_contado);
+      const diferencia = contado - p.stock_actual;
+      const costo = Number(p.precio_compra || 0);
+
+      await client.query(
+        `INSERT INTO ajustes_inventario (conteo_id, producto_id, stock_sistema, stock_contado, diferencia, costo_unitario)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [conteoId, p.id, p.stock_actual, contado, diferencia, costo]
+      );
+      if (diferencia !== 0) {
+        await client.query('UPDATE productos SET stock_actual = $1 WHERE id = $2', [contado, p.id]);
+      }
+
+      unidadesDiferencia += diferencia;
+      valorDiferencia += diferencia * costo;
+      detalle.push({
+        producto_id: p.id,
+        nombre: p.nombre,
+        stock_sistema: p.stock_actual,
+        stock_contado: contado,
+        diferencia,
+        valor: diferencia * costo
+      });
+    }
+
+    valorDiferencia = Math.round(valorDiferencia * 100) / 100;
+    await client.query(
+      'UPDATE conteos_inventario SET productos_contados = $1, unidades_diferencia = $2, valor_diferencia = $3 WHERE id = $4',
+      [items.length, unidadesDiferencia, valorDiferencia, conteoId]
+    );
+
+    await client.query('COMMIT');
+    res.status(201).json({
+      id: conteoId,
+      productos_contados: items.length,
+      unidades_diferencia: unidadesDiferencia,
+      valor_diferencia: valorDiferencia,
+      detalle: detalle.filter(d => d.diferencia !== 0).sort((a, b) => a.valor - b.valor)
+    });
+  } catch (error) {
+    if (client) await client.query('ROLLBACK').catch(() => {});
+    console.error('Error registrando conteo de inventario:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  } finally {
+    if (client) client.release();
+  }
+});
+
+app.get('/api/inventario/conteos', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+  try {
+    const moduloId = req.moduloId;
+    if (!moduloId) {
+      return res.status(400).json({ error: 'Se requiere un módulo' });
+    }
+
+    const result = await pool.query(
+      `SELECT ci.id, ci.fecha, ci.productos_contados, ci.unidades_diferencia, ci.valor_diferencia,
+              pr.nombre AS proveedor_nombre, u.nombre AS usuario_nombre
+       FROM conteos_inventario ci
+       LEFT JOIN proveedores pr ON pr.id = ci.proveedor_id
+       LEFT JOIN usuarios u ON u.id = ci.usuario_id
+       WHERE ci.modulo_id = $1
+       ORDER BY ci.fecha DESC
+       LIMIT 20`,
+      [moduloId]
+    );
+
+    res.json(result.rows.map(r => ({ ...r, valor_diferencia: Number(r.valor_diferencia) })));
+  } catch (error) {
+    console.error('Error obteniendo conteos de inventario:', error);
     res.status(500).json({ error: 'Error interno del servidor' });
   }
 });
@@ -3742,11 +4813,13 @@ app.get('/api/finanzas/resumen-periodo', authenticateToken, checkAccess, require
           CASE
             WHEN mc.categoria_gasto_id IS NOT NULL THEN 'cat_' || mc.categoria_gasto_id::text
             WHEN mc.origen = 'pedido' THEN 'pedido'
+            WHEN mc.categoria = 'ajuste_cuadre' THEN 'ajuste_cuadre'
             ELSE 'sin_categoria'
           END as grupo_key,
           CASE
             WHEN mc.categoria_gasto_id IS NOT NULL THEN cg.nombre
             WHEN mc.origen = 'pedido' THEN '📦 Pedidos a proveedor'
+            WHEN mc.categoria = 'ajuste_cuadre' THEN '🧮 Faltantes en cuadre de caja'
             ELSE '🗂️ Sin categoría'
           END as grupo_nombre,
           SUM(mc.monto) as monto
@@ -3766,12 +4839,16 @@ app.get('/api/finanzas/resumen-periodo', authenticateToken, checkAccess, require
             WHEN mc.tipo = 'saldo_inicial' THEN 'saldo_inicial'
             WHEN mc.origen = 'venta' THEN 'venta'
             WHEN mc.origen = 'manual' AND mc.categoria = 'abono_credito' THEN 'abono'
+            WHEN mc.categoria = 'ajuste_cuadre' THEN 'ajuste_cuadre'
+            WHEN mc.categoria = 'comision_favor' THEN 'comision_favor'
             ELSE 'manual'
           END as grupo_key,
           CASE
             WHEN mc.tipo = 'saldo_inicial' THEN '🏦 Saldo inicial'
             WHEN mc.origen = 'venta' THEN '🛒 Ventas'
             WHEN mc.origen = 'manual' AND mc.categoria = 'abono_credito' THEN '💰 Abonos de clientes'
+            WHEN mc.categoria = 'ajuste_cuadre' THEN '🧮 Sobrantes en cuadre de caja'
+            WHEN mc.categoria = 'comision_favor' THEN '🤝 Ganancia por favores (giros, recargas)'
             ELSE '✋ Ingresos manuales'
           END as grupo_nombre,
           SUM(mc.monto) as monto
@@ -5834,6 +6911,8 @@ app.put('/api/pedidos-cliente/:id/completar', authenticateToken, checkAccess, as
     if (metodo_pago !== 'credito' && metodo_pago !== 'consumo_propio') {
       await registrarIngresosVenta(client, {
         negocioId,
+        moduloVendedorId: moduloId,
+        metodoPago: metodo_pago,
         ventaId: venta.id,
         numeroFactura: numero_factura,
         usuarioId,

@@ -3,7 +3,7 @@ import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import {
   ShoppingCart, Package, ChartColumn, FileText, Truck, ClipboardList,
   ReceiptText, Bike, Users, FileSearch, Wallet, Landmark, Building2,
-  CircleHelp, ChevronDown, Menu, KeyRound, LogOut, Store, Check
+  CircleHelp, ChevronDown, Menu, KeyRound, LogOut, Store, Check, ClipboardCheck
 } from 'lucide-react';
 import CambiarPassword from './CambiarPassword';
 import { useModulo } from '../hooks/useModulo';
@@ -16,6 +16,7 @@ const MENU = {
   admin: [
     { path: '/ventas', icon: ShoppingCart, label: 'Ventas' },
     { path: '/productos', icon: Package, label: 'Productos' },
+    { path: '/inventario', icon: ClipboardCheck, label: 'Inventario' },
     { path: '/estadisticas', icon: ChartColumn, label: 'Estadísticas' },
     { path: '/reportes', icon: FileText, label: 'Reportes' },
     { path: '/proveedores', icon: Truck, label: 'Proveedores' },

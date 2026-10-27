@@ -15,7 +15,7 @@ const Clientes = ({ user }) => {
   const [historial, setHistorial] = useState([]);
   const [abonos, setAbonos] = useState([]);
   const [cargandoHistorial, setCargandoHistorial] = useState(false);
-  const [abonoForm, setAbonoForm] = useState({ monto: '', concepto: '' });
+  const [abonoForm, setAbonoForm] = useState({ monto: '', concepto: '', bolsillo: 'caja' });
   const [guardandoAbono, setGuardandoAbono] = useState(false);
   const [deudaManualForm, setDeudaManualForm] = useState({ monto: '', concepto: '' });
   const [guardandoDeudaManual, setGuardandoDeudaManual] = useState(false);
@@ -140,11 +140,12 @@ const Clientes = ({ user }) => {
       setGuardandoAbono(true);
       const response = await api.post(`/clientes/${clienteHistorial.id}/abonos`, {
         monto: montoNum,
-        concepto: abonoForm.concepto.trim() || undefined
+        concepto: abonoForm.concepto.trim() || undefined,
+        bolsillo: abonoForm.bolsillo
       });
       // Actualiza la deuda mostrada en el modal y en la tarjeta del listado
       setClienteHistorial(prev => prev ? { ...prev, deuda_actual: response.data.deuda_actual } : prev);
-      setAbonoForm({ monto: '', concepto: '' });
+      setAbonoForm({ monto: '', concepto: '', bolsillo: 'caja' });
       cargarHistorial(clienteHistorial.id);
       cargarClientes(busqueda);
     } catch (error) {
@@ -425,6 +426,14 @@ const Clientes = ({ user }) => {
                 onChange={(e) => setAbonoForm({ ...abonoForm, concepto: e.target.value })}
                 placeholder="Concepto (opcional)"
               />
+              <select
+                value={abonoForm.bolsillo}
+                onChange={(e) => setAbonoForm({ ...abonoForm, bolsillo: e.target.value })}
+                title="Cómo pagó"
+              >
+                <option value="caja">💵 En efectivo</option>
+                <option value="nequi">📱 Por transferencia</option>
+              </select>
               <button type="submit" className="btn-registrar-abono" disabled={guardandoAbono}>
                 {guardandoAbono ? 'Guardando...' : '💰 Registrar abono'}
               </button>
