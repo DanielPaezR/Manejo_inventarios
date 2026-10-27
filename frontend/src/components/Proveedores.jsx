@@ -2,6 +2,22 @@ import React, { useState, useEffect } from 'react';
 import api from '../services/api';
 import { useModulo } from '../hooks/useModulo';
 import './Proveedores.css';
+import { DIAS_SEMANA, describirCalendario } from '../utils/calendarioProveedor';
+
+const FORM_VACIO = {
+  nombre: '',
+  contacto: '',
+  telefono: '',
+  email: '',
+  direccion: '',
+  dias_entrega: '',
+  calendario_modo: '',
+  dia_pedido: '',
+  dias_hasta_llegada: 0,
+  frecuencia_semanas: 1,
+  pide_en_sitio: false,
+  fecha_ancla: ''
+};
 
 const Proveedores = ({ user }) => {
   const { moduloActivo } = useModulo();
@@ -12,14 +28,7 @@ const Proveedores = ({ user }) => {
   const [editProveedor, setEditProveedor] = useState(null);
   const [showProductosModal, setShowProductosModal] = useState(false);
   const [proveedorSeleccionado, setProveedorSeleccionado] = useState(null);
-  const [formData, setFormData] = useState({
-    nombre: '',
-    contacto: '',
-    telefono: '',
-    email: '',
-    direccion: '',
-    dias_entrega: ''
-  });
+  const [formData, setFormData] = useState(FORM_VACIO);
   // Modal de gestión de productos asociados: sección A (ya asociados, con
   // edición inline) y sección B (asignar nuevos, multi-selección).
   const [productosAsociados, setProductosAsociados] = useState([]);
@@ -78,14 +87,7 @@ const Proveedores = ({ user }) => {
       
       setShowModal(false);
       setEditProveedor(null);
-      setFormData({
-        nombre: '',
-        contacto: '',
-        telefono: '',
-        email: '',
-        direccion: '',
-        dias_entrega: ''
-      });
+      setFormData(FORM_VACIO);
       cargarProveedores();
     } catch (error) {
       console.error('Error guardando proveedor:', error);
@@ -116,7 +118,13 @@ const Proveedores = ({ user }) => {
       telefono: proveedor.telefono || '',
       email: proveedor.email || '',
       direccion: proveedor.direccion || '',
-      dias_entrega: proveedor.dias_entrega || ''
+      dias_entrega: proveedor.dias_entrega || '',
+      calendario_modo: proveedor.calendario_modo || '',
+      dia_pedido: proveedor.dia_pedido || '',
+      dias_hasta_llegada: proveedor.dias_hasta_llegada ?? 0,
+      frecuencia_semanas: proveedor.frecuencia_semanas || 1,
+      pide_en_sitio: !!proveedor.pide_en_sitio,
+      fecha_ancla: proveedor.fecha_ancla ? String(proveedor.fecha_ancla).slice(0, 10) : ''
     });
     setShowModal(true);
   };
@@ -306,7 +314,7 @@ const Proveedores = ({ user }) => {
     <div className="proveedores-container">
       <div className="proveedores-header">
         <button 
-          onClick={() => { setEditProveedor(null); setFormData({ nombre: '', contacto: '', telefono: '', email: '', direccion: '', dias_entrega: '' }); setShowModal(true); }} 
+          onClick={() => { setEditProveedor(null); setFormData(FORM_VACIO); setShowModal(true); }} 
           className="btn-agregar"
         >
           + Nuevo Proveedor
@@ -320,7 +328,7 @@ const Proveedores = ({ user }) => {
           {proveedores.length === 0 ? (
             <div className="sin-datos">
               <p>No hay proveedores registrados</p>
-              <button onClick={() => { setEditProveedor(null); setFormData({ nombre: '', contacto: '', telefono: '', email: '', direccion: '', dias_entrega: '' }); setShowModal(true); }} className="btn-agregar-primero">
+              <button onClick={() => { setEditProveedor(null); setFormData(FORM_VACIO); setShowModal(true); }} className="btn-agregar-primero">
                 + Agregar primer proveedor
               </button>
             </div>
@@ -370,7 +378,12 @@ const Proveedores = ({ user }) => {
                       <span className="info-value">{proveedor.direccion}</span>
                     </div>
                   )}
-                  {proveedor.dias_entrega && (
+                  {describirCalendario(proveedor) ? (
+                    <div className="proveedor-info-item">
+                      <span className="info-icon">📅</span>
+                      <span className="info-value">{describirCalendario(proveedor)}</span>
+                    </div>
+                  ) : proveedor.dias_entrega && (
                     <div className="proveedor-info-item">
                       <span className="info-icon">🚚</span>
                       <span className="info-value">Trae pedido cada {proveedor.dias_entrega} días</span>
@@ -454,16 +467,114 @@ const Proveedores = ({ user }) => {
                 />
               </div>
 
-              <div className="form-group">
-                <label>Tiempo de entrega</label>
-                <input
-                  type="number"
-                  min="1"
-                  placeholder="Cada cuántos días trae pedido (opcional)"
-                  value={formData.dias_entrega}
-                  onChange={(e) => setFormData({ ...formData, dias_entrega: e.target.value })}
-                />
-              </div>
+              <fieldset className="calendario-fieldset">
+                <legend>📅 Calendario de pedidos</legend>
+                <div className="form-group">
+                  <label>¿Cómo se le pide?</label>
+                  <select
+                    value={formData.calendario_modo}
+                    onChange={(e) => setFormData({ ...formData, calendario_modo: e.target.value })}
+                  >
+                    <option value="">Sin definir</option>
+                    <option value="fijo">Tiene un día fijo</option>
+                    <option value="avisa">Él avisa cuándo viene</option>
+                    <option value="pausado">En pausa (no pedirle por ahora)</option>
+                  </select>
+                </div>
+
+                {formData.calendario_modo === 'fijo' && (
+                  <>
+                    <label className="calendario-check">
+                      <input
+                        type="checkbox"
+                        checked={formData.pide_en_sitio}
+                        onChange={(e) => setFormData({ ...formData, pide_en_sitio: e.target.checked, dias_hasta_llegada: e.target.checked ? 0 : formData.dias_hasta_llegada })}
+                      />
+                      No se le manda pedido antes: se le pide cuando llega
+                    </label>
+                    <div className="form-row">
+                      <div className="form-group">
+                        <label>{formData.pide_en_sitio ? 'Día que llega' : 'Día de pedido'}</label>
+                        <select
+                          value={formData.dia_pedido}
+                          onChange={(e) => setFormData({ ...formData, dia_pedido: e.target.value, fecha_ancla: '' })}
+                          required
+                        >
+                          <option value="">Elegir</option>
+                          {DIAS_SEMANA.map((d, i) => <option key={d} value={i + 1}>{d}</option>)}
+                        </select>
+                      </div>
+                      <div className="form-group">
+                        <label>Cada</label>
+                        <select
+                          value={formData.frecuencia_semanas}
+                          onChange={(e) => setFormData({ ...formData, frecuencia_semanas: Number(e.target.value) })}
+                        >
+                          <option value={1}>1 semana</option>
+                          <option value={2}>2 semanas (cada 15 días)</option>
+                          <option value={3}>3 semanas</option>
+                          <option value={4}>4 semanas</option>
+                        </select>
+                      </div>
+                    </div>
+                    {!formData.pide_en_sitio && (
+                      <div className="form-group">
+                        <label>¿Cuándo llega el pedido?</label>
+                        <select
+                          value={formData.dias_hasta_llegada}
+                          onChange={(e) => setFormData({ ...formData, dias_hasta_llegada: Number(e.target.value) })}
+                        >
+                          <option value={0}>El mismo día</option>
+                          {[1, 2, 3, 4, 5, 6].map(n => <option key={n} value={n}>{n} día{n > 1 ? 's' : ''} después</option>)}
+                          <option value={7}>A la semana (mismo día)</option>
+                          <option value={14}>A las 2 semanas</option>
+                        </select>
+                      </div>
+                    )}
+                    {formData.frecuencia_semanas > 1 && (
+                      <div className="form-group">
+                        <label>Fecha del próximo pedido</label>
+                        <input
+                          type="date"
+                          value={formData.fecha_ancla}
+                          onChange={(e) => setFormData({ ...formData, fecha_ancla: e.target.value })}
+                          required
+                        />
+                        <small className="calendario-ayuda">Para saber en qué semanas toca. Debe ser un {DIAS_SEMANA[formData.dia_pedido - 1] || 'día de pedido'}.</small>
+                      </div>
+                    )}
+                  </>
+                )}
+
+                {formData.calendario_modo === 'avisa' && (
+                  <div className="form-group">
+                    <label>Más o menos viene cada</label>
+                    <select
+                      value={formData.frecuencia_semanas}
+                      onChange={(e) => setFormData({ ...formData, frecuencia_semanas: Number(e.target.value) })}
+                    >
+                      <option value={1}>1 semana</option>
+                      <option value={2}>2 semanas</option>
+                      <option value={3}>3 semanas</option>
+                      <option value={4}>4 semanas</option>
+                    </select>
+                    <small className="calendario-ayuda">Cuando avise, registras la fecha de la visita en Pedidos.</small>
+                  </div>
+                )}
+
+                {formData.calendario_modo === '' && (
+                  <div className="form-group">
+                    <label>Tiempo de entrega</label>
+                    <input
+                      type="number"
+                      min="1"
+                      placeholder="Cada cuántos días trae pedido (opcional)"
+                      value={formData.dias_entrega}
+                      onChange={(e) => setFormData({ ...formData, dias_entrega: e.target.value })}
+                    />
+                  </div>
+                )}
+              </fieldset>
 
               <div className="form-actions">
                 <button type="submit" className="btn-guardar" disabled={loading}>

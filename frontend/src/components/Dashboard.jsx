@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import CambiarPassword from './CambiarPassword';
 import { useModulo } from '../hooks/useModulo';
+import api from '../services/api';
 import './Dashboard.css';
 
 const MENU = {
@@ -54,6 +55,16 @@ const Dashboard = ({ user, onLogout }) => {
   );
 
   const requiereModulo = !['/negocios', '/', '/finanzas-negocio'].includes(location.pathname);
+
+  // Proveedores a los que hoy toca (o se pasó) mandar pedido: aviso en el
+  // menú. Se recalcula al navegar para que desaparezca al hacer el pedido.
+  const [pedidosPorHacer, setPedidosPorHacer] = useState(0);
+  useEffect(() => {
+    if (user?.rol !== 'admin' || !moduloActivo) return;
+    api.get('/proveedores/calendario')
+      .then(res => setPedidosPorHacer(res.data.proveedores.filter(p => p.estado === 'hoy' || p.estado === 'atrasado').length))
+      .catch(() => {});
+  }, [user?.rol, moduloActivo, location.pathname]);
 
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -132,6 +143,9 @@ const Dashboard = ({ user, onLogout }) => {
                 <Link to={path}>
                   <Icon className="nav-icon" size={18} strokeWidth={1.9} />
                   {!sidebarCollapsed && <span className="nav-label">{label}</span>}
+                  {path === '/pedidos' && pedidosPorHacer > 0 && (
+                    <span className="nav-badge" title="Proveedores a los que hoy toca hacer pedido">{pedidosPorHacer}</span>
+                  )}
                 </Link>
               </li>
             ))}

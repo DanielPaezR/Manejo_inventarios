@@ -2777,12 +2777,18 @@ app.post('/api/proveedores', authenticateToken, checkAccess, requireAdmin, async
       diasEntregaValor = parseInt(diasEntregaStr, 10);
     }
 
+    const calendario = validarCalendarioProveedor(req.body);
+    if (calendario.error) {
+      return res.status(400).json({ error: calendario.error });
+    }
+
     const result = await pool.query(
       `INSERT INTO proveedores (negocio_id, modulo_id, nombre, contacto, telefono, email, direccion, dias_entrega)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
        RETURNING *`,
       [negocioId, moduloId, nombre, contacto, telefono, email, direccion, diasEntregaValor]
     );
+    await guardarCalendarioProveedor(pool, result.rows[0].id, moduloId, calendario.valores);
 
     res.status(201).json(result.rows[0]);
   } catch (error) {
@@ -2805,6 +2811,13 @@ app.put('/api/proveedores/:id', authenticateToken, checkAccess, requireAdmin, as
         return res.status(400).json({ error: 'dias_entrega debe ser un entero positivo' });
       }
       diasEntregaValor = parseInt(diasEntregaStr, 10);
+    }
+
+    // El calendario solo se toca si el formulario lo envía.
+    const traeCalendario = 'calendario_modo' in req.body;
+    const calendario = traeCalendario ? validarCalendarioProveedor(req.body) : null;
+    if (calendario?.error) {
+      return res.status(400).json({ error: calendario.error });
     }
 
     // Proveedores.jsx nunca envía `activo` en este formulario (solo existe
@@ -2830,6 +2843,9 @@ app.put('/api/proveedores/:id', authenticateToken, checkAccess, requireAdmin, as
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Proveedor no encontrado' });
     }
+    if (traeCalendario) {
+      await guardarCalendarioProveedor(pool, id, moduloId, calendario.valores);
+    }
 
     res.json(result.rows[0]);
   } catch (error) {
@@ -2852,6 +2868,226 @@ app.delete('/api/proveedores/:id', authenticateToken, checkAccess, requireAdmin,
     res.json({ message: 'Proveedor eliminado correctamente' });
   } catch (error) {
     console.error('Error eliminando proveedor:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// ==================== CALENDARIO DE PROVEEDORES ====================
+// Cada proveedor tiene su forma real de pedir:
+// - 'fijo': se pide un día de la semana (dia_pedido, 1=lunes..7=domingo)
+//   cada frecuencia_semanas semanas y llega dias_hasta_llegada después.
+//   Con frecuencia > 1, fecha_ancla es un día de pedido conocido del ciclo.
+//   pide_en_sitio = no se manda pedido antes, se pide cuando llega.
+// - 'avisa': el proveedor avisa cuándo viene (proxima_visita); el pedido se
+//   manda antes de esa fecha. frecuencia_semanas es cada cuánto viene más o
+//   menos, para estimar cuánto debe durar el pedido.
+// - 'pausado': no se le pide por ahora.
+// Las fechas se manejan como 'YYYY-MM-DD' en hora de Colombia.
+
+const MODOS_CALENDARIO = ['fijo', 'avisa', 'pausado'];
+// Un pedido registrado hasta 2 días antes del día de pedido cuenta para ese ciclo.
+const MARGEN_PEDIDO_ANTICIPADO = 2;
+
+const sumarDiasFecha = (fecha, dias) => {
+  const d = new Date(`${fecha}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + dias);
+  return d.toISOString().slice(0, 10);
+};
+const diasEntreFechas = (desde, hasta) =>
+  Math.round((new Date(`${hasta}T00:00:00Z`) - new Date(`${desde}T00:00:00Z`)) / 86400000);
+const diaSemanaIso = (fecha) => new Date(`${fecha}T00:00:00Z`).getUTCDay() || 7;
+
+// fechasPedidos: fechas (Colombia) de pedidos no cancelados del proveedor.
+const calcularCalendarioProveedor = (prov, hoy, fechasPedidos) => {
+  const pedidoDesde = (fecha) => fechasPedidos.some(f => f >= fecha);
+  const ciclo = 7 * (prov.frecuencia_semanas || 1);
+
+  if (!prov.calendario_modo) return { estado: 'sin_configurar' };
+  if (prov.calendario_modo === 'pausado') return { estado: 'pausado' };
+
+  if (prov.calendario_modo === 'avisa') {
+    const visita = prov.proxima_visita && prov.proxima_visita >= hoy ? prov.proxima_visita : null;
+    if (!visita) return { estado: 'esperando_aviso', dias_cobertura: ciclo };
+    const hecho = pedidoDesde(prov.aviso_registrado || sumarDiasFecha(visita, -7));
+    const pedirAntesDe = sumarDiasFecha(visita, -1) < hoy ? hoy : sumarDiasFecha(visita, -1);
+    return {
+      estado: hecho ? 'hecho' : (pedirAntesDe === hoy ? 'hoy' : 'proximo'),
+      proximo_pedido: pedirAntesDe,
+      llegada: visita,
+      siguiente_llegada: sumarDiasFecha(visita, ciclo),
+      dias_cobertura: Math.max(1, diasEntreFechas(hoy, visita) + ciclo)
+    };
+  }
+
+  // 'fijo': día de pedido más reciente que ya llegó (c0) y el siguiente (c1).
+  const espera = prov.dias_hasta_llegada || 0;
+  const conObjetivo = (objetivo, estado) => {
+    const siguienteLlegada = sumarDiasFecha(objetivo, ciclo + espera);
+    return {
+      estado,
+      proximo_pedido: objetivo,
+      llegada: sumarDiasFecha(objetivo, espera),
+      siguiente_llegada: siguienteLlegada,
+      // Días que debe durar lo que hay más lo que se pida ahora: hasta que
+      // llegue el pedido del ciclo siguiente.
+      dias_cobertura: Math.max(1, diasEntreFechas(hoy, siguienteLlegada))
+    };
+  };
+  let c0;
+  if (ciclo > 7 && prov.fecha_ancla) {
+    const desdeAncla = diasEntreFechas(prov.fecha_ancla, hoy);
+    // La fecha ancla es el primer pedido del calendario: antes de ella no
+    // hay ciclos anteriores que se puedan haber pasado.
+    if (desdeAncla < 0) {
+      return conObjetivo(prov.fecha_ancla, pedidoDesde(sumarDiasFecha(prov.fecha_ancla, -MARGEN_PEDIDO_ANTICIPADO))
+        ? 'hecho' : (desdeAncla === -1 ? 'manana' : 'proximo'));
+    }
+    c0 = sumarDiasFecha(prov.fecha_ancla, Math.floor(desdeAncla / ciclo) * ciclo);
+  } else {
+    c0 = sumarDiasFecha(hoy, -((diaSemanaIso(hoy) - prov.dia_pedido + 7) % 7));
+  }
+  const c1 = sumarDiasFecha(c0, ciclo);
+  const hecho0 = pedidoDesde(sumarDiasFecha(c0, -MARGEN_PEDIDO_ANTICIPADO));
+  const diasDesdeC0 = diasEntreFechas(c0, hoy);
+
+  let objetivo;
+  let estado;
+  if (diasDesdeC0 <= espera && (hecho0 || diasDesdeC0 > 0)) {
+    // El pedido del ciclo actual está en camino o se pasó el día de pedirlo
+    // pero todavía no ha llegado (aún se puede pedir tarde).
+    objetivo = c0;
+    estado = hecho0 ? 'hecho' : 'atrasado';
+  } else if (c0 === hoy) {
+    objetivo = c0;
+    estado = hecho0 ? 'hecho' : 'hoy';
+  } else {
+    objetivo = c1;
+    const faltan = diasEntreFechas(hoy, c1);
+    estado = pedidoDesde(sumarDiasFecha(c1, -MARGEN_PEDIDO_ANTICIPADO)) ? 'hecho' : (faltan === 1 ? 'manana' : 'proximo');
+  }
+
+  return conObjetivo(objetivo, estado);
+};
+
+const COLUMNAS_CALENDARIO = `p.calendario_modo, p.dia_pedido, p.dias_hasta_llegada, p.frecuencia_semanas, p.pide_en_sitio,
+  to_char(p.fecha_ancla, 'YYYY-MM-DD') AS fecha_ancla,
+  to_char(p.proxima_visita, 'YYYY-MM-DD') AS proxima_visita,
+  to_char(p.aviso_registrado, 'YYYY-MM-DD') AS aviso_registrado`;
+
+// Fechas (en Colombia) de pedidos recientes no cancelados, por proveedor.
+const fechasPedidosPorProveedor = async (db, moduloId, proveedorId = null) => {
+  const result = await db.query(
+    `SELECT proveedor_id,
+            to_char((fecha_pedido AT TIME ZONE 'UTC' AT TIME ZONE 'America/Bogota')::date, 'YYYY-MM-DD') AS fecha
+     FROM pedidos_proveedor
+     WHERE modulo_id = $1 AND estado != 'cancelado'
+     AND fecha_pedido > now() - interval '90 days'
+     AND ($2::int IS NULL OR proveedor_id = $2)`,
+    [moduloId, proveedorId]
+  );
+  const mapa = new Map();
+  for (const fila of result.rows) {
+    if (!mapa.has(fila.proveedor_id)) mapa.set(fila.proveedor_id, []);
+    mapa.get(fila.proveedor_id).push(fila.fecha);
+  }
+  return mapa;
+};
+
+const calendarioDeProveedor = async (db, moduloId, proveedorId) => {
+  const result = await db.query(
+    `SELECT p.id, ${COLUMNAS_CALENDARIO} FROM proveedores p WHERE p.id = $1 AND p.modulo_id = $2`,
+    [proveedorId, moduloId]
+  );
+  if (result.rows.length === 0) return null;
+  const fechas = await fechasPedidosPorProveedor(db, moduloId, Number(proveedorId));
+  return calcularCalendarioProveedor(result.rows[0], ahoraColombia().format('YYYY-MM-DD'), fechas.get(Number(proveedorId)) || []);
+};
+
+const ORDEN_ESTADO_CALENDARIO = { atrasado: 0, hoy: 1, manana: 2, proximo: 3, esperando_aviso: 4, hecho: 5, sin_configurar: 6, pausado: 7 };
+
+app.get('/api/proveedores/calendario', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+  try {
+    const moduloId = req.moduloId;
+    if (!moduloId) {
+      return res.status(400).json({ error: 'Se requiere un módulo' });
+    }
+
+    const hoy = ahoraColombia().format('YYYY-MM-DD');
+    const [proveedores, fechas] = await Promise.all([
+      pool.query(
+        `SELECT p.id, p.nombre, p.telefono, ${COLUMNAS_CALENDARIO}
+         FROM proveedores p WHERE p.modulo_id = $1 AND p.activo = true`,
+        [moduloId]
+      ),
+      fechasPedidosPorProveedor(pool, moduloId)
+    ]);
+
+    const calendario = proveedores.rows
+      .map(p => ({ ...p, ...calcularCalendarioProveedor(p, hoy, fechas.get(p.id) || []) }))
+      .sort((a, b) =>
+        ORDEN_ESTADO_CALENDARIO[a.estado] - ORDEN_ESTADO_CALENDARIO[b.estado]
+        || (a.proximo_pedido || '9').localeCompare(b.proximo_pedido || '9')
+        || a.nombre.localeCompare(b.nombre));
+
+    res.json({ hoy, proveedores: calendario });
+  } catch (error) {
+    console.error('Error obteniendo calendario de proveedores:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// Valida los campos de calendario que vienen en el body del proveedor.
+const validarCalendarioProveedor = (body) => {
+  const modo = body.calendario_modo || null;
+  if (modo !== null && !MODOS_CALENDARIO.includes(modo)) return { error: 'Modo de calendario inválido' };
+  const entero = (v, def) => (v === undefined || v === null || v === '' ? def : Number(v));
+  const diaPedido = entero(body.dia_pedido, null);
+  const espera = entero(body.dias_hasta_llegada, 0);
+  const frecuencia = entero(body.frecuencia_semanas, 1);
+  const fecha = (v) => (v && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null);
+  const ancla = fecha(body.fecha_ancla);
+
+  if (!Number.isInteger(espera) || espera < 0 || espera > 60) return { error: 'Los días hasta que llega deben estar entre 0 y 60' };
+  if (!Number.isInteger(frecuencia) || frecuencia < 1 || frecuencia > 8) return { error: 'La frecuencia debe estar entre 1 y 8 semanas' };
+  if (modo === 'fijo') {
+    if (!Number.isInteger(diaPedido) || diaPedido < 1 || diaPedido > 7) return { error: 'Elige el día de pedido' };
+    if (frecuencia > 1 && !ancla) return { error: 'Indica la fecha del próximo pedido para saber en qué semana toca' };
+    if (ancla && diaSemanaIso(ancla) !== diaPedido) return { error: 'La fecha del próximo pedido debe caer en el día de pedido elegido' };
+  }
+  return {
+    valores: [modo, modo === 'fijo' ? diaPedido : null, espera, frecuencia, modo === 'fijo' && !!body.pide_en_sitio, modo === 'fijo' && frecuencia > 1 ? ancla : null]
+  };
+};
+
+const guardarCalendarioProveedor = async (db, proveedorId, moduloId, valores) => {
+  await db.query(
+    `UPDATE proveedores
+     SET calendario_modo = $1, dia_pedido = $2, dias_hasta_llegada = $3, frecuencia_semanas = $4,
+         pide_en_sitio = $5, fecha_ancla = $6,
+         proxima_visita = CASE WHEN $1 = 'avisa' THEN proxima_visita ELSE NULL END
+     WHERE id = $7 AND modulo_id = $8`,
+    [...valores, proveedorId, moduloId]
+  );
+};
+
+// Para proveedores que avisan cuándo vienen: registrar (o borrar) la fecha.
+app.put('/api/proveedores/:id/proxima-visita', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+  try {
+    const { fecha } = req.body;
+    if (fecha !== null && fecha !== '' && !/^\d{4}-\d{2}-\d{2}$/.test(fecha || '')) {
+      return res.status(400).json({ error: 'Fecha inválida' });
+    }
+    const result = await pool.query(
+      `UPDATE proveedores SET proxima_visita = $1, aviso_registrado = CASE WHEN $1::date IS NULL THEN NULL ELSE $2::date END
+       WHERE id = $3 AND modulo_id = $4 AND calendario_modo = 'avisa' RETURNING id`,
+      [fecha || null, ahoraColombia().format('YYYY-MM-DD'), req.params.id, req.moduloId]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Proveedor no encontrado o no es de los que avisan' });
+    }
+    res.json({ ok: true });
+  } catch (error) {
+    console.error('Error registrando próxima visita:', error);
     res.status(500).json({ error: 'Error interno del servidor' });
   }
 });
@@ -2880,6 +3116,10 @@ app.get('/api/proveedores/:id/sugerencia-pedido', authenticateToken, checkAccess
     }
 
     const proveedor = proveedorResult.rows[0];
+    // Con calendario, el pedido debe alcanzar hasta que llegue el del ciclo
+    // siguiente (no solo el tiempo de entrega).
+    const calendario = await calendarioDeProveedor(pool, moduloId, id);
+    const diasCobertura = calendario?.dias_cobertura || null;
 
     let diasHistorial = 30;
     if (dias_historial !== undefined) {
@@ -2919,7 +3159,7 @@ app.get('/api/proveedores/:id/sugerencia-pedido', authenticateToken, checkAccess
 
       const totalVendido = Number(ventasResult.rows[0]?.total_vendido || 0);
       const ventasPorSemana = totalVendido / (diasHistorial / 7);
-      const tiempoEntrega = producto.tiempo_entrega_dias || proveedor.dias_entrega || 3;
+      const tiempoEntrega = diasCobertura || producto.tiempo_entrega_dias || proveedor.dias_entrega || 3;
       const tiempoEntregaSemanas = tiempoEntrega / 7;
       const consumoEsperado = ventasPorSemana * tiempoEntregaSemanas;
       let cantidadSugerida = Math.ceil(

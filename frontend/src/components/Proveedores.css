@@ -877,3 +877,40 @@
     padding: 2px 8px;
   }
 }
+/* ---------- Calendario de pedidos (formulario) ---------- */
+.calendario-fieldset {
+  margin: 4px 0 16px;
+  padding: 12px 14px 4px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+
+.calendario-fieldset legend {
+  padding: 0 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-strong);
+}
+
+.calendario-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  font-size: 13.5px;
+  color: var(--text-default);
+  cursor: pointer;
+}
+
+.calendario-check input {
+  width: 17px;
+  height: 17px;
+  accent-color: var(--brand);
+}
+
+.calendario-ayuda {
+  display: block;
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--text-muted);
+}

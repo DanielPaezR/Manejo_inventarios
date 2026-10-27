@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import api from '../services/api';
 import { useModulo } from '../hooks/useModulo';
 import './Pedidos.css';
+import CalendarioPedidos from './CalendarioPedidos';
 
 const Pedidos = ({ user }) => {
   const { moduloActivo } = useModulo();
@@ -380,36 +381,15 @@ const Pedidos = ({ user }) => {
         </div>
       )}
 
-      {/* Revisar pedido por proveedor: TODOS los proveedores activos, no
-          solo los que el sistema detecta con stock crítico ahora mismo. */}
-      <div className="card revisar-pedido-proveedores">
-        <h3>🧾 Revisar pedido por proveedor</h3>
-        {proveedores.length === 0 ? (
-          <p className="sin-alertas">
-            No hay proveedores registrados. Ve a <strong>Proveedores</strong> para agregar uno.
-          </p>
-        ) : (
-          <div className="proveedores-revisar-grid">
-            {proveedores.map(proveedor => (
-              <div key={proveedor.id} className="proveedor-revisar-card">
-                <span className="proveedor-revisar-nombre">{proveedor.nombre}</span>
-                <button
-                  onClick={() => revisarPedidoProveedor(proveedor.id)}
-                  className="btn-revisar-pedido"
-                >
-                  🧾 Revisar pedido
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+      {/* Calendario: qué proveedor toca pedir y cuándo llega. "Revisar
+          pedido" calcula la sugerencia de ese proveedor más abajo. */}
+      <CalendarioPedidos onRevisar={revisarPedidoProveedor} recargarCon={pedidos} />
 
       {/* Sugerencia de pedido por proveedor específico */}
       <div className="card sugerencia-pedido-proveedor" ref={sugerenciaPedidoRef}>
         <h3>🧮 Sugerencia de Pedido por Proveedor</h3>
         <p className="sugerencia-descripcion">
-          Calcula cuánto pedir de cada producto asociado a un proveedor, según el promedio de ventas y su tiempo de entrega.
+          Calcula cuánto pedir de cada producto asociado a un proveedor, según el promedio de ventas y su calendario: el pedido debe alcanzar hasta que llegue el siguiente.
         </p>
 
         <div className="sugerencia-controles">
