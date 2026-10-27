@@ -635,6 +635,9 @@ const Ventas = ({ user }) => {
             carrito: [],
             cliente: clienteVacio(),
             clienteSeleccionado: null,
+            // Cada cuenta nueva arranca en efectivo: si quedaba crédito o
+            // transferencia de la venta anterior, se colaba en la siguiente.
+            metodoPago: 'efectivo',
             montoRecibido: ''
           });
         } else {
@@ -669,7 +672,7 @@ const Ventas = ({ user }) => {
   // Limpiar todo
   const limpiarTodo = useCallback(() => {
     if (carrito.length > 0 && !confirm('¿Limpiar todo el carrito?')) return;
-    actualizarCuentaActiva({ carrito: [] });
+    actualizarCuentaActiva({ carrito: [], metodoPago: 'efectivo' });
     setError(null);
     setBusqueda('');
   }, [carrito, actualizarCuentaActiva]);
