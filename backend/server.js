@@ -2753,6 +2753,7 @@ app.get('/api/proveedores', authenticateToken, checkAccess, async (req, res) => 
 
 // Crear nuevo proveedor
 app.post('/api/proveedores', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+  let client;
   try {
     const negocioId = req.negocioId;
     const moduloId = req.moduloId;
@@ -2782,18 +2783,26 @@ app.post('/api/proveedores', authenticateToken, checkAccess, requireAdmin, async
       return res.status(400).json({ error: calendario.error });
     }
 
-    const result = await pool.query(
+    // En una transacción: si falla el calendario, no queda el proveedor
+    // creado a medias (y el usuario no lo crea repetido al reintentar).
+    client = await pool.connect();
+    await client.query('BEGIN');
+    const result = await client.query(
       `INSERT INTO proveedores (negocio_id, modulo_id, nombre, contacto, telefono, email, direccion, dias_entrega)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
        RETURNING *`,
       [negocioId, moduloId, nombre, contacto, telefono, email, direccion, diasEntregaValor]
     );
-    await guardarCalendarioProveedor(pool, result.rows[0].id, moduloId, calendario.valores);
+    await guardarCalendarioProveedor(client, result.rows[0].id, moduloId, calendario.valores);
+    await client.query('COMMIT');
 
     res.status(201).json(result.rows[0]);
   } catch (error) {
+    if (client) await client.query('ROLLBACK').catch(() => {});
     console.error('Error creando proveedor:', error);
     res.status(500).json({ error: 'Error interno del servidor' });
+  } finally {
+    if (client) client.release();
   }
 });
 
@@ -3062,9 +3071,9 @@ const validarCalendarioProveedor = (body) => {
 const guardarCalendarioProveedor = async (db, proveedorId, moduloId, valores) => {
   await db.query(
     `UPDATE proveedores
-     SET calendario_modo = $1, dia_pedido = $2, dias_hasta_llegada = $3, frecuencia_semanas = $4,
+     SET calendario_modo = $1::varchar, dia_pedido = $2, dias_hasta_llegada = $3, frecuencia_semanas = $4,
          pide_en_sitio = $5, fecha_ancla = $6,
-         proxima_visita = CASE WHEN $1 = 'avisa' THEN proxima_visita ELSE NULL END
+         proxima_visita = CASE WHEN $1::varchar = 'avisa' THEN proxima_visita ELSE NULL END
      WHERE id = $7 AND modulo_id = $8`,
     [...valores, proveedorId, moduloId]
   );
