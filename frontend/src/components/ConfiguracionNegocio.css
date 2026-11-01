@@ -1,0 +1,172 @@
+.conf-container {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-width: 860px;
+  margin: 0 auto;
+}
+
+.conf-card {
+  margin: 0;
+}
+
+.conf-card .conf-titulo {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  margin: 0 0 6px;
+  font-size: 16px;
+}
+
+.conf-ayuda {
+  margin: 0 0 14px;
+  font-size: 13.5px;
+  color: var(--text-muted);
+}
+
+.conf-enlace {
+  display: flex;
+  gap: 8px;
+}
+
+.conf-enlace input {
+  flex: 1;
+  min-width: 0;
+  height: 42px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-subtle);
+  font-size: 14px;
+  color: var(--text-strong);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.conf-acciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.conf-acciones-fin {
+  justify-content: flex-end;
+  margin-top: 14px;
+}
+
+.conf-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 42px;
+  padding: 0 14px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text-strong);
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.conf-btn:hover {
+  border-color: var(--brand);
+  color: var(--brand-700);
+}
+
+.conf-btn-primario {
+  border-color: var(--brand);
+  background: var(--brand);
+  color: #fff;
+}
+
+.conf-btn-primario:hover {
+  background: var(--brand-600);
+  color: #fff;
+}
+
+.conf-btn-primario.copiado {
+  border-color: var(--success);
+  background: var(--success);
+}
+
+/* .btn-guardar viene al 100% de ancho desde Finanzas.css (CSS global). */
+.conf-btn-guardar {
+  width: auto;
+  flex: 0 0 auto;
+}
+
+/* ---------- Interruptor ---------- */
+.conf-switch-fila {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.conf-switch-fila .conf-ayuda {
+  margin-bottom: 0;
+}
+
+.conf-switch {
+  position: relative;
+  flex-shrink: 0;
+  width: 52px;
+  height: 30px;
+  padding: 0;
+  border: none;
+  border-radius: 999px;
+  background: var(--border-strong);
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.conf-switch span {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+  transition: transform 0.2s ease;
+}
+
+.conf-switch.on {
+  background: var(--success);
+}
+
+.conf-switch.on span {
+  transform: translateX(22px);
+}
+
+.conf-switch:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.conf-switch:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+@media (max-width: 640px) {
+  .conf-enlace {
+    flex-direction: column;
+  }
+
+  .conf-enlace input {
+    font-size: 13px;
+  }
+
+  .conf-acciones .conf-btn,
+  .conf-btn-guardar {
+    flex: 1 1 100%;
+    width: 100%;
+  }
+}

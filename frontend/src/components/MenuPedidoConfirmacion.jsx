@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 import apiPublico from '../services/apiPublico';
+import { textosNegocio } from '../utils/tipoNegocio';
 import SelectorDireccionMapa from './SelectorDireccionMapa';
 import './MenuPedidoConfirmacion.css';
 
@@ -183,7 +184,7 @@ const MenuPedidoConfirmacion = () => {
     setErrorAccion('');
 
     if (!mesaNombreEdit.trim()) {
-      setErrorAccion('⚠️ Ingresa tu nombre o el número de mesa');
+      setErrorAccion(`⚠️ ${textosNegocio(pedido?.negocio_tipo).faltaNombrePedido}`);
       return;
     }
     if (!telefonoEdit.trim()) {
@@ -273,7 +274,7 @@ const MenuPedidoConfirmacion = () => {
       // api.whatsapp.com los corrompe a "�" en el mensaje final (verificado
       // con una prueba real). El em dash (—) y el resto del texto sí llegan bien.
       let mensaje = `*PEDIDO*\n\n`;
-      mensaje += `*Mesa/Nombre:* ${pedido.mesa_nombre}\n\n`;
+      mensaje += `*${textosNegocio(pedido.negocio_tipo).etiquetaNombrePedido}:* ${pedido.mesa_nombre}\n\n`;
       mensaje += `*Productos:*\n`;
       pedido.detalles.forEach(d => {
         mensaje += `- ${d.nombre_producto} x${d.cantidad} — ${formatearMoneda(d.subtotal)}\n`;
@@ -436,7 +437,7 @@ const MenuPedidoConfirmacion = () => {
           <div className="mp-campos">
             <input
               type="text"
-              placeholder="Mesa o tu nombre *"
+              placeholder={textosNegocio(pedido?.negocio_tipo).nombrePedido}
               value={mesaNombreEdit}
               onChange={(e) => setMesaNombreEdit(e.target.value)}
               className="mp-input"

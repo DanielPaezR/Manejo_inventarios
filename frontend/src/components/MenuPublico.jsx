@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import apiPublico from '../services/apiPublico';
+import { textosNegocio } from '../utils/tipoNegocio';
 import { IconoHoja, obtenerColorPlaceholder } from '../utils/menuVisual';
 import SelectorDireccionMapa from './SelectorDireccionMapa';
 import './MenuPublico.css';
@@ -141,7 +142,7 @@ const MenuPublico = () => {
       setProductos(response.data.productos);
     } catch (err) {
       console.error('Error cargando menú:', err);
-      setError(err.response?.data?.error || 'Este menú no está disponible en este momento');
+      setError(err.response?.data?.error || 'Este catálogo no está disponible en este momento');
     } finally {
       setLoading(false);
     }
@@ -232,7 +233,7 @@ const MenuPublico = () => {
     setErrorEnvio('');
 
     if (!mesaNombre.trim()) {
-      setErrorEnvio('⚠️ Ingresa tu nombre o el número de mesa');
+      setErrorEnvio(`⚠️ ${textosNegocio(modulo?.negocio_tipo).faltaNombrePedido}`);
       return;
     }
     if (!telefono.trim()) {
@@ -282,7 +283,7 @@ const MenuPublico = () => {
   if (loading) {
     return (
       <div className="menu-publico-container">
-        <div className="menu-publico-loading">Cargando menú...</div>
+        <div className="menu-publico-loading">Cargando...</div>
       </div>
     );
   }
@@ -303,7 +304,7 @@ const MenuPublico = () => {
         <div className="mp-checkout">
           <button type="button" className="mp-volver" onClick={() => setPantallaActiva('menu')}>
             <IconoChevronIzquierda className="mp-volver__icono" />
-            Volver al menú
+            Volver al {textosNegocio(modulo?.negocio_tipo).menu}
           </button>
 
           <h1 className="mp-checkout__titulo">Tu pedido</h1>
@@ -324,7 +325,7 @@ const MenuPublico = () => {
           <div className="mp-campos">
             <input
               type="text"
-              placeholder="Mesa o tu nombre *"
+              placeholder={textosNegocio(modulo?.negocio_tipo).nombrePedido}
               value={mesaNombre}
               onChange={(e) => setMesaNombre(e.target.value)}
               className="mp-input"
@@ -419,7 +420,7 @@ const MenuPublico = () => {
               type="text"
               value={busqueda}
               onChange={(e) => handleBusquedaChange(e.target.value)}
-              placeholder="Buscar en el menú..."
+              placeholder={`Buscar en el ${textosNegocio(modulo?.negocio_tipo).menu}...`}
               className="mp-busqueda__input"
             />
           </div>

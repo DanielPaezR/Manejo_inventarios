@@ -300,11 +300,14 @@ app.post('/api/negocios', authenticateToken, requireSuperAdmin, async (req, res)
     await client.query('BEGIN');
 
     const { nombre, direccion, telefono, email, ruc_nit, logo_url } = req.body;
+    // tipo cambia solo textos de la app ("Mesa" vs "Cliente", menú vs
+    // catálogo); la lógica es la misma para todos los negocios.
+    const tipo = req.body.tipo === 'tienda' ? 'tienda' : 'restaurante';
 
     const negocioResult = await client.query(
-      `INSERT INTO negocios (nombre, direccion, telefono, email, ruc_nit, logo_url)
-       VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
-      [nombre, direccion, telefono, email, ruc_nit, logo_url]
+      `INSERT INTO negocios (nombre, direccion, telefono, email, ruc_nit, logo_url, tipo)
+       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+      [nombre, direccion, telefono, email, ruc_nit, logo_url, tipo]
     );
 
     const negocio = negocioResult.rows[0];
@@ -6872,7 +6875,7 @@ app.put('/api/pedidos-cliente/:id', authenticateToken, checkAccess, async (req, 
 
     if (!mesa_nombre || !mesa_nombre.trim()) {
       await client.query('ROLLBACK');
-      return res.status(400).json({ error: 'Ingresa el nombre o número de mesa' });
+      return res.status(400).json({ error: 'Ingresa el nombre del cliente' });
     }
 
     if (!Array.isArray(items) || items.length === 0) {
@@ -7439,7 +7442,8 @@ app.get('/api/menu/:moduloId', async (req, res) => {
     }
 
     const moduloResult = await pool.query(
-      `SELECT m.id, m.nombre, m.nombre_publico, m.activo, m.foto_portada_url, m.tiene_domicilio, n.nombre as negocio_nombre
+      `SELECT m.id, m.nombre, m.nombre_publico, m.activo, m.foto_portada_url, m.tiene_domicilio,
+              n.nombre as negocio_nombre, n.tipo as negocio_tipo
        FROM modulos m
        JOIN negocios n ON m.negocio_id = n.id
        WHERE m.id = $1`,
@@ -7470,7 +7474,8 @@ app.get('/api/menu/:moduloId', async (req, res) => {
         nombre_publico: moduloResult.rows[0].nombre_publico || moduloResult.rows[0].nombre,
         negocio_nombre: moduloResult.rows[0].negocio_nombre,
         foto_portada_url: moduloResult.rows[0].foto_portada_url,
-        tiene_domicilio: moduloResult.rows[0].tiene_domicilio
+        tiene_domicilio: moduloResult.rows[0].tiene_domicilio,
+        negocio_tipo: moduloResult.rows[0].negocio_tipo
       },
       productos: productosResult.rows
     });
@@ -7581,7 +7586,7 @@ app.post('/api/menu/:moduloId/pedidos', async (req, res) => {
 
     if (!mesa_nombre || !mesa_nombre.trim()) {
       await client.query('ROLLBACK');
-      return res.status(400).json({ error: 'Ingresa tu nombre o el número de mesa' });
+      return res.status(400).json({ error: 'Ingresa tu nombre' });
     }
 
     if (!telefono || !telefono.trim()) {
@@ -7591,7 +7596,7 @@ app.post('/api/menu/:moduloId/pedidos', async (req, res) => {
 
     if (es_domicilio && !moduloResult.rows[0].tiene_domicilio) {
       await client.query('ROLLBACK');
-      return res.status(400).json({ error: 'Este menú no tiene domicilio disponible' });
+      return res.status(400).json({ error: 'Este negocio no tiene domicilio disponible' });
     }
 
     if (!Array.isArray(items) || items.length === 0) {
@@ -7732,7 +7737,7 @@ app.get('/api/menu/pedido/:token', async (req, res) => {
     const { token } = req.params;
 
     const pedidoResult = await pool.query(
-      `SELECT pc.*, n.telefono as negocio_telefono, n.nombre as negocio_nombre, m.tiene_domicilio
+      `SELECT pc.*, n.telefono as negocio_telefono, n.nombre as negocio_nombre, n.tipo as negocio_tipo, m.tiene_domicilio
        FROM pedidos_cliente pc
        JOIN modulos m ON pc.modulo_id = m.id
        JOIN negocios n ON m.negocio_id = n.id
@@ -7796,7 +7801,7 @@ app.put('/api/menu/pedido/:token', async (req, res) => {
 
     if (!mesa_nombre || !mesa_nombre.trim()) {
       await client.query('ROLLBACK');
-      return res.status(400).json({ error: 'Ingresa tu nombre o el número de mesa' });
+      return res.status(400).json({ error: 'Ingresa tu nombre' });
     }
 
     if (!telefono || !telefono.trim()) {
@@ -7806,7 +7811,7 @@ app.put('/api/menu/pedido/:token', async (req, res) => {
 
     if (es_domicilio && !pedido.tiene_domicilio) {
       await client.query('ROLLBACK');
-      return res.status(400).json({ error: 'Este menú no tiene domicilio disponible' });
+      return res.status(400).json({ error: 'Este negocio no tiene domicilio disponible' });
     }
 
     if (!Array.isArray(items) || items.length === 0) {

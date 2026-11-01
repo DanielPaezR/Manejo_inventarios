@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Store, CircleAlert } from 'lucide-react';
+import { Store, CircleAlert, TrendingUp, Package, ReceiptText, ShoppingCart, Truck, Wallet } from 'lucide-react';
 import api from '../services/api';
 import './Login.css';
 
@@ -41,19 +41,50 @@ const Login = ({ onLogin }) => {
 
   return (
     <div className="login-page">
-      {/* Foto del negocio: en escritorio ocupa la mitad izquierda; en
-          celular queda como franja superior. Para otro negocio basta
-          cambiar /login-bg.jpg. */}
+      {/* Panel ilustrado genérico (sirve para cualquier negocio): tarjetas
+          flotantes que muestran lo que hace la app. En celular queda como
+          una franja con el nombre y el lema. */}
       <aside className="login-hero">
-        <div className="login-hero-overlay">
-          <span className="login-hero-brand">
-            <span className="login-mark"><Store size={18} strokeWidth={2.2} /></span>
-            Sistema de Inventario
-          </span>
-          <div className="login-hero-copy">
-            <h2>Tu negocio, en orden.</h2>
-            <p>Ventas, inventario y finanzas en un solo lugar.</p>
+        <div className="login-hero-glow" aria-hidden="true" />
+        <span className="login-hero-brand">
+          <span className="login-mark"><Store size={18} strokeWidth={2.2} /></span>
+          Sistema de Inventario
+        </span>
+
+        <div className="login-ilustracion" aria-hidden="true">
+          <div className="login-tarjeta login-tarjeta-ventas">
+            <span className="login-tarjeta-label"><TrendingUp size={14} /> Ventas de hoy</span>
+            <strong>$ 1.284.500</strong>
+            <span className="login-chip-ok">+12% vs ayer</span>
+            <div className="login-barras">
+              {[38, 52, 44, 66, 58, 80, 92].map((h, i) => <span key={i} style={{ height: `${h}%` }} />)}
+            </div>
           </div>
+
+          <div className="login-tarjeta login-tarjeta-stock">
+            <span className="login-tarjeta-label"><Package size={14} /> Stock bajo</span>
+            <div className="login-fila"><span>Producto A</span><em>3 und</em></div>
+            <div className="login-fila"><span>Producto B</span><em>5 und</em></div>
+          </div>
+
+          <div className="login-tarjeta login-tarjeta-factura">
+            <span className="login-icono-ok"><ReceiptText size={16} /></span>
+            <div>
+              <strong>FAC000231</strong>
+              <small>Pagada · $ 48.000</small>
+            </div>
+          </div>
+        </div>
+
+        <div className="login-hero-copy">
+          <h2>Tu negocio, en orden.</h2>
+          <p>Ventas, inventario, pedidos y finanzas en un solo lugar.</p>
+          <ul className="login-features">
+            <li><ShoppingCart size={14} /> Ventas</li>
+            <li><Package size={14} /> Inventario</li>
+            <li><Truck size={14} /> Pedidos</li>
+            <li><Wallet size={14} /> Finanzas</li>
+          </ul>
         </div>
       </aside>
 

@@ -3,7 +3,7 @@ import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import {
   ShoppingCart, Package, ChartColumn, FileText, Truck, ClipboardList,
   ReceiptText, Bike, Users, FileSearch, Wallet, Landmark, Building2,
-  CircleHelp, ChevronDown, Menu, KeyRound, LogOut, Store, Check, ClipboardCheck
+  CircleHelp, ChevronDown, Menu, KeyRound, LogOut, Store, Check, ClipboardCheck, Settings
 } from 'lucide-react';
 import CambiarPassword from './CambiarPassword';
 import { useModulo } from '../hooks/useModulo';
@@ -21,13 +21,14 @@ const MENU = {
     { path: '/estadisticas', icon: ChartColumn, label: 'Estadísticas' },
     { path: '/reportes', icon: FileText, label: 'Reportes' },
     { path: '/proveedores', icon: Truck, label: 'Proveedores' },
-    { path: '/pedidos', icon: ClipboardList, label: 'Pedidos' },
+    { path: '/pedidos', icon: ClipboardList, label: 'Mis pedidos' },
     { path: '/pedidos-cliente', icon: ReceiptText, label: 'Pedidos de Clientes' },
     { path: '/ruta-entregas', icon: Bike, label: 'Ruta de Entregas' },
     { path: '/clientes', icon: Users, label: 'Clientes' },
     { path: '/facturas', icon: FileSearch, label: 'Buscar Factura' },
     { path: '/finanzas', icon: Wallet, label: 'Finanzas' },
-    { path: '/finanzas-negocio', icon: Landmark, label: 'Finanzas del Negocio' }
+    { path: '/finanzas-negocio', icon: Landmark, label: 'Finanzas del Negocio' },
+    { path: '/configuracion', icon: Settings, label: 'Configuración' }
   ],
   trabajador: [
     { path: '/ventas', icon: ShoppingCart, label: 'Ventas' },

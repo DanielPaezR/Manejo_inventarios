@@ -25,7 +25,8 @@ const Negocios = ({ user }) => {
     telefono: '',
     email: '',
     ruc_nit: '',
-    logo_url: ''
+    logo_url: '',
+    tipo: 'tienda'
   });
 
   const [usuarioForm, setUsuarioForm] = useState({
@@ -100,7 +101,8 @@ const Negocios = ({ user }) => {
       telefono: '',
       email: '',
       ruc_nit: '',
-      logo_url: ''
+      logo_url: '',
+      tipo: 'tienda'
     });
     setShowForm(false);
   };
@@ -487,6 +489,14 @@ const Negocios = ({ user }) => {
                 </div>
 
                 <div className="form-group full-width">
+                  <label>Tipo de negocio:</label>
+                  <select name="tipo" value={formData.tipo} onChange={handleInputChange}>
+                    <option value="tienda">Tienda (atiende clientes, catálogo)</option>
+                    <option value="restaurante">Restaurante / estadero (atiende mesas, menú)</option>
+                  </select>
+                </div>
+
+                <div className="form-group full-width">
                   <label>Dirección:</label>
                   <input
                     type="text"
@@ -579,6 +589,7 @@ const Negocios = ({ user }) => {
               {negocio.ruc_nit && (
                 <p><strong>🔢 NIT/RUC:</strong> {negocio.ruc_nit}</p>
               )}
+              <p><strong>🏷️ Tipo:</strong> {negocio.tipo === 'tienda' ? 'Tienda' : 'Restaurante / estadero'}</p>
               <p><strong>📅 Creado:</strong> {new Date(negocio.fecha_creacion).toLocaleDateString()}</p>
               {!negocio.activo && negocio.motivo_desactivacion && (
                 <p className="negocio-motivo-desactivacion">

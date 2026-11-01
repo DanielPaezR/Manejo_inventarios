@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import api from '../services/api';
+import { textosNegocio, tipoNegocioUsuario } from '../utils/tipoNegocio';
 import { useModulo } from '../hooks/useModulo';
 import { Html5Qrcode } from 'html5-qrcode';
 import { Search, ScanBarcode, RotateCw, Trash2, Plus, Minus, X, ShoppingCart, Link2 } from 'lucide-react';
@@ -687,7 +688,7 @@ const Ventas = ({ user }) => {
       console.error('Error guardando el contador de mesas:', error);
     }
 
-    const nuevaCuenta = crearCuentaVacia(`cuenta-${Date.now()}`, `Mesa ${numero}`);
+    const nuevaCuenta = crearCuentaVacia(`cuenta-${Date.now()}`, `${textosNegocio(tipoNegocioUsuario()).cuenta} ${numero}`);
     setCuentas(prev => [...prev, nuevaCuenta]);
     setCuentaActivaId(nuevaCuenta.id);
   }, []);

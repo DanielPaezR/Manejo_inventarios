@@ -21,3 +21,5 @@ Thumbs.db
 
 # Claude Code local settings (permissions específicos de esta máquina)
 .claude/settings.local.json
+# Credenciales generadas para negocios (no subir)
+credenciales-*.txt

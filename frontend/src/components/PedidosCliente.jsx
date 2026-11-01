@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { Link } from 'react-router-dom';
 import api from '../services/api';
+import { textosNegocio, tipoNegocioUsuario } from '../utils/tipoNegocio';
 import { useModulo } from '../hooks/useModulo';
-import SubidaImagen from './SubidaImagen';
-import { IconoHoja, obtenerColorPlaceholder } from '../utils/menuVisual';
 import './PedidosCliente.css';
 
 const ESTADO_INFO = {
@@ -54,16 +54,6 @@ const PedidosCliente = ({ user }) => {
   const [clienteIdCompletar, setClienteIdCompletar] = useState('');
   const [completando, setCompletando] = useState(false);
 
-  // Configuración del menú público (nombre de marca visible al cliente y
-  // foto de portada del hero). Solo admin puede verla/editarla, igual que
-  // la gestión de Productos/Categorías.
-  const [nombrePublico, setNombrePublico] = useState('');
-  const [fotoPortadaUrl, setFotoPortadaUrl] = useState('');
-  const [negocioNombre, setNegocioNombre] = useState('');
-  const [tieneDomicilio, setTieneDomicilio] = useState(true);
-  const [guardandoPortada, setGuardandoPortada] = useState(false);
-  const [editandoNombrePublico, setEditandoNombrePublico] = useState(false);
-  const esAdmin = user?.rol === 'admin' || user?.rol === 'super_admin';
 
   // Notificaciones push de pedidos nuevos. Disponible para admin y
   // trabajador por igual (no depende de esAdmin) — cualquiera que atienda
@@ -94,18 +84,6 @@ const PedidosCliente = ({ user }) => {
   useEffect(() => {
     cargarPedidos();
   }, [cargarPedidos]);
-
-  useEffect(() => {
-    if (!moduloActivo || !esAdmin) return;
-    api.get(`/modulos/${moduloActivo.id}`)
-      .then(response => {
-        setFotoPortadaUrl(response.data.foto_portada_url || '');
-        setNombrePublico(response.data.nombre_publico || '');
-        setNegocioNombre(response.data.negocio_nombre || '');
-        setTieneDomicilio(response.data.tiene_domicilio !== false);
-      })
-      .catch(error => console.error('Error cargando configuración del módulo:', error));
-  }, [moduloActivo, esAdmin]);
 
   // Al cargar, revisa si este dispositivo ya tiene una suscripción push
   // activa (independiente del permiso del navegador, que puede estar en
@@ -197,7 +175,7 @@ const PedidosCliente = ({ user }) => {
 
   const guardarEdicion = async (id) => {
     if (!mesaNombreEdit.trim()) {
-      setMensaje('⚠️ Ingresa el nombre o número de mesa');
+      setMensaje(`⚠️ ${textosNegocio(tipoNegocioUsuario()).faltaNombrePedido}`);
       return;
     }
     if (itemsEdit.length === 0) {
@@ -319,24 +297,6 @@ const PedidosCliente = ({ user }) => {
     }
   };
 
-  const guardarConfiguracionMenu = async () => {
-    try {
-      setGuardandoPortada(true);
-      await api.put(`/modulos/${moduloActivo.id}/portada`, {
-        nombre_publico: nombrePublico.trim(),
-        foto_portada_url: fotoPortadaUrl.trim(),
-        tiene_domicilio: tieneDomicilio
-      });
-      setMensaje('✅ Menú actualizado');
-    } catch (error) {
-      console.error('Error guardando configuración del menú:', error);
-      setMensaje(`❌ ${error.response?.data?.error || 'Error al guardar el menú'}`);
-    } finally {
-      setGuardandoPortada(false);
-      setTimeout(() => setMensaje(''), 4000);
-    }
-  };
-
   const activarNotificaciones = async () => {
     if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
       setMensajeNotificaciones('⚠️ Este navegador no soporta notificaciones push');
@@ -427,75 +387,10 @@ const PedidosCliente = ({ user }) => {
         </div>
       </div>
 
-      {esAdmin && (
-        <div className="config-menu-card">
-          <h3>⚙️ Configuración del menú</h3>
-          <p className="config-menu-hint">Así lo ve tu cliente. Haz clic en el nombre o pasa el mouse sobre la foto para cambiarlos.</p>
-
-          <div
-            className="mp-hero config-menu-preview"
-            style={!fotoPortadaUrl ? { background: obtenerColorPlaceholder(nombrePublico || moduloActivo.nombre) } : undefined}
-          >
-            {fotoPortadaUrl && (
-              <img src={fotoPortadaUrl} alt="" className="mp-hero__foto" />
-            )}
-            <div className="mp-hero__overlay" />
-
-            <div className="config-menu-foto-control">
-              <SubidaImagen
-                valor={fotoPortadaUrl}
-                onCambiar={setFotoPortadaUrl}
-                botonTexto="📷 Cambiar foto"
-                ocultarPreview
-              />
-            </div>
-
-            <div className="mp-hero__contenido">
-              <span className="mp-hero__icono-wrap">
-                <IconoHoja className="mp-hero__icono" />
-              </span>
-              <div className="config-menu-nombre-wrap">
-                {editandoNombrePublico ? (
-                  <input
-                    type="text"
-                    className="mp-hero__nombre config-menu-nombre-input"
-                    value={nombrePublico}
-                    onChange={(e) => setNombrePublico(e.target.value)}
-                    onBlur={() => setEditandoNombrePublico(false)}
-                    placeholder={moduloActivo.nombre}
-                    autoFocus
-                  />
-                ) : (
-                  <h1
-                    className="mp-hero__nombre config-menu-nombre-editable"
-                    onClick={() => setEditandoNombrePublico(true)}
-                    title="Clic para cambiar el nombre"
-                  >
-                    {nombrePublico || moduloActivo.nombre} <span className="config-menu-lapiz">✏️</span>
-                  </h1>
-                )}
-                <p className="mp-hero__tagline">{negocioNombre}</p>
-              </div>
-            </div>
-          </div>
-
-          <label className="checkbox-label config-menu-checkbox-domicilio">
-            <input
-              type="checkbox"
-              checked={tieneDomicilio}
-              onChange={(e) => setTieneDomicilio(e.target.checked)}
-            />
-            🛵 Este módulo tiene domicilio (si lo apagas, el menú solo ofrece pedir para recoger/mesa, sin dirección)
-          </label>
-
-          <button
-            onClick={guardarConfiguracionMenu}
-            disabled={guardandoPortada}
-            className="btn-guardar config-menu-btn-guardar"
-          >
-            {guardandoPortada ? 'Guardando...' : '💾 Guardar cambios del menú'}
-          </button>
-        </div>
+      {(user?.rol === 'admin' || user?.rol === 'super_admin') && (
+        <p className="config-menu-hint">
+          El enlace para compartir, la foto y los domicilios ahora están en <Link to="/configuracion">⚙️ Configuración</Link>.
+        </p>
       )}
 
       <div className="config-menu-card">
@@ -577,7 +472,7 @@ const PedidosCliente = ({ user }) => {
                     {editando ? (
                       <div className="pedido-cliente-edicion">
                         <div className="form-group">
-                          <label>Mesa/Nombre</label>
+                          <label>{textosNegocio(tipoNegocioUsuario()).etiquetaNombrePedido}</label>
                           <input
                             type="text"
                             value={mesaNombreEdit}
