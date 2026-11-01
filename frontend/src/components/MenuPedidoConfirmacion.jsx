@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import apiPublico from '../services/apiPublico';
+import { subirImagenCloudinary } from '../utils/cloudinaryUpload';
 import { textosNegocio } from '../utils/tipoNegocio';
 import SelectorDireccionMapa from './SelectorDireccionMapa';
 import './MenuPedidoConfirmacion.css';
@@ -51,6 +52,54 @@ const ESTADO_INFO = {
   confirmado: { label: 'Pedido enviado, el negocio lo está revisando', pill: 'mp-pill--accent' },
   completado: { label: 'Completado', pill: 'mp-pill--accent' },
   cancelado: { label: 'Cancelado', pill: 'mp-pill--outline' }
+};
+
+// El cliente sube la foto del comprobante de su transferencia; el negocio
+// la revisa y la aprueba o rechaza (ver EstadoPagoPedido.jsx).
+const ComprobantePago = ({ pedido, token, onSubido }) => {
+  const inputRef = useRef(null);
+  const [subiendo, setSubiendo] = useState(false);
+  const [error, setError] = useState('');
+
+  const elegir = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    try {
+      setError('');
+      setSubiendo(true);
+      const url = await subirImagenCloudinary(file);
+      const res = await apiPublico.put(`/menu/pedido/${token}/comprobante`, { url });
+      onSubido(res.data);
+    } catch (err) {
+      setError(err.response?.data?.error || err.message || 'No se pudo subir el comprobante');
+    } finally {
+      setSubiendo(false);
+    }
+  };
+
+  if (pedido.pagado) {
+    return <p className="mp-comprobante mp-comprobante--ok">✅ Pago confirmado por el negocio</p>;
+  }
+
+  return (
+    <div className="mp-comprobante">
+      {pedido.comprobante_estado === 'en_revision' && (
+        <p className="mp-comprobante__estado">🧾 Comprobante enviado: el negocio lo está revisando.</p>
+      )}
+      {pedido.comprobante_estado === 'rechazado' && (
+        <p className="mp-comprobante__estado mp-comprobante__estado--error">El negocio no pudo validar tu comprobante. Puedes subir otro.</p>
+      )}
+      {!pedido.comprobante_estado && (
+        <p className="mp-comprobante__estado">¿Pagaste por transferencia? Sube la foto del comprobante.</p>
+      )}
+      <input ref={inputRef} type="file" accept="image/jpeg,image/png,image/webp" onChange={elegir} hidden />
+      <button type="button" className="mp-btn mp-btn--secondary mp-btn--full" disabled={subiendo} onClick={() => inputRef.current?.click()}>
+        {subiendo ? 'Subiendo...' : pedido.comprobante_url ? '📎 Cambiar comprobante' : '📎 Subir comprobante de pago'}
+      </button>
+      {error && <p className="mp-error">{error}</p>}
+    </div>
+  );
 };
 
 const MenuPedidoConfirmacion = () => {
@@ -347,6 +396,10 @@ const MenuPedidoConfirmacion = () => {
             <p className="menu-confirmacion-monto-recibido">
               🛵 Domicilio: {pedido.direccion_entrega}
             </p>
+          )}
+
+          {['pendiente', 'confirmado'].includes(pedido.estado) && (
+            <ComprobantePago pedido={pedido} token={token} onSubido={(datos) => setPedido(prev => ({ ...prev, ...datos }))} />
           )}
 
           {errorAccion && <p className="mp-error">{errorAccion}</p>}

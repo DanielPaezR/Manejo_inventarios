@@ -58,3 +58,30 @@
 .mp-categoria__header.mp-categoria__header--estatico {
   cursor: default;
 }
+
+/* ---------- Comprobante de pago ---------- */
+.mp-comprobante {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 12px 0;
+}
+
+.mp-comprobante__estado {
+  margin: 0;
+  font-size: 14px;
+  color: inherit;
+  opacity: 0.85;
+}
+
+.mp-comprobante__estado--error {
+  color: #c53030;
+  opacity: 1;
+}
+
+.mp-comprobante--ok {
+  margin: 12px 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: #2f855a;
+}

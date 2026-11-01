@@ -319,3 +319,64 @@
     width: 100%;
   }
 }
+
+/* ---------- Pago al entregar ---------- */
+.ruta-entregas-parada-telefono {
+  display: inline-block;
+  margin-top: 4px;
+  font-size: 13px;
+  color: var(--brand-700);
+  text-decoration: none;
+}
+
+.ruta-entregas-modal-resumen {
+  margin: 0 0 12px;
+  font-size: 14.5px;
+  color: var(--text-default);
+}
+
+.ruta-entregas-modal-pagado {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--success-50);
+  color: var(--success);
+  font-size: 14px;
+}
+
+.ruta-entregas-opciones-pago {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ruta-entregas-opciones-titulo {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-default);
+}
+
+.ruta-entregas-opcion-pago {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.ruta-entregas-opcion-pago.activa {
+  border-color: var(--brand);
+  background: var(--brand-50);
+}
+
+.ruta-entregas-opcion-pago input {
+  accent-color: var(--brand);
+}
+
+.ruta-entregas-opciones-ayuda {
+  font-size: 12.5px;
+  color: var(--text-muted);
+}

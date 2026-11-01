@@ -7013,6 +7013,64 @@ app.put('/api/pedidos-cliente/:id/confirmar', authenticateToken, checkAccess, as
 // mismo patrón transaccional que POST /api/ventas (mismo helper de
 // número de factura, mismo criterio de movimientos_caja) para no
 // duplicar reglas de negocio que puedan divergir con el tiempo.
+// Marca si el cliente ya pagó un pedido pendiente (ej. transfirió antes
+// de que se lo lleven) o si falta pagar. Al entregarlo se usa ese dato para
+// registrar la venta con su método, o como fiado si no ha pagado.
+app.put('/api/pedidos-cliente/:id/pago', authenticateToken, checkAccess, async (req, res) => {
+  try {
+    const { pagado, metodo_pago } = req.body;
+    if (typeof pagado !== 'boolean') {
+      return res.status(400).json({ error: 'pagado debe ser true o false' });
+    }
+    const metodo = pagado ? (metodo_pago || 'efectivo') : null;
+    if (metodo && !['efectivo', 'transferencia', 'tarjeta'].includes(metodo)) {
+      return res.status(400).json({ error: 'Método de pago inválido' });
+    }
+    const result = await pool.query(
+      `UPDATE pedidos_cliente SET pagado = $1, metodo_pago_cliente = $2, fecha_actualizacion = NOW()
+       WHERE id = $3 AND modulo_id = $4 AND estado IN ('pendiente', 'confirmado')
+       RETURNING id, pagado, metodo_pago_cliente`,
+      [pagado, metodo, req.params.id, req.moduloId]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Pedido no encontrado o ya fue entregado/cancelado' });
+    }
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error actualizando pago del pedido:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// El negocio revisa el comprobante que subió el cliente: aprobarlo deja el
+// pedido como pagado por transferencia; rechazarlo lo deja pendiente de
+// pago (el cliente puede subir otro).
+app.put('/api/pedidos-cliente/:id/comprobante', authenticateToken, checkAccess, async (req, res) => {
+  try {
+    const { aprobar } = req.body;
+    if (typeof aprobar !== 'boolean') {
+      return res.status(400).json({ error: 'aprobar debe ser true o false' });
+    }
+    const result = await pool.query(
+      `UPDATE pedidos_cliente
+       SET comprobante_estado = $1,
+           pagado = $2,
+           metodo_pago_cliente = CASE WHEN $2 THEN 'transferencia' ELSE NULL END,
+           fecha_actualizacion = NOW()
+       WHERE id = $3 AND modulo_id = $4 AND comprobante_url IS NOT NULL AND estado IN ('pendiente', 'confirmado')
+       RETURNING id, pagado, metodo_pago_cliente, comprobante_estado`,
+      [aprobar ? 'aprobado' : 'rechazado', aprobar, req.params.id, req.moduloId]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Pedido no encontrado, sin comprobante o ya entregado' });
+    }
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error revisando comprobante:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
 app.put('/api/pedidos-cliente/:id/completar', authenticateToken, checkAccess, async (req, res) => {
   let client;
 
@@ -7024,7 +7082,8 @@ app.put('/api/pedidos-cliente/:id/completar', authenticateToken, checkAccess, as
     const moduloId = req.moduloId;
     const negocioId = req.negocioId;
     const usuarioId = req.user.id;
-    const { metodo_pago, cliente_id } = req.body;
+    const { metodo_pago, fiado_auto } = req.body;
+    let { cliente_id } = req.body;
 
     if (!moduloId) {
       await client.query('ROLLBACK');
@@ -7041,7 +7100,10 @@ app.put('/api/pedidos-cliente/:id/completar', authenticateToken, checkAccess, as
     // — mismo criterio que ya exige POST /api/ventas. pedidos_cliente no
     // tiene cliente_id propio (el cliente del menú QR no tiene cuenta),
     // así que el negocio debe pasarlo explícitamente al completar.
-    if (metodo_pago === 'credito' && !cliente_id) {
+    // fiado_auto: entregado sin pagar desde la Ruta de Entregas. El cliente
+    // se busca por teléfono (o se crea con el nombre y teléfono del pedido)
+    // más abajo, cuando ya se tiene el pedido.
+    if (metodo_pago === 'credito' && !cliente_id && !fiado_auto) {
       await client.query('ROLLBACK');
       return res.status(400).json({ error: 'Para completar como crédito, este pedido necesita un cliente registrado primero' });
     }
@@ -7077,6 +7139,28 @@ app.put('/api/pedidos-cliente/:id/completar', authenticateToken, checkAccess, as
     if (!['pendiente', 'confirmado'].includes(pedido.estado)) {
       await client.query('ROLLBACK');
       return res.status(400).json({ error: 'Este pedido ya fue completado o cancelado' });
+    }
+
+    if (metodo_pago === 'credito' && !cliente_id && fiado_auto) {
+      const telefono = (pedido.telefono || '').replace(/\D/g, '');
+      const existente = telefono
+        ? await client.query(
+            `SELECT id FROM clientes WHERE modulo_id = $1 AND regexp_replace(COALESCE(telefono, ''), '[^0-9]', '', 'g') = $2
+             ORDER BY id LIMIT 1`,
+            [moduloId, telefono]
+          )
+        : { rows: [] };
+      if (existente.rows.length > 0) {
+        cliente_id = existente.rows[0].id;
+      } else {
+        const numeroCliente = await generarNumeroCliente(moduloId, pool);
+        const nuevo = await client.query(
+          `INSERT INTO clientes (negocio_id, modulo_id, numero_cliente, nombre, telefono, direccion)
+           VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
+          [negocioId, moduloId, numeroCliente, pedido.mesa_nombre, pedido.telefono || null, pedido.direccion_entrega || null]
+        );
+        cliente_id = nuevo.rows[0].id;
+      }
     }
 
     const detalleResult = await client.query(
@@ -7763,6 +7847,32 @@ app.get('/api/menu/pedido/:token', async (req, res) => {
 
 // Editar un pedido de cliente (solo si sigue 'pendiente'): reemplaza el
 // detalle completo y revalida stock igual que en la creación.
+// El cliente sube la foto del comprobante de pago (se sube directo a
+// Cloudinary desde su navegador; aquí solo se guarda la URL). Queda "en
+// revisión" hasta que el negocio lo apruebe o rechace.
+app.put('/api/menu/pedido/:token/comprobante', async (req, res) => {
+  try {
+    const { url } = req.body;
+    if (typeof url !== 'string' || !/^https:\/\/res\.cloudinary\.com\//.test(url) || url.length > 500) {
+      return res.status(400).json({ error: 'Comprobante inválido' });
+    }
+    const result = await pool.query(
+      `UPDATE pedidos_cliente
+       SET comprobante_url = $1, comprobante_estado = 'en_revision', fecha_actualizacion = NOW()
+       WHERE token_publico = $2 AND estado IN ('pendiente', 'confirmado')
+       RETURNING comprobante_url, comprobante_estado`,
+      [url, req.params.token]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Pedido no encontrado o ya fue entregado' });
+    }
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error guardando comprobante:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
 app.put('/api/menu/pedido/:token', async (req, res) => {
   // Mismo motivo que en POST /api/menu/:moduloId/pedidos: pool.connect()
   // va dentro del try para que un fallo de conexión no tumbe el proceso.

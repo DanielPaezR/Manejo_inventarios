@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../services/api';
+import EstadoPagoPedido from './EstadoPagoPedido';
 import { textosNegocio, tipoNegocioUsuario } from '../utils/tipoNegocio';
 import { useModulo } from '../hooks/useModulo';
 import './PedidosCliente.css';
@@ -267,8 +268,9 @@ const PedidosCliente = ({ user }) => {
   };
 
   const abrirModalCompletar = (id) => {
+    const pedido = pedidos.find(p => p.id === id);
     setModalCompletar({ pedidoId: id });
-    setMetodoPagoCompletar('efectivo');
+    setMetodoPagoCompletar(pedido?.pagado ? (pedido.metodo_pago_cliente || 'efectivo') : 'efectivo');
     setClienteIdCompletar('');
     if (clientes.length === 0) cargarClientes();
   };
@@ -453,6 +455,12 @@ const PedidosCliente = ({ user }) => {
                     {pedido.es_domicilio && (
                       <span className="pedido-cliente-domicilio-badge">🛵 Domicilio</span>
                     )}
+                    {pedido.comprobante_estado === 'en_revision' && !pedido.pagado && (
+                      <span className="pedido-cliente-domicilio-badge">🧾 Comprobante</span>
+                    )}
+                    {pedido.pagado && ['pendiente', 'confirmado'].includes(pedido.estado) && (
+                      <span className="pedido-cliente-domicilio-badge">💰 Pagado</span>
+                    )}
                     <span
                       className="estado-badge-pedidos-cliente"
                       style={{ background: estado.color, color: estado.textColor }}
@@ -469,6 +477,9 @@ const PedidosCliente = ({ user }) => {
 
                 {expandido && (
                   <div className="pedido-cliente-detalle">
+                    {!editando && ['pendiente', 'confirmado'].includes(pedido.estado) && (
+                      <EstadoPagoPedido pedido={pedido} onCambio={() => cargarPedidos({ silencioso: true })} />
+                    )}
                     {editando ? (
                       <div className="pedido-cliente-edicion">
                         <div className="form-group">

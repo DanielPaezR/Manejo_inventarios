@@ -3,6 +3,7 @@ import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from 'react-
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import api from '../services/api';
+import EstadoPagoPedido from './EstadoPagoPedido';
 import { useModulo } from '../hooks/useModulo';
 import './RutaEntregas.css';
 
@@ -64,8 +65,6 @@ const RutaEntregas = ({ user }) => {
 
   const [modalCompletar, setModalCompletar] = useState(null); // { pedidoId }
   const [metodoPagoCompletar, setMetodoPagoCompletar] = useState('efectivo');
-  const [clientes, setClientes] = useState([]);
-  const [clienteIdCompletar, setClienteIdCompletar] = useState('');
   const [completando, setCompletando] = useState(false);
 
   const cargarPedidos = useCallback(async () => {
@@ -97,15 +96,6 @@ const RutaEntregas = ({ user }) => {
       cargarModulo();
     }
   }, [moduloActivo, cargarPedidos, cargarModulo]);
-
-  const cargarClientes = async () => {
-    try {
-      const response = await api.get('/clientes');
-      setClientes(response.data);
-    } catch (error) {
-      console.error('Error cargando clientes:', error);
-    }
-  };
 
   // Paradas pendientes de la ruta actual: domicilios sin completar ni
   // cancelar. Las que ya tienen orden_ruta asignado van primero (en ese
@@ -206,28 +196,27 @@ const RutaEntregas = ({ user }) => {
     }
   };
 
-  const abrirModalCompletar = (id) => {
-    setModalCompletar({ pedidoId: id });
-    setMetodoPagoCompletar('efectivo');
-    setClienteIdCompletar('');
-    if (clientes.length === 0) cargarClientes();
+  // Si el pedido ya está marcado como pagado se entrega con ese método; si
+  // no, se elige cómo pagó al recibirlo o "falta pagar" (queda como fiado
+  // del cliente, que se crea solo con el nombre y teléfono del pedido).
+  const abrirModalCompletar = (parada) => {
+    setModalCompletar({ pedidoId: parada.id, pedido: parada });
+    setMetodoPagoCompletar(parada.pagado ? (parada.metodo_pago_cliente || 'efectivo') : 'efectivo');
   };
 
   // Mismo endpoint que ya usa PedidosCliente.jsx: descuenta stock y crea
   // la venta real — no se duplica esa lógica acá.
   const confirmarCompletar = async () => {
-    if (metodoPagoCompletar === 'credito' && !clienteIdCompletar) {
-      setMensaje('⚠️ Selecciona un cliente para completar como crédito');
-      return;
-    }
-
+    const esFiado = metodoPagoCompletar === 'fiado';
     try {
       setCompletando(true);
       await api.put(`/pedidos-cliente/${modalCompletar.pedidoId}/completar`, {
-        metodo_pago: metodoPagoCompletar,
-        ...(clienteIdCompletar && { cliente_id: parseInt(clienteIdCompletar, 10) })
+        metodo_pago: esFiado ? 'credito' : metodoPagoCompletar,
+        ...(esFiado && { fiado_auto: true })
       });
-      setMensaje('✅ Entrega registrada, venta creada');
+      setMensaje(esFiado
+        ? `✅ Entregado. Quedó como fiado de ${modalCompletar.pedido.mesa_nombre} (en Clientes)`
+        : '✅ Entrega registrada, venta creada');
       setModalCompletar(null);
       cargarPedidos();
     } catch (error) {
@@ -419,13 +408,17 @@ const RutaEntregas = ({ user }) => {
                         {(parada.lat === null || parada.lat === undefined || parada.lng === null || parada.lng === undefined) && (
                           <div className="ruta-entregas-parada-sin-mapa">📍 sin ubicación en el mapa</div>
                         )}
+                        {parada.telefono && (
+                          <a className="ruta-entregas-parada-telefono" href={`tel:${parada.telefono}`}>📞 {parada.telefono}</a>
+                        )}
+                        <EstadoPagoPedido pedido={parada} onCambio={cargarPedidos} />
                       </div>
 
                       <div className="ruta-entregas-parada-acciones">
                         <button onClick={() => abrirComoLlegar(parada.direccion_entrega)} className="ruta-entregas-btn-como-llegar">
                           📍 Cómo llegar
                         </button>
-                        <button onClick={() => abrirModalCompletar(parada.id)} disabled={enAccion} className="ruta-entregas-btn-completar">
+                        <button onClick={() => abrirModalCompletar(parada)} disabled={enAccion} className="ruta-entregas-btn-completar">
                           ✅ Marcar como entregado
                         </button>
                         <button onClick={() => cancelarParada(parada.id)} disabled={enAccion} className="ruta-entregas-btn-cancelar-parada">
@@ -450,31 +443,40 @@ const RutaEntregas = ({ user }) => {
             </div>
 
             <div className="ruta-entregas-modal-completar">
-              <div className="form-group">
-                <label>💳 Método de pago</label>
-                <select
-                  value={metodoPagoCompletar}
-                  onChange={(e) => setMetodoPagoCompletar(e.target.value)}
-                >
-                  <option value="efectivo">💵 Efectivo</option>
-                  <option value="tarjeta">💳 Tarjeta</option>
-                  <option value="transferencia">🏦 Transferencia</option>
-                  <option value="credito">📒 Crédito</option>
-                </select>
-              </div>
-
-              {metodoPagoCompletar === 'credito' && (
-                <div className="form-group">
-                  <label>Cliente</label>
-                  <select
-                    value={clienteIdCompletar}
-                    onChange={(e) => setClienteIdCompletar(e.target.value)}
-                  >
-                    <option value="">Seleccionar cliente...</option>
-                    {clientes.map(c => (
-                      <option key={c.id} value={c.id}>{c.nombre}</option>
-                    ))}
-                  </select>
+              <p className="ruta-entregas-modal-resumen">
+                <strong>{modalCompletar.pedido.mesa_nombre}</strong> · {formatearMoneda(modalCompletar.pedido.total)}
+              </p>
+              {modalCompletar.pedido.pagado ? (
+                <p className="ruta-entregas-modal-pagado">
+                  💰 Ya pagó por {metodoPagoCompletar === 'transferencia' ? 'transferencia' : metodoPagoCompletar === 'tarjeta' ? 'tarjeta' : 'efectivo'}.
+                  La venta se registra con ese método.
+                </p>
+              ) : (
+                <div className="ruta-entregas-opciones-pago">
+                  <span className="ruta-entregas-opciones-titulo">¿Cómo pagó?</span>
+                  {[
+                    ['efectivo', '💵 En efectivo al recibir'],
+                    ['transferencia', '📱 Por transferencia'],
+                    ['tarjeta', '💳 Con tarjeta'],
+                    ['fiado', '⏳ Falta pagar (queda como fiado del cliente)']
+                  ].map(([valor, texto]) => (
+                    <label key={valor} className={`ruta-entregas-opcion-pago ${metodoPagoCompletar === valor ? 'activa' : ''}`}>
+                      <input
+                        type="radio"
+                        name="pago-entrega"
+                        value={valor}
+                        checked={metodoPagoCompletar === valor}
+                        onChange={(e) => setMetodoPagoCompletar(e.target.value)}
+                      />
+                      {texto}
+                    </label>
+                  ))}
+                  {metodoPagoCompletar === 'fiado' && (
+                    <small className="ruta-entregas-opciones-ayuda">
+                      Se suma a la deuda de {modalCompletar.pedido.mesa_nombre} en Clientes (se busca por su teléfono o se crea).
+                      Cuando pague, registras el abono ahí.
+                    </small>
+                  )}
                 </div>
               )}
             </div>
