@@ -1184,39 +1184,39 @@ app.put('/api/categorias/:id', authenticateToken, checkAccess, requireAdmin, asy
 // (sin soft-delete posible), así que es un DELETE real: primero se
 // valida que ningún producto ACTIVO la use.
 app.delete('/api/categorias/:id', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+  let client;
   try {
     const { id } = req.params;
     const moduloId = req.moduloId;
 
-    const categoriaResult = await pool.query(
-      'SELECT id FROM categorias WHERE id = $1 AND modulo_id = $2',
+    client = await pool.connect();
+    await client.query('BEGIN');
+
+    const categoriaResult = await client.query(
+      'SELECT id FROM categorias WHERE id = $1 AND modulo_id = $2 FOR UPDATE',
       [id, moduloId]
     );
     if (categoriaResult.rows.length === 0) {
+      await client.query('ROLLBACK');
       return res.status(404).json({ error: 'Categoría no encontrada' });
     }
 
-    const enUso = await pool.query(
-      'SELECT COUNT(*) as total FROM productos WHERE categoria_id = $1 AND activo = true',
+    // Sus productos (activos e inactivos) quedan sin categoría, que la
+    // app muestra como "General", y luego se borra la categoría.
+    const movidos = await client.query(
+      'UPDATE productos SET categoria_id = NULL, fecha_actualizacion = NOW() WHERE categoria_id = $1',
       [id]
     );
-    if (Number(enUso.rows[0].total) > 0) {
-      return res.status(400).json({ error: 'Esta categoría tiene productos asociados. Reasígnalos a otra categoría antes de eliminarla.' });
-    }
+    await client.query('DELETE FROM categorias WHERE id = $1 AND modulo_id = $2', [id, moduloId]);
+    await client.query('COMMIT');
 
-    await pool.query('DELETE FROM categorias WHERE id = $1 AND modulo_id = $2', [id, moduloId]);
-
-    res.json({ message: 'Categoría eliminada correctamente' });
+    res.json({ message: 'Categoría eliminada correctamente', productos_movidos: movidos.rowCount });
   } catch (error) {
-    // productos.categoria_id no tiene ON DELETE, y el chequeo de arriba
-    // solo mira productos activos: si quedan productos INACTIVOS con
-    // esta categoría, el DELETE falla con violación de FK (23503). Se
-    // traduce a un mensaje claro en vez del error crudo de Postgres.
-    if (error.code === '23503') {
-      return res.status(400).json({ error: 'Esta categoría todavía tiene productos asociados (incluso inactivos). Reasígnalos antes de eliminarla.' });
-    }
+    if (client) await client.query('ROLLBACK').catch(() => {});
     console.error('Error eliminando categoría:', error);
     res.status(500).json({ error: 'Error interno del servidor' });
+  } finally {
+    if (client) client.release();
   }
 });
 

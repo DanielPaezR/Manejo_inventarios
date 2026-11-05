@@ -114,16 +114,27 @@ const Productos = ({ user }) => {
     }
   };
 
+  // Los productos de la categoría no se pierden: quedan en "General"
+  // (sin categoría) y la categoría se elimina.
   const handleEliminarCategoria = async (id) => {
-    if (!confirm('¿Eliminar esta categoría?')) return;
+    const categoria = categorias.find(c => c.id === id);
+    const cantidad = productos.filter(p => p.categoria_id === id).length;
+    const aviso = cantidad > 0
+      ? `
+
+Sus ${cantidad} producto(s) pasarán a "General".`
+      : '';
+    if (!confirm(`¿Eliminar la categoría "${categoria?.nombre || ''}"?${aviso}`)) return;
 
     try {
       await api.delete(`/categorias/${id}`);
       await cargarCategorias();
+      cargarProductos();
+      if (String(formData.categoria_id) === String(id)) {
+        setFormData(prev => ({ ...prev, categoria_id: '' }));
+      }
     } catch (error) {
       console.error('Error eliminando categoría:', error);
-      // El backend explica exactamente por qué no se puede (ej. productos
-      // asociados) — se muestra tal cual, sin generalizar el mensaje.
       alert(error.response?.data?.error || 'Error al eliminar la categoría');
     }
   };
