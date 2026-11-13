@@ -13,6 +13,7 @@ const ConfigAsistente = ({ moduloId, textos, avisar }) => {
   const [form, setForm] = useState(null);
   const [guardando, setGuardando] = useState(false);
   const [verPreguntas, setVerPreguntas] = useState(false);
+  const [verPrompt, setVerPrompt] = useState(false);
 
   const cargar = useCallback(async () => {
     try {
@@ -23,7 +24,8 @@ const ConfigAsistente = ({ moduloId, textos, avisar }) => {
         bot_horario: res.data.bot_horario || '',
         bot_envio_costo: res.data.bot_envio_costo ?? '',
         bot_envio_info: res.data.bot_envio_info || '',
-        bot_info_extra: res.data.bot_info_extra || ''
+        bot_info_extra: res.data.bot_info_extra || '',
+        bot_prompt: res.data.bot_prompt || ''
       });
     } catch (err) {
       console.error('Error cargando el asistente:', err);
@@ -79,7 +81,7 @@ const ConfigAsistente = ({ moduloId, textos, avisar }) => {
 
       {!datos.disponible && (
         <p className="conf-aviso">
-          El asistente todavía no está habilitado en el servidor. Pídele al administrador del sistema que configure la clave del asistente.
+          El asistente todavía no está habilitado en el servidor. Pídele al administrador del sistema que configure la clave de OpenAI.
         </p>
       )}
 
@@ -109,6 +111,30 @@ const ConfigAsistente = ({ moduloId, textos, avisar }) => {
             {...campo('bot_info_extra')} />
         </label>
       </div>
+
+      <button type="button" className="conf-link" onClick={() => setVerPrompt(v => !v)}>
+        {verPrompt ? 'Ocultar instrucciones avanzadas' : 'Instrucciones avanzadas (prompt personalizado)'}
+      </button>
+      {verPrompt && (
+        <label className="conf-campo conf-campo--ancho conf-prompt">
+          <span>Prompt personalizado del negocio</span>
+          <small className="conf-ayuda">
+            Opcional. Si lo dejas vacío, el asistente usa automáticamente toda la información de arriba y tus productos.
+            Puedes usar estas variables y se reemplazan por los datos actuales:
+          </small>
+          <div className="conf-variables">
+            {datos.variables_prompt.map(v => (
+              <button key={v} type="button" className="conf-variable"
+                onClick={() => setForm(f => ({ ...f, bot_prompt: `${f.bot_prompt}${f.bot_prompt && !f.bot_prompt.endsWith(' ') ? ' ' : ''}${v}` }))}>
+                {v}
+              </button>
+            ))}
+          </div>
+          <textarea rows={6} maxLength={4000}
+            placeholder="Ej. Eres el asistente de {nombre_negocio}. Atendemos {horario}. El domicilio cuesta {costo_domicilio} ({info_domicilio}). Productos: {productos}. Habla de forma juvenil y cercana."
+            {...campo('bot_prompt')} />
+        </label>
+      )}
 
       <div className="conf-acciones conf-acciones-fin">
         <button type="button" onClick={() => guardar()} disabled={guardando} className="btn-guardar conf-btn-guardar">

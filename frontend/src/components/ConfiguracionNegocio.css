@@ -276,3 +276,29 @@
     font-size: 16px;
   }
 }
+
+.conf-prompt {
+  margin-top: 10px;
+}
+
+.conf-variables {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.conf-variable {
+  padding: 3px 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-subtle);
+  color: var(--text-default);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.conf-variable:hover {
+  border-color: var(--brand);
+  color: var(--brand-700);
+}

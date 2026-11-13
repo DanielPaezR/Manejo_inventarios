@@ -29,8 +29,8 @@ const { checkAccess } = require('./src/middleware/checkAccess');
 const { generarNumeroFactura } = require('./src/helpers/generarNumeroFactura');
 const { generarNumeroCliente } = require('./src/helpers/generarNumeroCliente');
 const { geocodificar } = require('./src/helpers/geocodificar');
-const Anthropic = require('@anthropic-ai/sdk');
-const { botDisponible, responder: responderBot } = require('./src/helpers/asistenteBot');
+const OpenAI = require('openai');
+const { botDisponible, responder: responderBot, VARIABLES_PROMPT } = require('./src/helpers/asistenteBot');
 
 // Divide el ingreso de una venta entre los módulos dueños reales de cada
 // línea vendida (duenoPorProducto), no todo al módulo que hizo la venta —
@@ -7579,8 +7579,8 @@ app.get('/api/menu/:moduloId', async (req, res) => {
 });
 
 // ==================== ASISTENTE AUTOMÁTICO DEL MENÚ ====================
-// Responde preguntas de los clientes en el menú/catálogo público (ver
-// src/helpers/asistenteBot.js). Es público y sin supervisión, así que tiene
+// Responde preguntas de los clientes en el menú/catálogo público con OpenAI,
+// igual que el agente de Wabot (ver src/helpers/asistenteBot.js). Es público y sin supervisión, así que tiene
 // límites: por persona (IP) en una ventana de tiempo, largo de cada mensaje,
 // historial corto y un tope diario por módulo. Cada pregunta y respuesta
 // queda guardada para que el negocio vea qué preguntan.
@@ -7629,7 +7629,7 @@ const limpiarHistorialBot = (mensajes) => {
 const cargarContextoBot = async (moduloId) => {
   const moduloResult = await pool.query(
     `SELECT m.id, m.nombre, m.nombre_publico, m.activo, m.tiene_domicilio, m.bot_activo, m.bot_horario,
-            m.bot_envio_costo, m.bot_envio_info, m.bot_info_extra,
+            m.bot_envio_costo, m.bot_envio_info, m.bot_info_extra, m.bot_prompt,
             n.nombre AS negocio_nombre, n.tipo AS negocio_tipo, n.telefono AS negocio_telefono,
             n.direccion AS negocio_direccion, n.activo AS negocio_activo
      FROM modulos m JOIN negocios n ON n.id = m.negocio_id
@@ -7684,17 +7684,17 @@ app.post('/api/menu/:moduloId/bot', async (req, res) => {
     }
 
     const { texto, uso } = await responderBot({
+      db: pool,
       ...contexto,
-      historial,
+      historial: historial.slice(0, -1),
+      pregunta,
       ahora: ahoraColombia().locale('es').format('dddd D [de] MMMM YYYY, h:mm a')
     });
 
     await pool.query(
       `INSERT INTO bot_mensajes (modulo_id, sesion, pregunta, respuesta, tokens_entrada, tokens_salida)
        VALUES ($1, $2, $3, $4, $5, $6)`,
-      [moduloId, sesion, pregunta, texto,
-        (uso?.input_tokens || 0) + (uso?.cache_read_input_tokens || 0) + (uso?.cache_creation_input_tokens || 0),
-        uso?.output_tokens || null]
+      [moduloId, sesion, pregunta, texto, uso?.prompt_tokens || null, uso?.completion_tokens || null]
     ).catch(err => console.error('Error guardando mensaje del bot:', err));
 
     res.json({ respuesta: texto });
@@ -7704,8 +7704,8 @@ app.post('/api/menu/:moduloId/bot', async (req, res) => {
       'INSERT INTO bot_mensajes (modulo_id, sesion, pregunta, error) VALUES ($1, $2, $3, true)',
       [moduloId, sesion, pregunta]
     ).catch(() => {});
-    const ocupado = error instanceof Anthropic.RateLimitError || error instanceof Anthropic.InternalServerError
-      || error instanceof Anthropic.APIConnectionError;
+    const ocupado = error instanceof OpenAI.RateLimitError || error instanceof OpenAI.InternalServerError
+      || error instanceof OpenAI.APIConnectionError;
     res.status(ocupado ? 503 : 500).json({
       error: ocupado
         ? 'El asistente está ocupado. Intenta de nuevo en un momento.'
@@ -7719,7 +7719,7 @@ app.post('/api/menu/:moduloId/bot', async (req, res) => {
 app.get('/api/modulos/:id/bot', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
   try {
     const result = await pool.query(
-      `SELECT m.bot_activo, m.bot_horario, m.bot_envio_costo, m.bot_envio_info, m.bot_info_extra, m.tiene_domicilio
+      `SELECT m.bot_activo, m.bot_horario, m.bot_envio_costo, m.bot_envio_info, m.bot_info_extra, m.bot_prompt, m.tiene_domicilio
        FROM modulos m WHERE m.id = $1 AND m.negocio_id = $2`,
       [req.params.id, req.negocioId]
     );
@@ -7742,6 +7742,7 @@ app.get('/api/modulos/:id/bot', authenticateToken, checkAccess, requireAdmin, as
       ...c,
       bot_envio_costo: c.bot_envio_costo === null ? null : Number(c.bot_envio_costo),
       disponible: botDisponible(),
+      variables_prompt: VARIABLES_PROMPT,
       preguntas_hoy: hoy.rows[0].total,
       limite_diario: BOT_LIMITE_DIARIO_MODULO,
       ultimas: ultimas.rows
@@ -7764,11 +7765,12 @@ app.put('/api/modulos/:id/bot', authenticateToken, checkAccess, requireAdmin, as
     }
     const result = await pool.query(
       `UPDATE modulos
-       SET bot_activo = $1, bot_horario = $2, bot_envio_costo = $3, bot_envio_info = $4, bot_info_extra = $5
-       WHERE id = $6 AND negocio_id = $7
-       RETURNING bot_activo, bot_horario, bot_envio_costo, bot_envio_info, bot_info_extra`,
+       SET bot_activo = $1, bot_horario = $2, bot_envio_costo = $3, bot_envio_info = $4, bot_info_extra = $5, bot_prompt = $6
+       WHERE id = $7 AND negocio_id = $8
+       RETURNING bot_activo, bot_horario, bot_envio_costo, bot_envio_info, bot_info_extra, bot_prompt`,
       [!!req.body.bot_activo, texto(req.body.bot_horario, 300), costo,
-        texto(req.body.bot_envio_info, 1500), texto(req.body.bot_info_extra, 3000), req.params.id, req.negocioId]
+        texto(req.body.bot_envio_info, 1500), texto(req.body.bot_info_extra, 3000), texto(req.body.bot_prompt, 4000),
+        req.params.id, req.negocioId]
     );
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Módulo no encontrado' });
