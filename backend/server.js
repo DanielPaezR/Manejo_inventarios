@@ -4,6 +4,10 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { Pool } = require('pg');
 const moment = require('moment');
+// Español solo donde se pide con .locale('es') (asistente del menú); cargar
+// la locale la vuelve global, así que se restaura 'en' para no cambiar nada más.
+require('moment/locale/es');
+moment.locale('en');
 const path = require('path');
 const crypto = require('crypto');
 const webpush = require('web-push');
@@ -25,6 +29,8 @@ const { checkAccess } = require('./src/middleware/checkAccess');
 const { generarNumeroFactura } = require('./src/helpers/generarNumeroFactura');
 const { generarNumeroCliente } = require('./src/helpers/generarNumeroCliente');
 const { geocodificar } = require('./src/helpers/geocodificar');
+const Anthropic = require('@anthropic-ai/sdk');
+const { botDisponible, responder: responderBot } = require('./src/helpers/asistenteBot');
 
 // Divide el ingreso de una venta entre los módulos dueños reales de cada
 // línea vendida (duenoPorProducto), no todo al módulo que hizo la venta —
@@ -7526,7 +7532,7 @@ app.get('/api/menu/:moduloId', async (req, res) => {
     }
 
     const moduloResult = await pool.query(
-      `SELECT m.id, m.nombre, m.nombre_publico, m.activo, m.foto_portada_url, m.tiene_domicilio,
+      `SELECT m.id, m.nombre, m.nombre_publico, m.activo, m.foto_portada_url, m.tiene_domicilio, m.bot_activo,
               n.nombre as negocio_nombre, n.tipo as negocio_tipo
        FROM modulos m
        JOIN negocios n ON m.negocio_id = n.id
@@ -7559,12 +7565,217 @@ app.get('/api/menu/:moduloId', async (req, res) => {
         negocio_nombre: moduloResult.rows[0].negocio_nombre,
         foto_portada_url: moduloResult.rows[0].foto_portada_url,
         tiene_domicilio: moduloResult.rows[0].tiene_domicilio,
-        negocio_tipo: moduloResult.rows[0].negocio_tipo
+        negocio_tipo: moduloResult.rows[0].negocio_tipo,
+        // El asistente solo aparece si el negocio lo encendió y el servidor
+        // tiene la clave de la API configurada.
+        bot_activo: moduloResult.rows[0].bot_activo && botDisponible()
       },
       productos: productosResult.rows
     });
   } catch (error) {
     console.error('Error obteniendo menú público:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// ==================== ASISTENTE AUTOMÁTICO DEL MENÚ ====================
+// Responde preguntas de los clientes en el menú/catálogo público (ver
+// src/helpers/asistenteBot.js). Es público y sin supervisión, así que tiene
+// límites: por persona (IP) en una ventana de tiempo, largo de cada mensaje,
+// historial corto y un tope diario por módulo. Cada pregunta y respuesta
+// queda guardada para que el negocio vea qué preguntan.
+
+const BOT_LIMITE_POR_IP = 15;            // mensajes por IP...
+const BOT_VENTANA_IP_MS = 10 * 60 * 1000; // ...cada 10 minutos
+const BOT_LIMITE_DIARIO_MODULO = 400;
+const BOT_MAX_CARACTERES = 500;
+const BOT_MAX_HISTORIAL = 10;
+const botUsoPorIp = new Map();
+
+const ipCliente = (req) =>
+  (req.headers['x-forwarded-for'] || '').split(',')[0].trim() || req.socket.remoteAddress || 'desconocida';
+
+const botPermitidoParaIp = (ip) => {
+  const ahora = Date.now();
+  const recientes = (botUsoPorIp.get(ip) || []).filter(t => ahora - t < BOT_VENTANA_IP_MS);
+  if (recientes.length >= BOT_LIMITE_POR_IP) {
+    botUsoPorIp.set(ip, recientes);
+    return false;
+  }
+  recientes.push(ahora);
+  botUsoPorIp.set(ip, recientes);
+  // Limpieza ocasional para que el mapa no crezca sin fin.
+  if (botUsoPorIp.size > 5000) {
+    for (const [clave, marcas] of botUsoPorIp) {
+      if (!marcas.some(t => ahora - t < BOT_VENTANA_IP_MS)) botUsoPorIp.delete(clave);
+    }
+  }
+  return true;
+};
+
+// Normaliza el historial que manda el navegador: solo user/assistant, texto
+// recortado, los últimos N, empezando en 'user' y terminando en 'user'.
+const limpiarHistorialBot = (mensajes) => {
+  if (!Array.isArray(mensajes)) return null;
+  let limpio = mensajes
+    .filter(m => m && (m.rol === 'user' || m.rol === 'assistant') && typeof m.texto === 'string' && m.texto.trim())
+    .map(m => ({ rol: m.rol, texto: m.texto.trim().slice(0, m.rol === 'user' ? BOT_MAX_CARACTERES : 2000) }))
+    .slice(-BOT_MAX_HISTORIAL);
+  while (limpio.length && limpio[0].rol !== 'user') limpio = limpio.slice(1);
+  if (!limpio.length || limpio[limpio.length - 1].rol !== 'user') return null;
+  return limpio;
+};
+
+const cargarContextoBot = async (moduloId) => {
+  const moduloResult = await pool.query(
+    `SELECT m.id, m.nombre, m.nombre_publico, m.activo, m.tiene_domicilio, m.bot_activo, m.bot_horario,
+            m.bot_envio_costo, m.bot_envio_info, m.bot_info_extra,
+            n.nombre AS negocio_nombre, n.tipo AS negocio_tipo, n.telefono AS negocio_telefono,
+            n.direccion AS negocio_direccion, n.activo AS negocio_activo
+     FROM modulos m JOIN negocios n ON n.id = m.negocio_id
+     WHERE m.id = $1`,
+    [moduloId]
+  );
+  const modulo = moduloResult.rows[0];
+  if (!modulo || !modulo.activo || modulo.negocio_activo === false) return null;
+  // Mismo criterio de "disponible" que el menú público.
+  const productosResult = await pool.query(
+    `SELECT p.nombre, p.descripcion, p.precio_venta, p.stock_actual, p.ignora_stock, p.es_novedad,
+            c.nombre AS categoria_nombre
+     FROM productos p
+     LEFT JOIN categorias c ON p.categoria_id = c.id
+     WHERE p.modulo_id = $1 AND p.activo = true AND (p.stock_actual > 0 OR p.ignora_stock = true)
+     ORDER BY c.nombre NULLS LAST, p.nombre, p.id`,
+    [moduloId]
+  );
+  return { modulo, productos: productosResult.rows };
+};
+
+app.post('/api/menu/:moduloId/bot', async (req, res) => {
+  const { moduloId } = req.params;
+  if (!/^\d+$/.test(moduloId)) {
+    return res.status(404).json({ error: 'Asistente no disponible' });
+  }
+
+  const sesion = typeof req.body.sesion === 'string' ? req.body.sesion.slice(0, 64) : 'sin-sesion';
+  const historial = limpiarHistorialBot(req.body.mensajes);
+  if (!historial) {
+    return res.status(400).json({ error: 'Escribe tu pregunta' });
+  }
+  const pregunta = historial[historial.length - 1].texto;
+
+  try {
+    if (!botDisponible()) {
+      return res.status(503).json({ error: 'El asistente no está disponible en este momento' });
+    }
+    const contexto = await cargarContextoBot(moduloId);
+    if (!contexto || !contexto.modulo.bot_activo) {
+      return res.status(404).json({ error: 'Asistente no disponible' });
+    }
+    if (!botPermitidoParaIp(ipCliente(req))) {
+      return res.status(429).json({ error: 'Has enviado muchas preguntas seguidas. Espera unos minutos e intenta de nuevo.' });
+    }
+    const usoHoy = await pool.query(
+      `SELECT COUNT(*)::int AS total FROM bot_mensajes WHERE modulo_id = $1 AND fecha >= $2`,
+      [moduloId, ahoraColombia().startOf('day').toDate()]
+    );
+    if (usoHoy.rows[0].total >= BOT_LIMITE_DIARIO_MODULO) {
+      return res.status(429).json({ error: 'El asistente alcanzó su límite de hoy. Escríbele directamente al negocio.' });
+    }
+
+    const { texto, uso } = await responderBot({
+      ...contexto,
+      historial,
+      ahora: ahoraColombia().locale('es').format('dddd D [de] MMMM YYYY, h:mm a')
+    });
+
+    await pool.query(
+      `INSERT INTO bot_mensajes (modulo_id, sesion, pregunta, respuesta, tokens_entrada, tokens_salida)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [moduloId, sesion, pregunta, texto,
+        (uso?.input_tokens || 0) + (uso?.cache_read_input_tokens || 0) + (uso?.cache_creation_input_tokens || 0),
+        uso?.output_tokens || null]
+    ).catch(err => console.error('Error guardando mensaje del bot:', err));
+
+    res.json({ respuesta: texto });
+  } catch (error) {
+    console.error('Error del asistente del menú:', error);
+    pool.query(
+      'INSERT INTO bot_mensajes (modulo_id, sesion, pregunta, error) VALUES ($1, $2, $3, true)',
+      [moduloId, sesion, pregunta]
+    ).catch(() => {});
+    const ocupado = error instanceof Anthropic.RateLimitError || error instanceof Anthropic.InternalServerError
+      || error instanceof Anthropic.APIConnectionError;
+    res.status(ocupado ? 503 : 500).json({
+      error: ocupado
+        ? 'El asistente está ocupado. Intenta de nuevo en un momento.'
+        : 'El asistente no pudo responder. Intenta de nuevo o escríbele directamente al negocio.'
+    });
+  }
+});
+
+// Configuración del asistente (admin): textos que usa para responder y las
+// últimas preguntas que le han hecho.
+app.get('/api/modulos/:id/bot', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT m.bot_activo, m.bot_horario, m.bot_envio_costo, m.bot_envio_info, m.bot_info_extra, m.tiene_domicilio
+       FROM modulos m WHERE m.id = $1 AND m.negocio_id = $2`,
+      [req.params.id, req.negocioId]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Módulo no encontrado' });
+    }
+    const [ultimas, hoy] = await Promise.all([
+      pool.query(
+        `SELECT id, pregunta, respuesta, error, fecha FROM bot_mensajes
+         WHERE modulo_id = $1 ORDER BY fecha DESC LIMIT 30`,
+        [req.params.id]
+      ),
+      pool.query(
+        `SELECT COUNT(*)::int AS total FROM bot_mensajes WHERE modulo_id = $1 AND fecha >= $2`,
+        [req.params.id, ahoraColombia().startOf('day').toDate()]
+      )
+    ]);
+    const c = result.rows[0];
+    res.json({
+      ...c,
+      bot_envio_costo: c.bot_envio_costo === null ? null : Number(c.bot_envio_costo),
+      disponible: botDisponible(),
+      preguntas_hoy: hoy.rows[0].total,
+      limite_diario: BOT_LIMITE_DIARIO_MODULO,
+      ultimas: ultimas.rows
+    });
+  } catch (error) {
+    console.error('Error obteniendo configuración del asistente:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+app.put('/api/modulos/:id/bot', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+  try {
+    const texto = (v, max) => (typeof v === 'string' && v.trim() ? v.trim().slice(0, max) : null);
+    let costo = null;
+    if (req.body.bot_envio_costo !== null && req.body.bot_envio_costo !== undefined && req.body.bot_envio_costo !== '') {
+      costo = Number(req.body.bot_envio_costo);
+      if (!Number.isFinite(costo) || costo < 0) {
+        return res.status(400).json({ error: 'El costo del domicilio debe ser un número mayor o igual a cero' });
+      }
+    }
+    const result = await pool.query(
+      `UPDATE modulos
+       SET bot_activo = $1, bot_horario = $2, bot_envio_costo = $3, bot_envio_info = $4, bot_info_extra = $5
+       WHERE id = $6 AND negocio_id = $7
+       RETURNING bot_activo, bot_horario, bot_envio_costo, bot_envio_info, bot_info_extra`,
+      [!!req.body.bot_activo, texto(req.body.bot_horario, 300), costo,
+        texto(req.body.bot_envio_info, 1500), texto(req.body.bot_info_extra, 3000), req.params.id, req.negocioId]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Módulo no encontrado' });
+    }
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error guardando configuración del asistente:', error);
     res.status(500).json({ error: 'Error interno del servidor' });
   }
 });

@@ -170,3 +170,109 @@
     width: 100%;
   }
 }
+
+/* ---------- Asistente automático ---------- */
+.conf-aviso {
+  margin: 12px 0 0;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--warning-50);
+  color: var(--text-default);
+  font-size: 13px;
+}
+
+.conf-campos {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.conf-campo {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.conf-campo--ancho {
+  grid-column: 1 / -1;
+}
+
+.conf-campo > span {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-default);
+}
+
+.conf-campo input,
+.conf-campo textarea {
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  font-size: 14px;
+  font-family: inherit;
+  color: var(--text-strong);
+  resize: vertical;
+}
+
+.conf-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 12px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--brand-700);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.conf-preguntas {
+  display: flex;
+  flex-direction: column;
+  margin-top: 8px;
+  border-top: 1px solid var(--border);
+}
+
+.conf-pregunta {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 10px 0;
+  border-bottom: 1px dashed var(--border);
+}
+
+.conf-pregunta small {
+  font-size: 11.5px;
+  color: var(--text-faint);
+}
+
+.conf-pregunta strong {
+  font-size: 14px;
+  color: var(--text-strong);
+}
+
+.conf-pregunta p {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-muted);
+  white-space: pre-wrap;
+}
+
+.conf-pregunta--error {
+  color: var(--danger) !important;
+}
+
+@media (max-width: 640px) {
+  .conf-campos {
+    grid-template-columns: 1fr;
+  }
+
+  .conf-campo input,
+  .conf-campo textarea {
+    font-size: 16px;
+  }
+}

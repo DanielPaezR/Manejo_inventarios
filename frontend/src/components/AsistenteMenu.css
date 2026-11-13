@@ -1,0 +1,193 @@
+/* Asistente del menú público: usa los tokens de MenuPublico.css. */
+.am-burbuja {
+  position: fixed;
+  right: 16px;
+  bottom: 18px;
+  z-index: 11;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  border: none;
+  border-radius: 999px;
+  background: var(--color-text);
+  color: #fff;
+  font-family: var(--mp-fuente);
+  font-size: 14px;
+  font-weight: 600;
+  box-shadow: var(--shadow-lg);
+  cursor: pointer;
+}
+
+/* Sobre la barra flotante del carrito cuando hay productos. */
+.am-burbuja--alta {
+  bottom: 88px;
+}
+
+.am-panel {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  width: min(380px, calc(100vw - 32px));
+  height: min(560px, calc(100vh - 32px));
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: var(--shadow-lg);
+  font-family: var(--mp-fuente);
+  color: var(--color-text);
+  overflow: hidden;
+}
+
+.am-panel__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 14px 16px;
+  background: var(--color-text);
+  color: #fff;
+}
+
+.am-panel__header strong {
+  display: block;
+  font-size: 15px;
+}
+
+.am-panel__header small {
+  display: block;
+  margin-top: 2px;
+  font-size: 12px;
+  opacity: 0.75;
+}
+
+.am-cerrar {
+  border: none;
+  background: none;
+  color: #fff;
+  font-size: 18px;
+  cursor: pointer;
+}
+
+.am-mensajes {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px;
+  overflow-y: auto;
+  background: var(--color-bg);
+}
+
+.am-msg {
+  max-width: 85%;
+  padding: 9px 12px;
+  border-radius: 14px;
+  font-size: 14px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.am-msg--bot {
+  align-self: flex-start;
+  background: #fff;
+  border-bottom-left-radius: 4px;
+  box-shadow: var(--shadow-sm);
+}
+
+.am-msg--yo {
+  align-self: flex-end;
+  background: var(--color-accent);
+  color: #fff;
+  border-bottom-right-radius: 4px;
+}
+
+.am-escribiendo {
+  display: inline-flex;
+  gap: 4px;
+  padding: 12px 14px;
+}
+
+.am-escribiendo span {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-divider);
+  animation: amPunto 1s infinite ease-in-out;
+}
+
+.am-escribiendo span:nth-child(2) { animation-delay: 0.15s; }
+.am-escribiendo span:nth-child(3) { animation-delay: 0.3s; }
+
+@keyframes amPunto {
+  0%, 80%, 100% { opacity: 0.3; transform: translateY(0); }
+  40% { opacity: 1; transform: translateY(-3px); }
+}
+
+.am-sugerencias {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.am-sugerencia {
+  padding: 7px 11px;
+  border: 1px solid var(--color-accent-200);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--color-accent-700);
+  font-family: var(--mp-fuente);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.am-error {
+  margin: 0;
+  padding: 8px 14px;
+  background: var(--color-accent-100);
+  color: var(--color-accent-700);
+  font-size: 13px;
+}
+
+.am-form {
+  display: flex;
+  gap: 8px;
+  padding: 10px;
+  border-top: 1px solid var(--color-surface);
+  background: #fff;
+}
+
+.am-form input {
+  flex: 1;
+  min-width: 0;
+  height: 42px;
+  padding: 0 12px;
+  border: 1px solid var(--color-surface);
+  border-radius: 999px;
+  font-family: var(--mp-fuente);
+  font-size: 16px; /* evita el zoom automático de iOS */
+}
+
+.am-form button {
+  padding: 0 16px;
+  border: none;
+  border-radius: 999px;
+  background: var(--color-accent);
+  color: #fff;
+  font-family: var(--mp-fuente);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.am-form button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .am-escribiendo span { animation: none; }
+}

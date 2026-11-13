@@ -4,6 +4,7 @@ import apiPublico from '../services/apiPublico';
 import { textosNegocio } from '../utils/tipoNegocio';
 import { IconoHoja, obtenerColorPlaceholder } from '../utils/menuVisual';
 import SelectorDireccionMapa from './SelectorDireccionMapa';
+import AsistenteMenu from './AsistenteMenu';
 import './MenuPublico.css';
 
 // ============================================================
@@ -585,6 +586,10 @@ const MenuPublico = () => {
                 <IconoChevronDerecha className="mp-cartbar__icono" />
               </span>
             </button>
+          )}
+
+          {modulo?.bot_activo && (
+            <AsistenteMenu moduloId={moduloId} modulo={modulo} subirPorCarrito={hayItemsEnCarrito} />
           )}
         </>
       )}

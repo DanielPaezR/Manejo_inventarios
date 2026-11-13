@@ -3,6 +3,7 @@ import { Link2, Copy, Check, ExternalLink, Bike, Store, MessageCircle } from 'lu
 import api from '../services/api';
 import { useModulo } from '../hooks/useModulo';
 import SubidaImagen from './SubidaImagen';
+import ConfigAsistente from './ConfigAsistente';
 import { IconoHoja, obtenerColorPlaceholder } from '../utils/menuVisual';
 import { textosNegocio, tipoNegocioUsuario } from '../utils/tipoNegocio';
 import './PedidosCliente.css';
@@ -175,6 +176,8 @@ const ConfiguracionNegocio = ({ user }) => {
           </button>
         </div>
       </div>
+
+      <ConfigAsistente key={moduloActivo.id} moduloId={moduloActivo.id} textos={textos} avisar={avisar} />
 
       {/* Apariencia del menú/catálogo */}
       <div className="card conf-card">
