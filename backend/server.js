@@ -7707,6 +7707,10 @@ app.post('/api/menu/:moduloId/bot', async (req, res) => {
       'INSERT INTO bot_mensajes (modulo_id, sesion, pregunta, error) VALUES ($1, $2, $3, true)',
       [moduloId, sesion, pregunta]
     ).catch(() => {});
+    // Sin saldo en OpenAI no es "ocupado": no sirve reintentar.
+    if (error?.code === 'insufficient_quota' || error?.code === 'credit_balance_exhausted') {
+      return res.status(503).json({ error: 'El asistente no está disponible en este momento. Escríbele directamente al negocio.' });
+    }
     const ocupado = error instanceof OpenAI.RateLimitError || error instanceof OpenAI.InternalServerError
       || error instanceof OpenAI.APIConnectionError;
     res.status(ocupado ? 503 : 500).json({

@@ -25,6 +25,8 @@ const soloDigitos = (texto) => String(texto || '').replace(/\D/g, '');
 // ---------- Seguridad: mismos patrones que Wabot (sanitizar_mensaje) ----------
 const PATRONES_MALICIOSOS = [
   /ignora\s+(tus|las)\s+instrucciones/i,
+  /(olvida|ignora|olvidate\s+de)\s+(tus|las|todas\s+tus|todas\s+las)\s+(instrucciones|reglas)/i,
+  /(dime|dame|ensename)\s+tu\s+prompt/i,
   /eres\s+ahora\s+un/i,
   /actúas\s+como\s+si\s+fueras/i,
   /olvida\s+todo\s+lo\s+que\s+te\s+dije/i,
