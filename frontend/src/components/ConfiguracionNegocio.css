@@ -277,28 +277,166 @@
   }
 }
 
-.conf-prompt {
-  margin-top: 10px;
-}
-
-.conf-variables {
+.conf-subtitulo {
   display: flex;
-  flex-wrap: wrap;
+  align-items: center;
   gap: 6px;
+  margin: 22px 0 4px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+  font-size: 14.5px;
+  color: var(--text-strong);
 }
 
-.conf-variable {
-  padding: 3px 8px;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  background: var(--surface-subtle);
-  color: var(--text-default);
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+.conf-nota {
   font-size: 12px;
+  color: var(--text-muted);
+}
+
+.conf-burbuja-ejemplo {
+  align-self: flex-start;
+  max-width: 420px;
+  padding: 9px 12px;
+  border-radius: 14px;
+  border-bottom-left-radius: 4px;
+  background: var(--surface-subtle);
+  border: 1px solid var(--border);
+  font-size: 13.5px;
+  color: var(--text-default);
+}
+
+.conf-opciones-si-no {
+  display: inline-flex;
+  align-self: flex-start;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.conf-opciones-si-no button {
+  min-width: 64px;
+  height: 40px;
+  border: none;
+  background: var(--surface);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-muted);
   cursor: pointer;
 }
 
-.conf-variable:hover {
+.conf-opciones-si-no button.activa {
+  background: var(--brand);
+  color: #fff;
+}
+
+.conf-tonos {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.conf-tono {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  text-align: left;
+  cursor: pointer;
+}
+
+.conf-tono strong {
+  font-size: 13.5px;
+  color: var(--text-strong);
+}
+
+.conf-tono small {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.conf-tono.activa {
   border-color: var(--brand);
-  color: var(--brand-700);
+  background: var(--brand-50);
+  box-shadow: 0 0 0 1px var(--brand);
+}
+
+.conf-faq {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.conf-faq-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-subtle);
+}
+
+.conf-faq-campos {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+}
+
+.conf-faq-campos input,
+.conf-faq-campos textarea {
+  padding: 9px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  font-size: 14px;
+  font-family: inherit;
+  color: var(--text-strong);
+  resize: vertical;
+}
+
+.conf-faq-campos input {
+  font-weight: 600;
+}
+
+.conf-faq-quitar {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.conf-faq-quitar:hover {
+  background: var(--danger-50);
+  color: var(--danger);
+}
+
+.conf-faq-agregar {
+  align-self: flex-start;
+}
+
+.conf-indicaciones {
+  margin-top: 14px;
+}
+
+@media (max-width: 640px) {
+  .conf-tonos {
+    grid-template-columns: 1fr;
+  }
+
+  .conf-faq-campos input,
+  .conf-faq-campos textarea {
+    font-size: 16px;
+  }
 }

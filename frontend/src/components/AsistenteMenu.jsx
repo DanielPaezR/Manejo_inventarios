@@ -21,6 +21,7 @@ const AsistenteMenu = ({ moduloId, modulo, subirPorCarrito }) => {
   const inputRef = useRef(null);
 
   const nombre = modulo?.nombre_publico || 'el negocio';
+  const titulo = modulo?.bot_nombre ? `${modulo.bot_nombre} · ${nombre}` : `Asistente de ${nombre}`;
   const sugerencias = modulo?.tiene_domicilio
     ? ['¿Cuánto cuesta el domicilio?', ...SUGERENCIAS_BASE]
     : SUGERENCIAS_BASE;
@@ -70,10 +71,10 @@ const AsistenteMenu = ({ moduloId, modulo, subirPorCarrito }) => {
   }
 
   return (
-    <div className="am-panel" role="dialog" aria-label={`Asistente de ${nombre}`}>
+    <div className="am-panel" role="dialog" aria-label={titulo}>
       <div className="am-panel__header">
         <div>
-          <strong>Asistente de {nombre}</strong>
+          <strong>{titulo}</strong>
           <small>Respuestas automáticas con la información del negocio</small>
         </div>
         <button type="button" className="am-cerrar" onClick={() => setAbierto(false)} aria-label="Cerrar">✕</button>
@@ -81,7 +82,8 @@ const AsistenteMenu = ({ moduloId, modulo, subirPorCarrito }) => {
 
       <div className="am-mensajes" ref={listaRef} aria-live="polite">
         <div className="am-msg am-msg--bot">
-          ¡Hola! Te ayudo con precios, horarios{modulo?.tiene_domicilio ? ', domicilios' : ''} y cómo hacer tu pedido. ¿Qué necesitas?
+          {modulo?.bot_saludo
+            || `¡Hola! ${modulo?.bot_nombre ? `Soy ${modulo.bot_nombre}. ` : ''}Te ayudo con precios, horarios${modulo?.tiene_domicilio ? ', domicilios' : ''} y cómo hacer tu pedido. ¿Qué necesitas?`}
         </div>
         {mensajes.map((m, i) => (
           <div key={i} className={`am-msg ${m.rol === 'user' ? 'am-msg--yo' : 'am-msg--bot'}`}>{m.texto}</div>

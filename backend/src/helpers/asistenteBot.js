@@ -88,44 +88,67 @@ const listarProductos = (productos, max = 150) => {
   return [...porCategoria.entries()].map(([cat, items]) => `${cat}: ${items.join(', ')}`).join('. ');
 };
 
-// Variables disponibles para el prompt personalizado (como en Wabot).
-const valoresVariables = (modulo, productos) => {
-  const t = textosTipo(modulo);
+// Personalidad del asistente que el negocio elige en Configuración, con
+// controles simples (sin variables ni código). Todo llega ya validado.
+const TONOS = {
+  amable: 'Habla de forma amable y cercana, como un buen vendedor de barrio.',
+  formal: 'Habla de forma formal y respetuosa; trata al cliente de "usted".',
+  juvenil: 'Habla de forma juvenil, relajada y divertida, sin perder el respeto.'
+};
+
+const limpiarEstilo = (estilo) => {
+  const e = estilo && typeof estilo === 'object' ? estilo : {};
+  const texto = (v, max) => (typeof v === 'string' ? v.trim().slice(0, max) : '');
   return {
-    '{nombre_negocio}': modulo.nombre_publico || modulo.nombre,
-    '{tipo_negocio}': t.tipo,
-    '{horario}': modulo.bot_horario || 'No disponible',
-    '{direccion}': modulo.negocio_direccion || 'No disponible',
-    '{telefono}': modulo.negocio_telefono || 'No disponible',
-    '{domicilio}': modulo.tiene_domicilio ? 'Sí hace domicilios' : `No hace domicilios; los pedidos son para ${t.recoger}`,
-    '{costo_domicilio}': modulo.bot_envio_costo !== null && modulo.bot_envio_costo !== undefined ? pesos(modulo.bot_envio_costo) : 'No disponible',
-    '{info_domicilio}': modulo.bot_envio_info || 'No disponible',
-    '{medios_pago}': MEDIOS_PAGO,
-    '{info_extra}': modulo.bot_info_extra || 'No disponible',
-    '{productos}': listarProductos(productos) || 'No hay productos disponibles'
+    nombre_asistente: texto(e.nombre_asistente, 40),
+    tono: TONOS[e.tono] ? e.tono : 'amable',
+    emojis: e.emojis !== false,
+    saludo: texto(e.saludo, 200),
+    faq: (Array.isArray(e.faq) ? e.faq : [])
+      .map(f => ({ pregunta: texto(f?.pregunta, 150), respuesta: texto(f?.respuesta, 500) }))
+      .filter(f => f.pregunta && f.respuesta)
+      .slice(0, 15),
+    indicaciones: texto(e.indicaciones, 1000)
   };
 };
 
-const VARIABLES_PROMPT = Object.keys(valoresVariables({ negocio_tipo: 'tienda' }, []));
-
 const construirPromptNegocio = (modulo, productos) => {
-  const valores = valoresVariables(modulo, productos);
-  if (modulo.bot_prompt) {
-    let prompt = modulo.bot_prompt;
-    for (const [variable, valor] of Object.entries(valores)) prompt = prompt.split(variable).join(valor);
-    return prompt;
+  const t = textosTipo(modulo);
+  const estilo = limpiarEstilo(modulo.bot_estilo);
+  const partes = [`Negocio: ${modulo.nombre_publico || modulo.nombre} (${t.tipo}).`];
+  if (modulo.negocio_direccion) partes.push(`Dirección: ${modulo.negocio_direccion}`);
+  if (modulo.negocio_telefono) partes.push(`Teléfono de contacto: ${modulo.negocio_telefono}`);
+  if (modulo.bot_horario) partes.push(`Horario de atención: ${modulo.bot_horario}`);
+  if (modulo.tiene_domicilio) {
+    partes.push('Domicilios: sí hace domicilios.');
+    if (modulo.bot_envio_costo !== null && modulo.bot_envio_costo !== undefined) partes.push(`Costo del domicilio: ${pesos(modulo.bot_envio_costo)}`);
+    if (modulo.bot_envio_info) partes.push(`Condiciones del domicilio: ${modulo.bot_envio_info}`);
+  } else {
+    partes.push(`Domicilios: no hace domicilios; los pedidos son para ${t.recoger}.`);
   }
-  const partes = [`Negocio: ${valores['{nombre_negocio}']} (${valores['{tipo_negocio}']}).`];
-  for (const [etiqueta, clave] of [
-    ['Dirección', '{direccion}'], ['Teléfono de contacto', '{telefono}'], ['Horario de atención', '{horario}'],
-    ['Domicilios', '{domicilio}'], ['Costo del domicilio', '{costo_domicilio}'], ['Condiciones del domicilio', '{info_domicilio}'],
-    ['Medios de pago', '{medios_pago}'], ['Información adicional', '{info_extra}']
-  ]) {
-    if (valores[clave] !== 'No disponible') partes.push(`${etiqueta}: ${valores[clave]}`);
+  partes.push(`Medios de pago: ${MEDIOS_PAGO}`);
+  if (modulo.bot_info_extra) partes.push(`Información adicional: ${modulo.bot_info_extra}`);
+  partes.push(`Productos disponibles y precios: ${listarProductos(productos) || 'No hay productos disponibles'}.`);
+
+  partes.push('', 'Personalidad:');
+  if (estilo.nombre_asistente) partes.push(`Te llamas ${estilo.nombre_asistente}.`);
+  partes.push(TONOS[estilo.tono]);
+  partes.push(estilo.emojis ? 'Puedes usar algunos emojis.' : 'No uses emojis.');
+  if (estilo.faq.length) {
+    partes.push('', 'Preguntas frecuentes del negocio (si te preguntan algo parecido, responde con esta información):');
+    for (const f of estilo.faq) partes.push(`- Pregunta: ${f.pregunta}\n  Respuesta: ${f.respuesta}`);
   }
-  partes.push(`Productos disponibles y precios: ${valores['{productos}']}.`);
+  if (estilo.indicaciones) partes.push('', `Indicaciones del negocio: ${estilo.indicaciones}`);
   return partes.join('\n');
 };
+
+// Quita emojis de la respuesta cuando el negocio no los quiere (las
+// funciones arman textos con emojis).
+const quitarEmojis = (texto) => texto
+  .replace(/[\p{Extended_Pictographic}️‍]/gu, '')
+  .replace(/[ \t]+\n/g, '\n')
+  .replace(/^[ \t]+/gm, '')
+  .trim();
 
 // ---------- Funciones (tools) ----------
 const TOOLS = [
@@ -303,13 +326,15 @@ const responder = async ({ db, modulo, productos, historial, pregunta, ahora }) 
 
   const t = textosTipo(modulo);
   const nombreNegocio = modulo.nombre_publico || modulo.nombre;
+  const estilo = limpiarEstilo(modulo.bot_estilo);
+  const conEstilo = (texto) => (estilo.emojis ? texto : quitarEmojis(texto));
   const messages = [
     {
       role: 'system',
       content:
-        `Eres el asistente virtual de ${nombreNegocio}, que atiende a clientes que miran el ${t.catalogo} en línea, sin supervisión del negocio. ` +
+        `Eres ${estilo.nombre_asistente ? `${estilo.nombre_asistente}, ` : ''}el asistente virtual de ${nombreNegocio}, que atiende a clientes que miran el ${t.catalogo} en línea, sin supervisión del negocio. ` +
         'REGLAS IMPORTANTES: ' +
-        '1) Responde en español, breve y amable; puedes usar emojis. ' +
+        '1) Responde en español y breve, con la personalidad que el negocio eligió. ' +
         '2) Usa las herramientas (tools) para responder sobre horarios, domicilios, productos, precios, cómo pedir y estado de pedidos. ' +
         '3) NO inventes productos, precios, descuentos, promociones, horarios, costos de envío ni tiempos de entrega. ' +
         '4) No tomas pedidos ni confirmas pagos: explica cómo hacerlo en la página con la función como_pedir. ' +
@@ -358,11 +383,11 @@ const responder = async ({ db, modulo, productos, historial, pregunta, ahora }) 
       console.error('❌ [ASISTENTE] Argumentos de función inválidos:', e.message);
     }
     const texto = await ejecutarFuncion(llamada.function.name, args, { db, modulo, productos: productos || [] });
-    return { texto, uso, funcion: llamada.function.name };
+    return { texto: conEstilo(texto), uso, funcion: llamada.function.name };
   }
 
   const texto = (choice.message.content || '').trim();
-  return { texto: texto || 'Lo siento, no pude procesar tu pregunta. ¿Me la repites de otra forma? 😊', uso };
+  return { texto: conEstilo(texto || 'Lo siento, no pude procesar tu pregunta. ¿Me la repites de otra forma? 😊'), uso };
 };
 
-module.exports = { botDisponible, responder, construirPromptNegocio, sanitizarMensaje, ejecutarFuncion, VARIABLES_PROMPT, OPENAI_MODEL };
+module.exports = { botDisponible, responder, construirPromptNegocio, sanitizarMensaje, ejecutarFuncion, limpiarEstilo, quitarEmojis, OPENAI_MODEL };

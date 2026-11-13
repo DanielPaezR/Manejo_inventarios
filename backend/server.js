@@ -30,7 +30,7 @@ const { generarNumeroFactura } = require('./src/helpers/generarNumeroFactura');
 const { generarNumeroCliente } = require('./src/helpers/generarNumeroCliente');
 const { geocodificar } = require('./src/helpers/geocodificar');
 const OpenAI = require('openai');
-const { botDisponible, responder: responderBot, VARIABLES_PROMPT } = require('./src/helpers/asistenteBot');
+const { botDisponible, responder: responderBot, limpiarEstilo } = require('./src/helpers/asistenteBot');
 
 // Divide el ingreso de una venta entre los módulos dueños reales de cada
 // línea vendida (duenoPorProducto), no todo al módulo que hizo la venta —
@@ -7532,7 +7532,7 @@ app.get('/api/menu/:moduloId', async (req, res) => {
     }
 
     const moduloResult = await pool.query(
-      `SELECT m.id, m.nombre, m.nombre_publico, m.activo, m.foto_portada_url, m.tiene_domicilio, m.bot_activo,
+      `SELECT m.id, m.nombre, m.nombre_publico, m.activo, m.foto_portada_url, m.tiene_domicilio, m.bot_activo, m.bot_estilo,
               n.nombre as negocio_nombre, n.tipo as negocio_tipo
        FROM modulos m
        JOIN negocios n ON m.negocio_id = n.id
@@ -7568,7 +7568,10 @@ app.get('/api/menu/:moduloId', async (req, res) => {
         negocio_tipo: moduloResult.rows[0].negocio_tipo,
         // El asistente solo aparece si el negocio lo encendió y el servidor
         // tiene la clave de la API configurada.
-        bot_activo: moduloResult.rows[0].bot_activo && botDisponible()
+        bot_activo: moduloResult.rows[0].bot_activo && botDisponible(),
+        // Nombre y saludo que el negocio eligió para su asistente.
+        bot_nombre: limpiarEstilo(moduloResult.rows[0].bot_estilo).nombre_asistente || null,
+        bot_saludo: limpiarEstilo(moduloResult.rows[0].bot_estilo).saludo || null
       },
       productos: productosResult.rows
     });
@@ -7629,7 +7632,7 @@ const limpiarHistorialBot = (mensajes) => {
 const cargarContextoBot = async (moduloId) => {
   const moduloResult = await pool.query(
     `SELECT m.id, m.nombre, m.nombre_publico, m.activo, m.tiene_domicilio, m.bot_activo, m.bot_horario,
-            m.bot_envio_costo, m.bot_envio_info, m.bot_info_extra, m.bot_prompt,
+            m.bot_envio_costo, m.bot_envio_info, m.bot_info_extra, m.bot_estilo,
             n.nombre AS negocio_nombre, n.tipo AS negocio_tipo, n.telefono AS negocio_telefono,
             n.direccion AS negocio_direccion, n.activo AS negocio_activo
      FROM modulos m JOIN negocios n ON n.id = m.negocio_id
@@ -7719,7 +7722,7 @@ app.post('/api/menu/:moduloId/bot', async (req, res) => {
 app.get('/api/modulos/:id/bot', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
   try {
     const result = await pool.query(
-      `SELECT m.bot_activo, m.bot_horario, m.bot_envio_costo, m.bot_envio_info, m.bot_info_extra, m.bot_prompt, m.tiene_domicilio
+      `SELECT m.bot_activo, m.bot_horario, m.bot_envio_costo, m.bot_envio_info, m.bot_info_extra, m.bot_estilo, m.tiene_domicilio
        FROM modulos m WHERE m.id = $1 AND m.negocio_id = $2`,
       [req.params.id, req.negocioId]
     );
@@ -7741,8 +7744,8 @@ app.get('/api/modulos/:id/bot', authenticateToken, checkAccess, requireAdmin, as
     res.json({
       ...c,
       bot_envio_costo: c.bot_envio_costo === null ? null : Number(c.bot_envio_costo),
+      bot_estilo: limpiarEstilo(c.bot_estilo),
       disponible: botDisponible(),
-      variables_prompt: VARIABLES_PROMPT,
       preguntas_hoy: hoy.rows[0].total,
       limite_diario: BOT_LIMITE_DIARIO_MODULO,
       ultimas: ultimas.rows
@@ -7765,11 +7768,11 @@ app.put('/api/modulos/:id/bot', authenticateToken, checkAccess, requireAdmin, as
     }
     const result = await pool.query(
       `UPDATE modulos
-       SET bot_activo = $1, bot_horario = $2, bot_envio_costo = $3, bot_envio_info = $4, bot_info_extra = $5, bot_prompt = $6
+       SET bot_activo = $1, bot_horario = $2, bot_envio_costo = $3, bot_envio_info = $4, bot_info_extra = $5, bot_estilo = $6
        WHERE id = $7 AND negocio_id = $8
-       RETURNING bot_activo, bot_horario, bot_envio_costo, bot_envio_info, bot_info_extra, bot_prompt`,
+       RETURNING bot_activo, bot_horario, bot_envio_costo, bot_envio_info, bot_info_extra, bot_estilo`,
       [!!req.body.bot_activo, texto(req.body.bot_horario, 300), costo,
-        texto(req.body.bot_envio_info, 1500), texto(req.body.bot_info_extra, 3000), texto(req.body.bot_prompt, 4000),
+        texto(req.body.bot_envio_info, 1500), texto(req.body.bot_info_extra, 3000), JSON.stringify(limpiarEstilo(req.body.bot_estilo)),
         req.params.id, req.negocioId]
     );
     if (result.rows.length === 0) {
