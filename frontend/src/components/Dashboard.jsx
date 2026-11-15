@@ -25,7 +25,7 @@ const MENU = {
     { path: '/pedidos-cliente', icon: ReceiptText, label: 'Pedidos de Clientes' },
     { path: '/ruta-entregas', icon: Bike, label: 'Ruta de Entregas' },
     { path: '/clientes', icon: Users, label: 'Clientes' },
-    { path: '/facturas', icon: FileSearch, label: 'Buscar Factura' },
+    { path: '/facturas', icon: FileSearch, label: 'Facturas' },
     { path: '/finanzas', icon: Wallet, label: 'Finanzas' },
     { path: '/finanzas-negocio', icon: Landmark, label: 'Finanzas del Negocio' },
     { path: '/configuracion', icon: Settings, label: 'Configuración' }

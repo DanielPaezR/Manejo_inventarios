@@ -1494,6 +1494,42 @@ app.get('/api/ventas', authenticateToken, checkAccess, async (req, res) => {
   }
 });
 
+// Historial de ventas de un día (hora Colombia), con o sin cliente. Sirve para
+// revisar qué se cobró en una cuenta sin cliente asignado sin saber el número
+// de factura. ?sin_cliente=1 deja solo las ventas sin cliente registrado.
+app.get('/api/ventas/del-dia', authenticateToken, checkAccess, async (req, res) => {
+  try {
+    const moduloId = req.moduloId;
+    if (!moduloId) {
+      return res.status(400).json({ error: 'Se requiere un módulo' });
+    }
+    const fecha = /^\d{4}-\d{2}-\d{2}$/.test(req.query.fecha || '')
+      ? req.query.fecha
+      : ahoraColombia().format('YYYY-MM-DD');
+    const soloSinCliente = req.query.sin_cliente === '1';
+
+    const result = await pool.query(
+      `SELECT v.id, v.numero_factura, v.fecha_venta, v.cliente_nombre, v.cliente_id, v.total,
+              v.metodo_pago, v.es_ajuste_manual, u.nombre AS vendedor_nombre,
+              (SELECT string_agg(dv.cantidad || ' ' || p.nombre, ', ' ORDER BY dv.id)
+               FROM detalle_venta dv JOIN productos p ON p.id = dv.producto_id
+               WHERE dv.venta_id = v.id) AS productos
+       FROM ventas v
+       LEFT JOIN usuarios u ON u.id = v.usuario_id
+       WHERE v.modulo_id = $1
+         AND (v.fecha_venta AT TIME ZONE 'UTC' AT TIME ZONE 'America/Bogota')::date = $2::date
+         AND ($3::boolean = false OR v.cliente_id IS NULL)
+       ORDER BY v.fecha_venta DESC`,
+      [moduloId, fecha, soloSinCliente]
+    );
+
+    res.json({ fecha, ventas: result.rows });
+  } catch (error) {
+    console.error('Error obteniendo ventas del día:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
 // Buscador de facturas por número (ej. "FAC001231") — para revisar rápido
 // qué se compró y cuándo, pegando el serial impreso en el recibo. Búsqueda
 // parcial e insensible a mayúsculas (no hace falta copiar el número

@@ -162,3 +162,88 @@
     text-align: right;
   }
 }
+
+/* ---------- Ventas del día ---------- */
+.bf-dia {
+  margin-top: 8px;
+}
+
+.bf-dia-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.bf-dia-header h3 {
+  margin: 0;
+  font-size: 16px;
+  color: var(--text-strong);
+}
+
+.bf-dia-fecha {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.bf-dia-fecha input {
+  height: 38px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 14px;
+  font-family: inherit;
+}
+
+.bf-dia-fecha button {
+  width: 38px;
+  height: 38px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.bf-dia-fecha button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.bf-filtros {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  margin-bottom: 10px;
+}
+
+.bf-filtros button {
+  padding: 8px 14px;
+  border: none;
+  background: var(--surface);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.bf-filtros button.activo {
+  background: var(--brand);
+  color: #fff;
+}
+
+.bf-dia-resumen {
+  margin: 0 0 10px;
+  font-size: 14px;
+  color: var(--text-muted);
+}
+
+.bf-resultado-productos {
+  font-size: 13px;
+  color: var(--text-default);
+}
