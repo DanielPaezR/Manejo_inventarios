@@ -1162,3 +1162,168 @@
   gap: 8px;
   margin-top: 12px;
 }
+
+/* ---------- Lista de pedidos por estado ---------- */
+.lista-pedidos {
+  margin-bottom: 20px;
+}
+
+.lista-pedidos__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.lista-pedidos .lista-pedidos__header h3 {
+  margin: 0;
+  text-align: left;
+  font-size: 17px;
+  color: var(--text-strong);
+}
+
+.lista-pedidos__tabs {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  margin-bottom: 14px;
+  border-radius: 12px;
+  background: var(--surface-subtle);
+  overflow-x: auto;
+}
+
+.lista-pedidos__tab {
+  flex: 1 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 9px 14px;
+  border: none;
+  border-radius: 9px;
+  background: transparent;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-muted);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.lista-pedidos__tab.activa {
+  background: var(--surface);
+  color: var(--text-strong);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.lista-pedidos__contador {
+  min-width: 22px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--border);
+  font-size: 12px;
+  color: var(--text-default);
+}
+
+.lista-pedidos__tab.activa .lista-pedidos__contador {
+  background: var(--brand);
+  color: #fff;
+}
+
+.lista-pedidos__items {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.pedido-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--border-strong);
+  border-radius: 10px;
+  background: var(--surface);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.pedido-item:hover {
+  border-color: var(--brand);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+.pedido-item--pendiente { border-left-color: #ed8936; }
+.pedido-item--enviado { border-left-color: #4299e1; }
+.pedido-item--recibido { border-left-color: #48bb78; }
+.pedido-item--cancelado { border-left-color: #fc8181; opacity: 0.8; }
+
+.pedido-item__fila {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.pedido-item__proveedor {
+  font-size: 15px;
+  color: var(--text-strong);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pedido-item__meta {
+  font-size: 12.5px;
+  color: var(--text-muted);
+}
+
+.pedido-item__resumen {
+  font-size: 13px;
+  color: var(--text-default);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pedido-item__pie {
+  margin-top: 4px;
+}
+
+.pedido-item__total {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-strong);
+}
+
+.pedido-item__ver {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--brand-700);
+}
+
+.lista-pedidos__vacio {
+  padding: 28px 12px;
+  text-align: center;
+  color: var(--text-muted);
+}
+
+.lista-pedidos__vacio p {
+  margin: 0 0 12px;
+}
+
+.lista-pedidos__mas {
+  display: block;
+  width: 100%;
+  margin-top: 12px;
+  padding: 10px;
+  border: 1px dashed var(--border-strong);
+  border-radius: 10px;
+  background: none;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--brand-700);
+  cursor: pointer;
+}

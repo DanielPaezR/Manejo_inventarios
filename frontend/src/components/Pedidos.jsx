@@ -8,7 +8,10 @@ const Pedidos = ({ user }) => {
   const { moduloActivo } = useModulo();
   const [pedidos, setPedidos] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [filtroEstado, setFiltroEstado] = useState('todos');
+  // Por defecto solo lo que falta por llegar, para no ver la lista entera de recibidos.
+  const [filtroEstado, setFiltroEstado] = useState('activos');
+  const [limitePedidos, setLimitePedidos] = useState(20);
+  const [conteos, setConteos] = useState({ pendiente: 0, enviado: 0, recibido: 0, cancelado: 0 });
   const [showDetalleModal, setShowDetalleModal] = useState(false);
   const [pedidoSeleccionado, setPedidoSeleccionado] = useState(null);
   // Copia editable de los productos del pedido abierto (null = no se está editando).
@@ -43,14 +46,19 @@ const Pedidos = ({ user }) => {
       cargarProveedores();
       cargarProductos();
     }
-  }, [moduloActivo, filtroEstado]);
+  }, [moduloActivo, filtroEstado, limitePedidos]);
 
   const cargarPedidos = async () => {
     try {
       setLoading(true);
-      const params = filtroEstado !== 'todos' ? { estado: filtroEstado } : {};
-      const response = await api.get('/pedidos', { params });
+      const params = { limit: limitePedidos + 1 };
+      if (filtroEstado !== 'todos') params.estado = filtroEstado;
+      const [response, conteosRes] = await Promise.all([
+        api.get('/pedidos', { params }),
+        api.get('/pedidos/conteos')
+      ]);
       setPedidos(response.data);
+      setConteos(conteosRes.data);
     } catch (error) {
       console.error('Error cargando pedidos:', error);
       alert('Error al cargar pedidos');
@@ -381,6 +389,15 @@ const Pedidos = ({ user }) => {
     return estados[estado] || estados.pendiente;
   };
 
+  const cambiarFiltro = (filtro) => {
+    setFiltroEstado(filtro);
+    setLimitePedidos(20);
+  };
+
+  const formatearFechaCorta = (fecha) => new Date(fecha).toLocaleDateString('es-CO', {
+    weekday: 'short', day: 'numeric', month: 'short'
+  });
+
   const totalPedido = (detalles) => {
     return detalles.reduce((sum, d) => sum + (d.cantidad * d.precio_unitario), 0);
   };
@@ -426,6 +443,87 @@ const Pedidos = ({ user }) => {
       {/* Calendario: qué proveedor toca pedir y cuándo llega. "Revisar
           pedido" calcula la sugerencia de ese proveedor más abajo. */}
       <CalendarioPedidos onRevisar={revisarPedidoProveedor} recargarCon={pedidos} />
+
+      {/* Lista de pedidos por estado */}
+      <div className="card lista-pedidos">
+        <div className="lista-pedidos__header">
+          <h3>📦 Tus pedidos</h3>
+          <button onClick={cargarPedidos} className="btn-refresh" title="Actualizar" aria-label="Actualizar">🔄</button>
+        </div>
+
+        <div className="lista-pedidos__tabs" role="tablist">
+          {[
+            { valor: 'activos', label: 'Por llegar', total: conteos.pendiente + conteos.enviado },
+            { valor: 'recibido', label: 'Recibidos', total: conteos.recibido },
+            { valor: 'cancelado', label: 'Cancelados', total: conteos.cancelado },
+            { valor: 'todos', label: 'Todos', total: conteos.pendiente + conteos.enviado + conteos.recibido + conteos.cancelado }
+          ].map(tab => (
+            <button
+              key={tab.valor}
+              type="button"
+              role="tab"
+              aria-selected={filtroEstado === tab.valor}
+              className={`lista-pedidos__tab ${filtroEstado === tab.valor ? 'activa' : ''}`}
+              onClick={() => cambiarFiltro(tab.valor)}
+            >
+              {tab.label}
+              <span className="lista-pedidos__contador">{tab.total}</span>
+            </button>
+          ))}
+        </div>
+
+        {loading && pedidos.length === 0 ? (
+          <div className="loading">Cargando pedidos...</div>
+        ) : pedidos.length === 0 ? (
+          <div className="lista-pedidos__vacio">
+            <p>
+              {filtroEstado === 'activos' ? '🎉 No tienes pedidos por llegar.'
+                : filtroEstado === 'recibido' ? 'Todavía no has recibido pedidos.'
+                : filtroEstado === 'cancelado' ? 'No hay pedidos cancelados.'
+                : 'No hay pedidos registrados.'}
+            </p>
+            <button onClick={() => setShowCrearModal(true)} className="btn-agregar-primero">
+              + Crear pedido
+            </button>
+          </div>
+        ) : (
+          <>
+            <div className="lista-pedidos__items">
+              {pedidos.slice(0, limitePedidos).map(pedido => {
+                const estado = getEstadoBadge(pedido.estado);
+                return (
+                  <button
+                    key={pedido.id}
+                    type="button"
+                    className={`pedido-item pedido-item--${pedido.estado}`}
+                    onClick={() => verDetalle(pedido.id)}
+                  >
+                    <div className="pedido-item__fila">
+                      <strong className="pedido-item__proveedor">{pedido.proveedor_nombre}</strong>
+                      <span className="estado-badge" style={{ background: estado.color }}>{estado.label}</span>
+                    </div>
+                    <div className="pedido-item__meta">
+                      #{pedido.id} · {formatearFechaCorta(pedido.fecha_pedido)} · {pedido.num_productos || 0} {Number(pedido.num_productos) === 1 ? 'producto' : 'productos'}
+                    </div>
+                    {pedido.productos_resumen && (
+                      <div className="pedido-item__resumen">{pedido.productos_resumen}</div>
+                    )}
+                    <div className="pedido-item__fila pedido-item__pie">
+                      <span className="pedido-item__total">${Number(pedido.total || 0).toLocaleString('es-CO')}</span>
+                      <span className="pedido-item__ver">Ver detalle ›</span>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+            {pedidos.length > limitePedidos && (
+              <button type="button" className="lista-pedidos__mas" onClick={() => setLimitePedidos(l => l + 20)} disabled={loading}>
+                {loading ? 'Cargando...' : 'Ver más pedidos'}
+              </button>
+            )}
+          </>
+        )}
+      </div>
 
       {/* Sugerencia de pedido por proveedor específico */}
       <div className="card sugerencia-pedido-proveedor" ref={sugerenciaPedidoRef}>
@@ -528,101 +626,6 @@ const Pedidos = ({ user }) => {
           )
         )}
       </div>
-
-      <div className="filtros-pedidos">
-        <div className="filtros-group">
-          <button 
-            className={`btn-filtro ${filtroEstado === 'todos' ? 'active' : ''}`}
-            onClick={() => setFiltroEstado('todos')}
-          >
-            Todos
-          </button>
-          <button 
-            className={`btn-filtro ${filtroEstado === 'pendiente' ? 'active' : ''}`}
-            onClick={() => setFiltroEstado('pendiente')}
-          >
-            ⏳ Pendientes
-          </button>
-          <button 
-            className={`btn-filtro ${filtroEstado === 'enviado' ? 'active' : ''}`}
-            onClick={() => setFiltroEstado('enviado')}
-          >
-            📤 Enviados
-          </button>
-          <button 
-            className={`btn-filtro ${filtroEstado === 'recibido' ? 'active' : ''}`}
-            onClick={() => setFiltroEstado('recibido')}
-          >
-            ✅ Recibidos
-          </button>
-          <button 
-            className={`btn-filtro ${filtroEstado === 'cancelado' ? 'active' : ''}`}
-            onClick={() => setFiltroEstado('cancelado')}
-          >
-            ❌ Cancelados
-          </button>
-        </div>
-        <button onClick={cargarPedidos} className="btn-refresh">
-          🔄
-        </button>
-      </div>
-
-      {loading ? (
-        <div className="loading">Cargando pedidos...</div>
-      ) : (
-        <div className="pedidos-table">
-          {pedidos.length === 0 ? (
-            <div className="sin-datos">
-              <p>No hay pedidos registrados</p>
-              <button onClick={() => setShowCrearModal(true)} className="btn-agregar-primero">
-                + Crear primer pedido
-              </button>
-            </div>
-          ) : (
-            <table>
-              <thead>
-                <tr>
-                  <th>ID</th>
-                  <th>Proveedor</th>
-                  <th>Fecha</th>
-                  <th>Productos</th>
-                  <th>Total</th>
-                  <th>Estado</th>
-                  <th>Acciones</th>
-                </tr>
-              </thead>
-              <tbody>
-                {pedidos.map(pedido => {
-                  const estado = getEstadoBadge(pedido.estado);
-                  return (
-                    <tr key={pedido.id}>
-                      <td>#{pedido.id}</td>
-                      <td>{pedido.proveedor_nombre}</td>
-                      <td>{new Date(pedido.fecha_pedido).toLocaleDateString()}</td>
-                      <td>{pedido.detalles?.length || 0} productos</td>
-                      <td>${Number(pedido.total || 0).toLocaleString()}</td>
-                      <td>
-                        <span className="estado-badge" style={{ background: estado.color }}>
-                          {estado.label}
-                        </span>
-                      </td>
-                      <td>
-                        <button 
-                          onClick={() => verDetalle(pedido.id)} 
-                          className="btn-ver"
-                          title="Ver detalle"
-                        >
-                          👁️
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          )}
-        </div>
-      )}
 
       {/* Modal de detalle */}
       {showDetalleModal && pedidoSeleccionado && (

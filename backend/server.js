@@ -3629,31 +3629,55 @@ app.post('/api/pedidos', authenticateToken, checkAccess, requireAdmin, async (re
   }
 });
 
-// Obtener pedidos del módulo
+// Cuántos pedidos hay en cada estado (para las pestañas de Mis pedidos).
+// Va antes de /api/pedidos/:id para que "conteos" no se tome como un id.
+app.get('/api/pedidos/conteos', authenticateToken, checkAccess, async (req, res) => {
+  try {
+    const result = await pool.query(
+      'SELECT estado, COUNT(*)::int AS total FROM pedidos_proveedor WHERE modulo_id = $1 GROUP BY estado',
+      [req.moduloId]
+    );
+    const conteos = { pendiente: 0, enviado: 0, recibido: 0, cancelado: 0 };
+    for (const fila of result.rows) conteos[fila.estado] = fila.total;
+    res.json(conteos);
+  } catch (error) {
+    console.error('Error contando pedidos:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// Obtener pedidos del módulo. ?estado=activos trae los que faltan por llegar
+// (pendientes y enviados). Cada pedido trae cuántos productos tiene y un
+// resumen corto para la lista.
 app.get('/api/pedidos', authenticateToken, checkAccess, async (req, res) => {
   try {
     const moduloId = req.moduloId;
-    const { estado, limit = 50 } = req.query;
+    const { estado } = req.query;
+    const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 50, 1), 500);
 
     let query = `
-      SELECT p.*, 
+      SELECT p.*,
              pr.nombre as proveedor_nombre,
-             pr.telefono as proveedor_telefono
+             pr.telefono as proveedor_telefono,
+             (SELECT COUNT(*)::int FROM pedido_detalle pd WHERE pd.pedido_id = p.id) AS num_productos,
+             (SELECT string_agg(prod.nombre || ' x' || pd.cantidad, ', ' ORDER BY pd.id)
+              FROM pedido_detalle pd JOIN productos prod ON prod.id = pd.producto_id
+              WHERE pd.pedido_id = p.id) AS productos_resumen
       FROM pedidos_proveedor p
       JOIN proveedores pr ON p.proveedor_id = pr.id
       WHERE p.modulo_id = $1
     `;
-    let params = [moduloId];
-    let paramIndex = 2;
+    const params = [moduloId];
 
-    if (estado) {
-      query += ` AND p.estado = $${paramIndex}`;
+    if (estado === 'activos') {
+      query += ` AND p.estado IN ('pendiente', 'enviado')`;
+    } else if (estado) {
       params.push(estado);
-      paramIndex++;
+      query += ` AND p.estado = $${params.length}`;
     }
 
-    query += ` ORDER BY p.fecha_pedido DESC LIMIT $${paramIndex}`;
     params.push(limit);
+    query += ` ORDER BY p.fecha_pedido DESC LIMIT $${params.length}`;
 
     const result = await pool.query(query, params);
     res.json(result.rows);
