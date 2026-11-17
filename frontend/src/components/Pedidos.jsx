@@ -11,6 +11,9 @@ const Pedidos = ({ user }) => {
   const [filtroEstado, setFiltroEstado] = useState('todos');
   const [showDetalleModal, setShowDetalleModal] = useState(false);
   const [pedidoSeleccionado, setPedidoSeleccionado] = useState(null);
+  // Copia editable de los productos del pedido abierto (null = no se está editando).
+  const [edicionDetalles, setEdicionDetalles] = useState(null);
+  const [guardandoEdicion, setGuardandoEdicion] = useState(false);
   const [showCrearModal, setShowCrearModal] = useState(false);
   const [proveedores, setProveedores] = useState([]);
   const [productos, setProductos] = useState([]);
@@ -241,12 +244,51 @@ const Pedidos = ({ user }) => {
       setLoading(true);
       const response = await api.get(`/pedidos/${id}`);
       setPedidoSeleccionado(response.data);
+      setEdicionDetalles(null);
       setShowDetalleModal(true);
     } catch (error) {
       console.error('Error cargando detalle del pedido:', error);
       alert('Error al cargar el detalle del pedido');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const empezarEdicion = () => {
+    setEdicionDetalles((pedidoSeleccionado.detalles || [])
+      .filter(d => d.producto_id)
+      .map(d => ({ ...d, cantidad: Number(d.cantidad) })));
+  };
+
+  const cambiarCantidadEdicion = (productoId, valor) => {
+    const cantidad = valor === '' ? '' : Math.max(0, parseInt(valor, 10) || 0);
+    setEdicionDetalles(prev => prev.map(d => (d.producto_id === productoId ? { ...d, cantidad } : d)));
+  };
+
+  const quitarDeEdicion = (productoId) => {
+    setEdicionDetalles(prev => prev.filter(d => d.producto_id !== productoId));
+  };
+
+  const guardarEdicion = async () => {
+    const quedan = edicionDetalles.filter(d => Number(d.cantidad) > 0);
+    if (quedan.length === 0) {
+      alert('El pedido debe tener al menos un producto. Si no llegó nada, cancela el pedido.');
+      return;
+    }
+    try {
+      setGuardandoEdicion(true);
+      await api.put(`/pedidos/${pedidoSeleccionado.id}/detalles`, {
+        detalles: quedan.map(d => ({ producto_id: d.producto_id, cantidad: Number(d.cantidad) }))
+      });
+      const response = await api.get(`/pedidos/${pedidoSeleccionado.id}`);
+      setPedidoSeleccionado(response.data);
+      setEdicionDetalles(null);
+      cargarPedidos();
+    } catch (error) {
+      console.error('Error editando el pedido:', error);
+      alert(error.response?.data?.error || 'No se pudo guardar el pedido');
+    } finally {
+      setGuardandoEdicion(false);
     }
   };
 
@@ -605,7 +647,12 @@ const Pedidos = ({ user }) => {
                   )}
                 </div>
                 <div className="detalle-actions">
-                  {pedidoSeleccionado.estado === 'pendiente' && (
+                  {['pendiente', 'enviado'].includes(pedidoSeleccionado.estado) && !edicionDetalles && (
+                    <button onClick={empezarEdicion} className="btn-editar-pedido">
+                      ✏️ Editar productos
+                    </button>
+                  )}
+                  {!edicionDetalles && pedidoSeleccionado.estado === 'pendiente' && (
                     <>
                       <button onClick={() => cambiarEstado(pedidoSeleccionado.id, 'enviado')} className="btn-enviar">
                         📤 Marcar como Enviado
@@ -615,7 +662,7 @@ const Pedidos = ({ user }) => {
                       </button>
                     </>
                   )}
-                  {pedidoSeleccionado.estado === 'enviado' && (
+                  {!edicionDetalles && pedidoSeleccionado.estado === 'enviado' && (
                     <button onClick={() => cambiarEstado(pedidoSeleccionado.id, 'recibido')} className="btn-recibir">
                       ✅ Marcar como Recibido
                     </button>
@@ -625,32 +672,90 @@ const Pedidos = ({ user }) => {
 
               <div className="detalle-productos">
                 <h4>📦 Productos</h4>
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Producto</th>
-                      <th>Cantidad</th>
-                      <th>Precio</th>
-                      <th>Subtotal</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {pedidoSeleccionado.detalles?.map((detalle, index) => (
-                      <tr key={index}>
-                        <td>{detalle.producto_nombre}</td>
-                        <td>{detalle.cantidad}</td>
-                        <td>${Number(detalle.precio_unitario).toLocaleString()}</td>
-                        <td>${Number(detalle.subtotal).toLocaleString()}</td>
+                {edicionDetalles ? (
+                  <>
+                    <p className="edicion-ayuda">
+                      Ajusta lo que de verdad llegó: cambia la cantidad o quita los productos que no trajeron.
+                      Al marcar el pedido como recibido solo se suma al inventario lo que quede aquí.
+                    </p>
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>Producto</th>
+                          <th>Cantidad</th>
+                          <th>Precio</th>
+                          <th>Subtotal</th>
+                          <th></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {edicionDetalles.map((detalle) => (
+                          <tr key={detalle.producto_id}>
+                            <td>{detalle.producto_nombre}</td>
+                            <td>
+                              <input
+                                type="number"
+                                min="0"
+                                inputMode="numeric"
+                                className="input-cantidad-edicion"
+                                value={detalle.cantidad}
+                                onChange={(e) => cambiarCantidadEdicion(detalle.producto_id, e.target.value)}
+                                aria-label={`Cantidad de ${detalle.producto_nombre}`}
+                              />
+                            </td>
+                            <td>${Number(detalle.precio_unitario).toLocaleString()}</td>
+                            <td>${(Number(detalle.precio_unitario) * Number(detalle.cantidad || 0)).toLocaleString()}</td>
+                            <td>
+                              <button type="button" className="btn-quitar-edicion" title="Quitar del pedido"
+                                onClick={() => quitarDeEdicion(detalle.producto_id)}>🗑️</button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot>
+                        <tr>
+                          <td colSpan="3"><strong>Total</strong></td>
+                          <td colSpan="2"><strong>${edicionDetalles.reduce((t, d) => t + Number(d.precio_unitario) * Number(d.cantidad || 0), 0).toLocaleString()}</strong></td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                    <div className="edicion-acciones">
+                      <button type="button" className="btn-cerrar" onClick={() => setEdicionDetalles(null)} disabled={guardandoEdicion}>
+                        Cancelar
+                      </button>
+                      <button type="button" className="btn-recibir" onClick={guardarEdicion} disabled={guardandoEdicion}>
+                        {guardandoEdicion ? 'Guardando...' : '💾 Guardar cambios'}
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Producto</th>
+                        <th>Cantidad</th>
+                        <th>Precio</th>
+                        <th>Subtotal</th>
                       </tr>
-                    ))}
-                  </tbody>
-                  <tfoot>
-                    <tr>
-                      <td colSpan="3"><strong>Total</strong></td>
-                      <td><strong>${Number(pedidoSeleccionado.total || 0).toLocaleString()}</strong></td>
-                    </tr>
-                  </tfoot>
-                </table>
+                    </thead>
+                    <tbody>
+                      {pedidoSeleccionado.detalles?.map((detalle, index) => (
+                        <tr key={index}>
+                          <td>{detalle.producto_nombre}</td>
+                          <td>{detalle.cantidad}</td>
+                          <td>${Number(detalle.precio_unitario).toLocaleString()}</td>
+                          <td>${Number(detalle.subtotal).toLocaleString()}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot>
+                      <tr>
+                        <td colSpan="3"><strong>Total</strong></td>
+                        <td><strong>${Number(pedidoSeleccionado.total || 0).toLocaleString()}</strong></td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                )}
               </div>
             </div>
 

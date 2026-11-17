@@ -3703,8 +3703,88 @@ app.get('/api/pedidos/:id', authenticateToken, checkAccess, async (req, res) => 
   }
 });
 
-// Actualizar estado del pedido
+// Editar los productos de un pedido antes de recibirlo (p. ej. el proveedor
+// no trajo algo): cambia cantidades o quita productos para que al marcarlo
+// "recibido" solo se sume al inventario lo que de verdad llegó.
+// Body: { detalles: [{ producto_id, cantidad }] } con la lista completa que
+// queda; los productos que no vengan (o con cantidad 0) se quitan.
+app.put('/api/pedidos/:id/detalles', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+  let client;
+  try {
+    const { id } = req.params;
+    const moduloId = req.moduloId;
+    const detalles = Array.isArray(req.body.detalles) ? req.body.detalles : null;
+    if (!detalles) {
+      return res.status(400).json({ error: 'Se requiere la lista de productos' });
+    }
+    const quedan = new Map();
+    for (const d of detalles) {
+      const productoId = Number(d.producto_id);
+      const cantidad = Number(d.cantidad);
+      if (!Number.isInteger(productoId) || !Number.isInteger(cantidad) || cantidad < 0) {
+        return res.status(400).json({ error: 'Cantidad inválida' });
+      }
+      if (cantidad > 0) quedan.set(productoId, cantidad);
+    }
+    if (quedan.size === 0) {
+      return res.status(400).json({ error: 'El pedido debe tener al menos un producto. Si no llegó nada, cancélalo.' });
+    }
+
+    client = await pool.connect();
+    await client.query('BEGIN');
+    const pedido = await client.query(
+      'SELECT estado FROM pedidos_proveedor WHERE id = $1 AND modulo_id = $2 FOR UPDATE',
+      [id, moduloId]
+    );
+    if (pedido.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Pedido no encontrado' });
+    }
+    if (!['pendiente', 'enviado'].includes(pedido.rows[0].estado)) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'Solo se pueden editar pedidos que aún no se han recibido' });
+    }
+
+    // Solo se ajustan o quitan productos que ya estaban en el pedido.
+    const actuales = await client.query('SELECT id, producto_id FROM pedido_detalle WHERE pedido_id = $1', [id]);
+    for (const fila of actuales.rows) {
+      const cantidad = quedan.get(fila.producto_id);
+      if (cantidad) {
+        await client.query(
+          'UPDATE pedido_detalle SET cantidad = $1::int, subtotal = precio_unitario * $1::int WHERE id = $2',
+          [cantidad, fila.id]
+        );
+      } else {
+        await client.query('DELETE FROM pedido_detalle WHERE id = $1', [fila.id]);
+      }
+    }
+    const restantes = await client.query('SELECT COUNT(*)::int AS n FROM pedido_detalle WHERE pedido_id = $1', [id]);
+    if (restantes.rows[0].n === 0) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'El pedido debe tener al menos un producto. Si no llegó nada, cancélalo.' });
+    }
+    await client.query(
+      `UPDATE pedidos_proveedor
+       SET total = (SELECT COALESCE(SUM(subtotal), 0) FROM pedido_detalle WHERE pedido_id = $1)
+       WHERE id = $1`,
+      [id]
+    );
+    await client.query('COMMIT');
+    res.json({ ok: true });
+  } catch (error) {
+    if (client) await client.query('ROLLBACK').catch(() => {});
+    console.error('Error editando productos del pedido:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  } finally {
+    if (client) client.release();
+  }
+});
+
+// Actualizar estado del pedido. Al pasar a "recibido" suma al inventario lo
+// que tenga el pedido en ese momento, una sola vez (si ya estaba recibido no
+// vuelve a sumar), todo en una transacción.
 app.put('/api/pedidos/:id/estado', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+  let client;
   try {
     const { id } = req.params;
     const moduloId = req.moduloId;
@@ -3715,40 +3795,51 @@ app.put('/api/pedidos/:id/estado', authenticateToken, checkAccess, requireAdmin,
       return res.status(400).json({ error: 'Estado inválido' });
     }
 
-    const result = await pool.query(
-      `UPDATE pedidos_proveedor 
-       SET estado = $1, 
+    client = await pool.connect();
+    await client.query('BEGIN');
+    const anterior = await client.query(
+      'SELECT estado FROM pedidos_proveedor WHERE id = $1 AND modulo_id = $2 FOR UPDATE',
+      [id, moduloId]
+    );
+    if (anterior.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Pedido no encontrado' });
+    }
+    if (anterior.rows[0].estado === 'recibido' && estado !== 'recibido') {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'Este pedido ya se recibió y su mercancía ya está en el inventario' });
+    }
+
+    const result = await client.query(
+      `UPDATE pedidos_proveedor
+       SET estado = $1,
            fecha_entrega_estimada = COALESCE($2, fecha_entrega_estimada)
        WHERE id = $3 AND modulo_id = $4
        RETURNING *`,
       [estado, fecha_entrega_estimada, id, moduloId]
     );
 
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Pedido no encontrado' });
-    }
-
-    // Si el pedido se marca como "recibido", actualizar el stock
-    if (estado === 'recibido') {
-      // Obtener detalles del pedido
-      const detalles = await pool.query(
+    if (estado === 'recibido' && anterior.rows[0].estado !== 'recibido') {
+      const detalles = await client.query(
         'SELECT producto_id, cantidad FROM pedido_detalle WHERE pedido_id = $1',
         [id]
       );
-
-      // Actualizar stock de cada producto
       for (const detalle of detalles.rows) {
-        await pool.query(
+        await client.query(
           'UPDATE productos SET stock_actual = stock_actual + $1, fecha_actualizacion = NOW() WHERE id = $2',
           [detalle.cantidad, detalle.producto_id]
         );
       }
     }
 
+    await client.query('COMMIT');
     res.json(result.rows[0]);
   } catch (error) {
+    if (client) await client.query('ROLLBACK').catch(() => {});
     console.error('Error actualizando estado del pedido:', error);
     res.status(500).json({ error: 'Error interno del servidor' });
+  } finally {
+    if (client) client.release();
   }
 });
 

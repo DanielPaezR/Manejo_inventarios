@@ -1119,3 +1119,46 @@
     padding: 10px;
   }
 }
+/* ---------- Editar productos antes de recibir ---------- */
+.btn-editar-pedido {
+  padding: 10px 16px;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text-strong);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btn-editar-pedido:hover {
+  border-color: var(--brand);
+  color: var(--brand-700);
+}
+
+.edicion-ayuda {
+  margin: 0 0 10px;
+  font-size: 13.5px;
+  color: var(--text-muted);
+}
+
+.input-cantidad-edicion {
+  width: 80px;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 15px;
+}
+
+.btn-quitar-edicion {
+  border: none;
+  background: none;
+  font-size: 16px;
+  cursor: pointer;
+}
+
+.edicion-acciones {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 12px;
+}
