@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import api from '../services/api';
 import { useModulo } from '../hooks/useModulo';
+import { tienePermiso } from '../utils/permisos';
 import './Clientes.css';
 
 const Clientes = ({ user }) => {
@@ -28,7 +29,7 @@ const Clientes = ({ user }) => {
   });
 
   // Verificar permisos
-  const puedeGestionar = user?.rol === 'admin' || user?.rol === 'super_admin';
+  const puedeGestionar = tienePermiso(user, 'clientes');
 
   const cargarClientes = useCallback(async (search) => {
     try {

@@ -8,6 +8,7 @@ import {
 import CambiarPassword from './CambiarPassword';
 import { useModulo } from '../hooks/useModulo';
 import api from '../services/api';
+import { puedeVerRuta } from '../utils/permisos';
 import './Dashboard.css';
 
 const MENU = {
@@ -39,7 +40,7 @@ const MENU = {
 
 const ETIQUETA_ROL = { super_admin: 'Super admin', admin: 'Administrador', trabajador: 'Trabajador' };
 
-const Dashboard = ({ user, onLogout }) => {
+const Dashboard = ({ user, onLogout, onRefrescarPermisos }) => {
   const location = useLocation();
   const navigate = useNavigate();
   const { moduloActivo, modulos, cambiarModulo } = useModulo();
@@ -66,6 +67,10 @@ const Dashboard = ({ user, onLogout }) => {
       .then(res => setPedidosPorHacer(res.data.proveedores.filter(p => p.estado === 'hoy' || p.estado === 'atrasado').length))
       .catch(() => {});
   }, [user?.rol, moduloActivo, location.pathname]);
+
+  useEffect(() => {
+    if (user?.rol === 'trabajador') onRefrescarPermisos?.();
+  }, [user?.rol, location.pathname]);
 
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -109,7 +114,9 @@ const Dashboard = ({ user, onLogout }) => {
     ? MENU.super_admin
     : user?.rol === 'admin'
       ? MENU.admin
-      : MENU.trabajador
+      // El trabajador ve lo básico más las secciones que el admin le habilitó,
+      // en el mismo orden del menú del admin.
+      : MENU.admin.filter(item => MENU.trabajador.some(t => t.path === item.path) || puedeVerRuta(user, item.path))
   ).filter(item => item.path !== '/ruta-entregas' || moduloActivo?.tiene_domicilio !== false);
 
   const paginaActual = items.find(item => item.path === location.pathname);

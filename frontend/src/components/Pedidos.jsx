@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import api from '../services/api';
 import { useModulo } from '../hooks/useModulo';
+import { tienePermiso } from '../utils/permisos';
 import './Pedidos.css';
 import CalendarioPedidos from './CalendarioPedidos';
 
@@ -38,7 +39,7 @@ const Pedidos = ({ user }) => {
   const sugerenciaPedidoRef = useRef(null);
 
   // Verificar permisos
-  const puedeGestionar = user?.rol === 'admin' || user?.rol === 'super_admin';
+  const puedeGestionar = tienePermiso(user, 'proveedores');
 
   useEffect(() => {
     if (moduloActivo && puedeGestionar) {

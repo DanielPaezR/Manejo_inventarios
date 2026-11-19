@@ -20,6 +20,7 @@ import RutaEntregas from './components/RutaEntregas';
 import ConfiguracionNegocio from './components/ConfiguracionNegocio';
 import MenuPublico from './components/MenuPublico';
 import MenuPedidoConfirmacion from './components/MenuPedidoConfirmacion';
+import api from './services/api';
 import './App.css';
 
 function App() {
@@ -51,6 +52,23 @@ function App() {
     // Si el usuario tiene módulos, seleccionar el primero automáticamente
     if (userData.modulos && userData.modulos.length > 0) {
       localStorage.setItem('moduloActivo', JSON.stringify(userData.modulos[0]));
+    }
+  };
+
+  // Los permisos del trabajador pueden cambiar mientras tiene la sesión
+  // abierta (el admin se los da o se los quita): se refrescan al navegar.
+  const refrescarPermisos = async () => {
+    try {
+      const res = await api.get('/usuarios/mis-permisos');
+      setUser(prev => {
+        if (!prev) return prev;
+        if (JSON.stringify(prev.permisos || {}) === JSON.stringify(res.data.permisos)) return prev;
+        const actualizado = { ...prev, permisos: res.data.permisos };
+        localStorage.setItem('user', JSON.stringify(actualizado));
+        return actualizado;
+      });
+    } catch {
+      // Sin conexión o sesión vencida: se queda con lo que tenía.
     }
   };
 
@@ -87,7 +105,7 @@ function App() {
             <Route
               path="/"
               element={
-                user ? <Dashboard user={user} onLogout={logout} /> : <Navigate to="/login" />
+                user ? <Dashboard user={user} onLogout={logout} onRefrescarPermisos={refrescarPermisos} /> : <Navigate to="/login" />
               } 
             >
               <Route path="ventas" element={<Ventas user={user} />} />

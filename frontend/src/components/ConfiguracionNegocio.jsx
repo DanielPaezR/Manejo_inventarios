@@ -4,6 +4,7 @@ import api from '../services/api';
 import { useModulo } from '../hooks/useModulo';
 import SubidaImagen from './SubidaImagen';
 import ConfigAsistente from './ConfigAsistente';
+import EquipoPermisos from './EquipoPermisos';
 import { IconoHoja, obtenerColorPlaceholder } from '../utils/menuVisual';
 import { textosNegocio, tipoNegocioUsuario } from '../utils/tipoNegocio';
 import './PedidosCliente.css';
@@ -176,6 +177,8 @@ const ConfiguracionNegocio = ({ user }) => {
           </button>
         </div>
       </div>
+
+      <EquipoPermisos avisar={avisar} />
 
       <ConfigAsistente key={moduloActivo.id} moduloId={moduloActivo.id} textos={textos} avisar={avisar} />
 

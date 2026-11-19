@@ -126,6 +126,110 @@ app.use((req, res, next) => {
 
 // ==================== RUTAS DE AUTENTICACIÓN ====================
 
+// ==================== PERMISOS DE TRABAJADORES ====================
+// El administrador del negocio puede darle a cada trabajador acceso a
+// secciones extra (p. ej. registrar productos al arrancar) y quitárselo
+// después. Se lee de la base en cada petición, así que quitar un permiso
+// aplica de inmediato aunque el trabajador tenga la sesión abierta.
+const PERMISOS_TRABAJADOR = ['productos', 'inventario', 'proveedores', 'clientes', 'facturas'];
+
+const limpiarPermisos = (permisos) => {
+  const limpios = {};
+  for (const clave of PERMISOS_TRABAJADOR) {
+    if (permisos && permisos[clave] === true) limpios[clave] = true;
+  }
+  return limpios;
+};
+
+const requirePermiso = (clave) => async (req, res, next) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ error: 'No autenticado' });
+    }
+    if (req.user.rol === 'admin' || req.user.rol === 'super_admin') {
+      return next();
+    }
+    if (req.user.rol === 'trabajador') {
+      const result = await pool.query('SELECT permisos FROM usuarios WHERE id = $1 AND activo = true', [req.user.id]);
+      if (result.rows[0]?.permisos?.[clave] === true) {
+        return next();
+      }
+    }
+    return res.status(403).json({ error: 'No tienes permiso para esta sección. Pídeselo al administrador.' });
+  } catch (error) {
+    console.error('Error verificando permisos:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+};
+
+// Permisos actuales del usuario (el frontend los refresca al navegar).
+app.get('/api/usuarios/mis-permisos', authenticateToken, async (req, res) => {
+  try {
+    const result = await pool.query('SELECT rol, permisos FROM usuarios WHERE id = $1 AND activo = true', [req.user.id]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Usuario no encontrado' });
+    }
+    res.json({ rol: result.rows[0].rol, permisos: limpiarPermisos(result.rows[0].permisos) });
+  } catch (error) {
+    console.error('Error obteniendo permisos:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// Trabajadores del negocio del administrador, con sus permisos.
+app.get('/api/equipo', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const admin = await pool.query('SELECT negocio_id FROM usuarios WHERE id = $1', [req.user.id]);
+    const negocioId = admin.rows[0]?.negocio_id;
+    if (!negocioId) {
+      return res.json([]);
+    }
+    const result = await pool.query(
+      `SELECT u.id, u.nombre, u.email, u.activo, u.permisos,
+              COALESCE(string_agg(m.nombre, ', ' ORDER BY m.nombre), '') AS modulos
+       FROM usuarios u
+       LEFT JOIN usuario_modulos um ON um.usuario_id = u.id
+       LEFT JOIN modulos m ON m.id = um.modulo_id
+       WHERE u.negocio_id = $1 AND u.rol = 'trabajador'
+       GROUP BY u.id
+       ORDER BY u.activo DESC, u.nombre`,
+      [negocioId]
+    );
+    res.json(result.rows.map(u => ({ ...u, permisos: limpiarPermisos(u.permisos) })));
+  } catch (error) {
+    console.error('Error obteniendo el equipo:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// El administrador cambia los permisos de un trabajador de su mismo negocio.
+// No puede crear usuarios ni cambiar roles: eso sigue en manos del super admin.
+app.put('/api/equipo/:id/permisos', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!/^\d+$/.test(id)) {
+      return res.status(404).json({ error: 'Trabajador no encontrado' });
+    }
+    const permisos = limpiarPermisos(req.body.permisos || {});
+    const result = await pool.query(
+      `UPDATE usuarios u
+       SET permisos = $1::jsonb
+       FROM usuarios a
+       WHERE u.id = $2 AND u.rol = 'trabajador'
+         AND a.id = $3 AND (a.rol = 'super_admin' OR a.negocio_id = u.negocio_id)
+       RETURNING u.id, u.nombre, u.permisos`,
+      [JSON.stringify(permisos), id, req.user.id]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Trabajador no encontrado' });
+    }
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error guardando permisos:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
 app.post('/api/login', async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -188,7 +292,8 @@ app.post('/api/login', async (req, res) => {
         rol: user.rol,
         negocio_id: user.negocio_id,
         negocio: negocioInfo,
-        modulos: modulos
+        modulos: modulos,
+        permisos: limpiarPermisos(user.permisos)
       }
     });
   } catch (error) {
@@ -900,7 +1005,7 @@ const guardarCompartidoCon = async (client, productoId, moduloDuenoId, negocioId
   }
 };
 
-app.post('/api/productos', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+app.post('/api/productos', authenticateToken, checkAccess, requirePermiso('productos'), async (req, res) => {
   let client;
   try {
     const {
@@ -954,7 +1059,7 @@ app.post('/api/productos', authenticateToken, checkAccess, requireAdmin, async (
   }
 });
 
-app.put('/api/productos/:id', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+app.put('/api/productos/:id', authenticateToken, checkAccess, requirePermiso('productos'), async (req, res) => {
   let client;
   try {
     const { id } = req.params;
@@ -1032,7 +1137,7 @@ app.put('/api/productos/:id', authenticateToken, checkAccess, requireAdmin, asyn
   }
 });
 
-app.delete('/api/productos/:id', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+app.delete('/api/productos/:id', authenticateToken, checkAccess, requirePermiso('productos'), async (req, res) => {
   try {
     const { id } = req.params;
     const moduloId = req.moduloId;
@@ -1115,7 +1220,7 @@ app.get('/api/categorias', authenticateToken, checkAccess, async (req, res) => {
 });
 
 // Crear categoría de producto
-app.post('/api/categorias', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+app.post('/api/categorias', authenticateToken, checkAccess, requirePermiso('productos'), async (req, res) => {
   try {
     const moduloId = req.moduloId;
     const negocioId = req.negocioId;
@@ -1152,7 +1257,7 @@ app.post('/api/categorias', authenticateToken, checkAccess, requireAdmin, async 
 });
 
 // Renombrar categoría de producto
-app.put('/api/categorias/:id', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+app.put('/api/categorias/:id', authenticateToken, checkAccess, requirePermiso('productos'), async (req, res) => {
   try {
     const { id } = req.params;
     const moduloId = req.moduloId;
@@ -1189,7 +1294,7 @@ app.put('/api/categorias/:id', authenticateToken, checkAccess, requireAdmin, asy
 // Eliminar categoría de producto. La tabla no tiene columna `activo`
 // (sin soft-delete posible), así que es un DELETE real: primero se
 // valida que ningún producto ACTIVO la use.
-app.delete('/api/categorias/:id', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+app.delete('/api/categorias/:id', authenticateToken, checkAccess, requirePermiso('productos'), async (req, res) => {
   let client;
   try {
     const { id } = req.params;
@@ -1685,7 +1790,7 @@ app.get('/api/clientes', authenticateToken, checkAccess, async (req, res) => {
 });
 
 // Detalle de un cliente (solo admin)
-app.get('/api/clientes/:id', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+app.get('/api/clientes/:id', authenticateToken, checkAccess, requirePermiso('clientes'), async (req, res) => {
   try {
     const { id } = req.params;
     const moduloId = req.moduloId;
@@ -1718,7 +1823,7 @@ app.get('/api/clientes/:id', authenticateToken, checkAccess, requireAdmin, async
 });
 
 // Historial de compras de un cliente (solo admin)
-app.get('/api/clientes/:id/historial', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+app.get('/api/clientes/:id/historial', authenticateToken, checkAccess, requirePermiso('clientes'), async (req, res) => {
   try {
     const { id } = req.params;
     const moduloId = req.moduloId;
@@ -1773,7 +1878,7 @@ app.get('/api/clientes/:id/historial', authenticateToken, checkAccess, requireAd
 });
 
 // Registrar un abono a la deuda de crédito de un cliente
-app.post('/api/clientes/:id/abonos', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+app.post('/api/clientes/:id/abonos', authenticateToken, checkAccess, requirePermiso('clientes'), async (req, res) => {
   try {
     const { id } = req.params;
     const negocioId = req.negocioId;
@@ -1847,7 +1952,7 @@ app.post('/api/clientes/:id/abonos', authenticateToken, checkAccess, requireAdmi
 // movimiento de caja hasta que el cliente abone, igual que cualquier
 // venta a crédito. De aquí en adelante, la deuda nueva debe salir del
 // módulo de Ventas; esta ruta es solo para la carga inicial.
-app.post('/api/clientes/:id/deuda-manual', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+app.post('/api/clientes/:id/deuda-manual', authenticateToken, checkAccess, requirePermiso('clientes'), async (req, res) => {
   try {
     const { id } = req.params;
     const moduloId = req.moduloId;
@@ -1950,7 +2055,7 @@ app.post('/api/clientes', authenticateToken, checkAccess, async (req, res) => {
 });
 
 // Editar cliente (solo admin)
-app.put('/api/clientes/:id', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+app.put('/api/clientes/:id', authenticateToken, checkAccess, requirePermiso('clientes'), async (req, res) => {
   try {
     const { id } = req.params;
     const moduloId = req.moduloId;
@@ -2797,7 +2902,7 @@ app.get('/api/proveedores', authenticateToken, checkAccess, async (req, res) => 
 });
 
 // Crear nuevo proveedor
-app.post('/api/proveedores', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+app.post('/api/proveedores', authenticateToken, checkAccess, requirePermiso('proveedores'), async (req, res) => {
   let client;
   try {
     const negocioId = req.negocioId;
@@ -2852,7 +2957,7 @@ app.post('/api/proveedores', authenticateToken, checkAccess, requireAdmin, async
 });
 
 // Actualizar proveedor
-app.put('/api/proveedores/:id', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+app.put('/api/proveedores/:id', authenticateToken, checkAccess, requirePermiso('proveedores'), async (req, res) => {
   try {
     const { id } = req.params;
     const moduloId = req.moduloId;
@@ -2909,7 +3014,7 @@ app.put('/api/proveedores/:id', authenticateToken, checkAccess, requireAdmin, as
 });
 
 // Eliminar proveedor (desactivar)
-app.delete('/api/proveedores/:id', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+app.delete('/api/proveedores/:id', authenticateToken, checkAccess, requirePermiso('proveedores'), async (req, res) => {
   try {
     const { id } = req.params;
     const moduloId = req.moduloId;
@@ -3059,7 +3164,7 @@ const calendarioDeProveedor = async (db, moduloId, proveedorId) => {
 
 const ORDEN_ESTADO_CALENDARIO = { atrasado: 0, hoy: 1, manana: 2, proximo: 3, esperando_aviso: 4, hecho: 5, sin_configurar: 6, pausado: 7 };
 
-app.get('/api/proveedores/calendario', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+app.get('/api/proveedores/calendario', authenticateToken, checkAccess, requirePermiso('proveedores'), async (req, res) => {
   try {
     const moduloId = req.moduloId;
     if (!moduloId) {
@@ -3125,7 +3230,7 @@ const guardarCalendarioProveedor = async (db, proveedorId, moduloId, valores) =>
 };
 
 // Para proveedores que avisan cuándo vienen: registrar (o borrar) la fecha.
-app.put('/api/proveedores/:id/proxima-visita', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+app.put('/api/proveedores/:id/proxima-visita', authenticateToken, checkAccess, requirePermiso('proveedores'), async (req, res) => {
   try {
     const { fecha } = req.body;
     if (fecha !== null && fecha !== '' && !/^\d{4}-\d{2}-\d{2}$/.test(fecha || '')) {
@@ -3150,7 +3255,7 @@ app.put('/api/proveedores/:id/proxima-visita', authenticateToken, checkAccess, r
 // y tiempo de entrega (producto_proveedor.tiempo_entrega_dias tiene
 // prioridad sobre proveedores.dias_entrega, que a su vez tiene prioridad
 // sobre el default de 3 días).
-app.get('/api/proveedores/:id/sugerencia-pedido', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+app.get('/api/proveedores/:id/sugerencia-pedido', authenticateToken, checkAccess, requirePermiso('proveedores'), async (req, res) => {
   try {
     const { id } = req.params;
     const moduloId = req.moduloId;
@@ -3292,7 +3397,7 @@ app.get('/api/proveedores/:id/productos-asociados', authenticateToken, checkAcce
 // Asociar varios productos de una sola vez con un proveedor. Mismo upsert
 // que la ruta individual de abajo, pero en lote y dentro de una única
 // transacción: si algo falla, no queda la mitad asociada.
-app.post('/api/proveedores/:id/productos-bulk', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+app.post('/api/proveedores/:id/productos-bulk', authenticateToken, checkAccess, requirePermiso('proveedores'), async (req, res) => {
   // pool.connect() dentro del try: si la conexión falla, no debe quedar
   // como una promesa rechazada sin atrapar que tumbe todo el proceso.
   let client;
@@ -3394,7 +3499,7 @@ app.post('/api/proveedores/:id/productos-bulk', authenticateToken, checkAccess, 
 // ==================== RUTAS DE PRODUCTO-PROVEEDOR ====================
 
 // Asociar producto con proveedor
-app.post('/api/productos/:productoId/proveedores/:proveedorId', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+app.post('/api/productos/:productoId/proveedores/:proveedorId', authenticateToken, checkAccess, requirePermiso('productos'), async (req, res) => {
   try {
     const { productoId, proveedorId } = req.params;
     const { precio_compra, tiempo_entrega_dias, cantidad_minima_pedido, unidades_por_paquete } = req.body;
@@ -3440,7 +3545,7 @@ app.post('/api/productos/:productoId/proveedores/:proveedorId', authenticateToke
 });
 
 // Desasociar producto de proveedor (soft delete, igual que el resto de la app)
-app.delete('/api/productos/:productoId/proveedores/:proveedorId', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+app.delete('/api/productos/:productoId/proveedores/:proveedorId', authenticateToken, checkAccess, requirePermiso('productos'), async (req, res) => {
   try {
     const { productoId, proveedorId } = req.params;
     const moduloId = req.moduloId;
@@ -3516,7 +3621,7 @@ app.get('/api/productos/:productoId/proveedores', authenticateToken, checkAccess
 // ==================== RUTAS DE PEDIDOS ====================
 
 // Crear pedido a proveedor
-app.post('/api/pedidos', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+app.post('/api/pedidos', authenticateToken, checkAccess, requirePermiso('proveedores'), async (req, res) => {
   // pool.connect() dentro del try: si la conexión falla, no debe quedar
   // como una promesa rechazada sin atrapar que tumbe todo el proceso.
   let client;
@@ -3732,7 +3837,7 @@ app.get('/api/pedidos/:id', authenticateToken, checkAccess, async (req, res) => 
 // "recibido" solo se sume al inventario lo que de verdad llegó.
 // Body: { detalles: [{ producto_id, cantidad }] } con la lista completa que
 // queda; los productos que no vengan (o con cantidad 0) se quitan.
-app.put('/api/pedidos/:id/detalles', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+app.put('/api/pedidos/:id/detalles', authenticateToken, checkAccess, requirePermiso('proveedores'), async (req, res) => {
   let client;
   try {
     const { id } = req.params;
@@ -3807,7 +3912,7 @@ app.put('/api/pedidos/:id/detalles', authenticateToken, checkAccess, requireAdmi
 // Actualizar estado del pedido. Al pasar a "recibido" suma al inventario lo
 // que tenga el pedido en ese momento, una sola vez (si ya estaba recibido no
 // vuelve a sumar), todo en una transacción.
-app.put('/api/pedidos/:id/estado', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+app.put('/api/pedidos/:id/estado', authenticateToken, checkAccess, requirePermiso('proveedores'), async (req, res) => {
   let client;
   try {
     const { id } = req.params;
@@ -4878,7 +4983,7 @@ app.post('/api/finanzas/pagos-fijos/:id/pagar', authenticateToken, checkAccess, 
 // Productos activos del módulo a los que les falta precio de compra o
 // proveedor — sin esos datos no se puede calcular cuánto cuesta un pedido
 // ni a quién pedirle cada cosa.
-app.get('/api/inventario/productos-incompletos', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+app.get('/api/inventario/productos-incompletos', authenticateToken, checkAccess, requirePermiso('inventario'), async (req, res) => {
   try {
     const moduloId = req.moduloId;
     if (!moduloId) {
@@ -4919,7 +5024,7 @@ app.get('/api/inventario/productos-incompletos', authenticateToken, checkAccess,
 // Guarda precio de compra y/o proveedor de un producto. El proveedor
 // elegido queda como el único activo del producto (en la práctica cada
 // producto se le compra a un solo proveedor).
-app.put('/api/inventario/productos/:id/datos-compra', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+app.put('/api/inventario/productos/:id/datos-compra', authenticateToken, checkAccess, requirePermiso('inventario'), async (req, res) => {
   let client;
   try {
     const moduloId = req.moduloId;
@@ -4996,7 +5101,7 @@ app.put('/api/inventario/productos/:id/datos-compra', authenticateToken, checkAc
 
 // Productos para el conteo físico (los preparados no llevan stock, se
 // excluyen). proveedor: id numérico, 'sin' (sin proveedor) o vacío (todos).
-app.get('/api/inventario/conteo', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+app.get('/api/inventario/conteo', authenticateToken, checkAccess, requirePermiso('inventario'), async (req, res) => {
   try {
     const moduloId = req.moduloId;
     const { proveedor } = req.query;
@@ -5035,7 +5140,7 @@ app.get('/api/inventario/conteo', authenticateToken, checkAccess, requireAdmin, 
 // Registra un conteo físico: deja el stock de cada producto contado igual
 // a lo que hay de verdad y guarda la diferencia (en unidades y en plata a
 // precio de compra) para ver cuánto se pierde sin registrar.
-app.post('/api/inventario/conteos', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+app.post('/api/inventario/conteos', authenticateToken, checkAccess, requirePermiso('inventario'), async (req, res) => {
   let client;
   try {
     const moduloId = req.moduloId;
@@ -5133,7 +5238,7 @@ app.post('/api/inventario/conteos', authenticateToken, checkAccess, requireAdmin
   }
 });
 
-app.get('/api/inventario/conteos', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+app.get('/api/inventario/conteos', authenticateToken, checkAccess, requirePermiso('inventario'), async (req, res) => {
   try {
     const moduloId = req.moduloId;
     if (!moduloId) {
@@ -6661,7 +6766,7 @@ app.get('/api/reportes', authenticateToken, checkAccess, requireAdmin, async (re
 
 // ==================== RUTAS DE GESTIÓN DE INVENTARIO ====================
 
-app.post('/api/inventario/agregar-stock', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+app.post('/api/inventario/agregar-stock', authenticateToken, checkAccess, requirePermiso('inventario'), async (req, res) => {
   // pool.connect() dentro del try: si la conexión falla, no debe quedar
   // como una promesa rechazada sin atrapar que tumbe todo el proceso.
   let client;
@@ -6726,7 +6831,7 @@ app.post('/api/inventario/agregar-stock', authenticateToken, checkAccess, requir
   }
 });
 
-app.post('/api/inventario/ajustar-stock', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+app.post('/api/inventario/ajustar-stock', authenticateToken, checkAccess, requirePermiso('inventario'), async (req, res) => {
   // pool.connect() dentro del try: si la conexión falla, no debe quedar
   // como una promesa rechazada sin atrapar que tumbe todo el proceso.
   let client;

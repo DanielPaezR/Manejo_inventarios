@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import api from '../services/api';
 import { useModulo } from '../hooks/useModulo';
+import { tienePermiso } from '../utils/permisos';
 import './Proveedores.css';
 import { DIAS_SEMANA, describirCalendario } from '../utils/calendarioProveedor';
 
@@ -40,7 +41,7 @@ const Proveedores = ({ user }) => {
   const [asignandoSeleccionados, setAsignandoSeleccionados] = useState(false);
 
   // Verificar permisos
-  const puedeGestionar = user?.rol === 'admin' || user?.rol === 'super_admin';
+  const puedeGestionar = tienePermiso(user, 'proveedores');
 
   useEffect(() => {
     if (moduloActivo && puedeGestionar) {

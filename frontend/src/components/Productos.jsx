@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import api from '../services/api';
 import { useModulo } from '../hooks/useModulo';
+import { tienePermiso } from '../utils/permisos';
 import SubidaImagen from './SubidaImagen';
 import './Productos.css';
 
@@ -233,7 +234,7 @@ Sus ${cantidad} producto(s) pasarán a "General".`
   };
 
   // Verificar permisos
-  const puedeEditar = user?.rol === 'admin' || user?.rol === 'super_admin';
+  const puedeEditar = tienePermiso(user, 'productos');
   // Productos compartidos de OTRO módulo aparecen en este listado (para
   // venderlos), pero solo su módulo dueño puede editarlos/borrarlos — el
   // backend ya lo exige (WHERE modulo_id = dueño en PUT/DELETE), esto solo
