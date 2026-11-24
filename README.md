@@ -31,6 +31,9 @@ Funciona para **varios negocios a la vez**: cada negocio tiene sus módulos (por
 - **Zona de juegos** (`/menu/:moduloId/juegos`), que se puede apagar por negocio:
   - **Juegos para el celular con podio semanal**: Memoria, Atrapa la fruta, Culebrita, Toque rápido, Cálculo veloz y Tres en raya.
   - **Apoyos para juegos de mesa**: contador de dominó, reloj de ajedrez, anotador de cartas y tiro al blanco.
+  - **Tres en raya en línea** entre clientes de mesas distintas, con código de sala.
+  - **Premio semanal** para el campeón de cada juego (código que se valida en caja) y **moderación del podio**.
+- **Tarjeta de sellos digital**: cada pedido del menú en línea suma un sello al celular del cliente; al completarla gana el premio que defina el negocio. También se puede sellar a mano.
 
 ### Dinero
 - **Caja y bolsillos**: caja, cartera, Nequi y dinero de otros módulos, con apertura, cierre, traslados, pagos fijos y cuadre diario.
@@ -44,12 +47,16 @@ Funciona para **varios negocios a la vez**: cada negocio tiene sus módulos (por
   - **Antes y ahora**: el primer mes contra el último.
   - **Clientes en línea**.
 - **Resumen semanal** que llega solo los lunes por notificación push. El canal de WhatsApp queda listo para cuando se configure la cuenta de Meta.
+- **Recordatorios** por notificación: cierre de caja en la noche, proveedores a los que toca pedir y pagos fijos por vencer.
 - **Reportes** descargables.
 
 ### Equipo y ajustes
 - Roles: **super admin** (crea negocios y usuarios), **administrador** (dueño del negocio) y **trabajador**.
 - El administrador puede dar o quitar a cada trabajador acceso a secciones extra: productos, inventario, proveedores, clientes y facturas.
-- Configuración por módulo: domicilios, zona de juegos, asistente, resumen semanal y equipo.
+- Configuración por módulo: domicilios, zona de juegos, tarjeta de sellos, asistente, resumen semanal, recordatorios y equipo.
+- **Primeros pasos**: lista para negocios nuevos que se marca sola con los datos reales (menú, productos, costos, proveedores, primera venta…).
+- **Planes** por negocio (Emprende, Negocio, Multisede) con límites de sedes y usuarios y funciones incluidas; se definen en `backend/src/helpers/planes.js`. Un negocio sin plan asignado no tiene límites.
+- **Copias de seguridad** automáticas cada noche; el super admin las descarga desde Negocios.
 
 ---
 
@@ -70,10 +77,13 @@ Funciona para **varios negocios a la vez**: cada negocio tiene sus módulos (por
 ```
 inventario-app/
 ├── backend/
-│   ├── server.js            # API REST (rutas de todo el sistema)
+│   ├── server.js            # arranque: configuración, registro de rutas y tareas programadas
+│   ├── migrations/          # cambios de base de datos (se aplican solos al arrancar)
+│   ├── scripts/             # restaurar una copia de seguridad
 │   └── src/
+│       ├── rutas/           # rutas de la API por tema (ventas, productos, finanzas, juegos…)
 │       ├── middleware/      # autenticación, acceso por módulo, permisos
-│       ├── helpers/         # resumen del negocio, promociones, asistente, juegos, notificaciones…
+│       ├── helpers/         # resumen del negocio, promociones, planes, sellos, respaldos…
 │       └── reports/         # reportes en PDF y Excel
 ├── frontend/
 │   ├── src/
@@ -147,18 +157,16 @@ El servicio usa `railway.json`:
 Cada push a `main` se despliega solo.
 
 ### Cambios de base de datos
-El esquema base está en `database/init.sql`. Las tablas y columnas que se agregaron después se crean con `ALTER TABLE ... IF NOT EXISTS` directamente en la base de producción. Entre ellas:
-- bolsillos y pagos fijos;
-- calendario de proveedores;
-- tipo de negocio;
-- pago y comprobante de pedidos;
-- asistente (`bot_*`, `bot_mensajes`);
-- permisos de usuarios;
-- metas y resumen semanal (`resumen_envios`);
-- promociones (`promociones`, `promocion_items` y columnas `promocion_*` en los detalles de venta y de pedido);
-- zona de juegos (`juego_puntajes`, `modulos.juegos_activos`).
+El esquema base está en `database/init.sql`. Los cambios posteriores van en `backend/migrations/NNN_nombre.sql` y **se aplican solos al arrancar el servidor**, una sola vez y en orden (quedan registrados en la tabla `schema_migraciones`). Para cambiar la base se crea un archivo con el número siguiente; nunca se edita una migración ya aplicada.
 
-El código está hecho para seguir funcionando aunque alguna de estas columnas opcionales todavía no exista.
+### Copias de seguridad
+Cada noche (3 a. m., hora Colombia) se guarda una copia de toda la base en la tabla `respaldos` (se conservan 14). Como vive en la misma base, conviene descargar copias desde **Negocios → Copias de seguridad** y guardarlas fuera. Para restaurar:
+
+```bash
+cd backend
+node scripts/restaurar-respaldo.js respaldo.json.gz --prueba     # ensayo sin tocar nada
+node scripts/restaurar-respaldo.js respaldo.json.gz --confirmar  # reemplaza los datos actuales
+```
 
 ---
 
