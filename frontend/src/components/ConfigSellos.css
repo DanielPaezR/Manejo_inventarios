@@ -1,0 +1,82 @@
+.cs-select {
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-input, #fff);
+  color: inherit;
+  font-size: 0.95rem;
+}
+
+.cs-buscar, .cs-acciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+.cs-buscar input, .cs-acciones input {
+  flex: 1 1 200px;
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-input, #fff);
+  color: inherit;
+  font-size: 0.95rem;
+}
+
+.cs-cliente {
+  margin-top: 14px;
+  max-width: 440px;
+}
+.cs-cliente .conf-ayuda { margin: 8px 0 0; }
+
+.cs-lista {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 10px;
+}
+.cs-fila {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 90px auto;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 9px 12px;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  background: var(--surface-subtle);
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+}
+.cs-fila:hover { border-color: var(--border); }
+.cs-fila__info strong { display: block; font-size: 0.92rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cs-fila__info small { display: block; font-size: 0.78rem; opacity: 0.7; }
+.cs-fila__barra {
+  height: 8px;
+  border-radius: 999px;
+  background: var(--border);
+  overflow: hidden;
+}
+.cs-fila__barra span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #f59e0b, #db2777);
+}
+.cs-fila em {
+  font-style: normal;
+  font-size: 0.82rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  min-width: 42px;
+  text-align: right;
+}
+.cs-fila__premio { color: #b45309; }
+
+@media (max-width: 480px) {
+  .cs-fila { grid-template-columns: minmax(0, 1fr) auto; }
+  .cs-fila__barra { grid-column: 1 / -1; grid-row: 2; }
+}

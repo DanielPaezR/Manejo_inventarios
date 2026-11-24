@@ -1,0 +1,109 @@
+.ts {
+  position: relative;
+  overflow: hidden;
+  padding: 18px;
+  border-radius: 20px;
+  color: #fff;
+  background:
+    radial-gradient(circle at 110% -10%, rgba(255, 255, 255, 0.22), transparent 45%),
+    radial-gradient(circle at -10% 120%, rgba(251, 191, 36, 0.35), transparent 50%),
+    linear-gradient(135deg, #1e1b4b, #4c1d95 55%, #9d174d);
+  box-shadow: 0 14px 34px rgba(76, 29, 149, 0.35);
+}
+.ts::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(rgba(255, 255, 255, 0.07) 1px, transparent 1px);
+  background-size: 14px 14px;
+  pointer-events: none;
+}
+
+.ts__cabecera {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.ts__cabecera small {
+  display: block;
+  font-size: 0.7rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  opacity: 0.75;
+}
+.ts__cabecera strong {
+  display: block;
+  font-size: 1.15rem;
+  line-height: 1.2;
+  color: #fff;
+}
+.ts__conteo {
+  font-size: 1.9rem;
+  font-weight: 800;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.ts__conteo small { display: inline; font-size: 0.95rem; letter-spacing: 0; text-transform: none; opacity: 0.7; }
+
+.ts__sellos {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: repeat(var(--ts-columnas, 5), minmax(0, 1fr));
+  gap: 8px;
+}
+.ts__sello {
+  aspect-ratio: 1;
+  max-width: 54px;
+  width: 100%;
+  justify-self: center;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  border: 2px dashed rgba(255, 255, 255, 0.4);
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.55);
+}
+.ts__sello.premio { border-style: solid; border-color: rgba(251, 191, 36, 0.8); font-size: 1.05rem; }
+.ts__sello.lleno {
+  border: none;
+  background: linear-gradient(145deg, #fde68a, #f59e0b);
+  color: #7c2d12;
+  font-size: 1.15rem;
+  box-shadow: 0 3px 10px rgba(245, 158, 11, 0.45), inset 0 -2px 0 rgba(124, 45, 18, 0.2);
+  transform: rotate(calc((var(--i) * 37deg) - 10deg));
+}
+.ts__sello.nuevo { animation: ts-sellar 0.7s cubic-bezier(0.2, 1.6, 0.4, 1) 0.3s both; }
+@keyframes ts-sellar {
+  from { transform: scale(2.2) rotate(-30deg); opacity: 0; }
+  to { transform: scale(1) rotate(-10deg); opacity: 1; }
+}
+
+.ts__premio {
+  position: relative;
+  z-index: 1;
+  margin: 14px 0 0;
+  font-size: 0.88rem;
+  line-height: 1.4;
+  color: rgba(255, 255, 255, 0.9);
+}
+.ts__premio b { color: #fde68a; }
+.ts__premio--listo {
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: rgba(253, 230, 138, 0.18);
+  color: #fff;
+}
+
+.ts--compacta { padding: 14px; }
+.ts--compacta .ts__sellos { gap: 6px; }
+.ts--compacta .ts__conteo { font-size: 1.5rem; }
+
+@media (prefers-reduced-motion: reduce) {
+  .ts__sello.nuevo { animation: none; }
+}

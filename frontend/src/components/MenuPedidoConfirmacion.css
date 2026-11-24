@@ -85,3 +85,7 @@
   font-weight: 600;
   color: #2f855a;
 }
+
+/* Tarjeta de sellos */
+.mp-sellos { margin-top: 20px; display: flex; flex-direction: column; gap: 10px; }
+.mp-sellos__texto { margin: 0; font-size: 0.9rem; line-height: 1.4; }

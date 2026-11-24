@@ -4,6 +4,7 @@ import apiPublico from '../services/apiPublico';
 import { subirImagenCloudinary } from '../utils/cloudinaryUpload';
 import { textosNegocio } from '../utils/tipoNegocio';
 import SelectorDireccionMapa from './SelectorDireccionMapa';
+import TarjetaSellos from './TarjetaSellos';
 import './MenuPedidoConfirmacion.css';
 
 // ============================================================
@@ -422,6 +423,20 @@ const MenuPedidoConfirmacion = () => {
                 </button>
               </div>
             </>
+          )}
+
+          {pedido.sellos && pedido.estado !== 'cancelado' && (
+            <div className="mp-sellos">
+              <p className="mp-sellos__texto">
+                {pedido.estado === 'completado'
+                  ? (pedido.sellos.aplica ? '⭐ Este pedido ya sumó su sello. Así va tu tarjeta:' : '🎟️ Así va tu tarjeta de sellos:')
+                  : (pedido.sellos.aplica
+                    ? '🎟️ Cuando te entreguemos este pedido, sumas 1 sello a tu tarjeta.'
+                    : `🎟️ Los pedidos desde ${formatearMoneda(pedido.sellos.minimo)} suman sellos a tu tarjeta.`)}
+              </p>
+              <TarjetaSellos compacta negocio={pedido.modulo_nombre_publico || pedido.negocio_nombre} meta={pedido.sellos.meta} premio={pedido.sellos.premio}
+                sellos={pedido.sellos.sellos} premios={pedido.sellos.premios} nuevo={pedido.estado === 'completado' && pedido.sellos.aplica} />
+            </div>
           )}
         </div>
       ) : (

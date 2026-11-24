@@ -37,6 +37,7 @@ const { guardarPuntaje, podio: podioJuego, campeones: campeonesJuegos, leerPremi
 const { aplicarMigraciones } = require('./src/helpers/migraciones');
 const { productosParaSimulador, mermas, ventasPorEquipo, clientesEnLinea, hoyRapido, miDia } = require('./src/helpers/analisisExtra');
 const { enviarResumenModulo, programarResumenSemanal } = require('./src/helpers/resumenSemanal');
+const sellos = require('./src/helpers/sellos');
 const { TIPOS: TIPOS_RECORDATORIO, leerConfig: leerConfigRecordatorios, construirAviso, enviarRecordatorio, programarRecordatorios } = require('./src/helpers/recordatorios');
 const { canalesDisponibles, normalizarTelefono } = require('./src/helpers/notificador');
 
@@ -8043,9 +8044,11 @@ app.put('/api/pedidos-cliente/:id/completar', authenticateToken, checkAccess, as
       [venta.id, pedido.id]
     );
 
+    const sellado = await sellos.sellarPedido(client, pedido);
+
     await client.query('COMMIT');
 
-    res.json({ ...pedidoCompletado.rows[0], venta });
+    res.json({ ...pedidoCompletado.rows[0], venta, sello_sumado: sellado === true });
   } catch (error) {
     if (client) {
       await client.query('ROLLBACK').catch(() => {});
@@ -8353,7 +8356,8 @@ app.get('/api/menu/:moduloId', async (req, res) => {
         // Nombre y saludo que el negocio eligió para su asistente.
         bot_nombre: limpiarEstilo(moduloResult.rows[0].bot_estilo).nombre_asistente || null,
         bot_saludo: limpiarEstilo(moduloResult.rows[0].bot_estilo).saludo || null,
-        juegos_activos: await juegosActivos(moduloId)
+        juegos_activos: await juegosActivos(moduloId),
+        sellos: await sellos.configDe(pool, moduloId).then(c => (c.activo ? c : null)).catch(() => null)
       },
       productos: productosResult.rows,
       // Si la tabla de promociones aún no existe, el menú sigue funcionando.
@@ -8422,6 +8426,81 @@ app.post('/api/menu/:moduloId/juegos/mis-premios', async (req, res) => {
   } catch (error) {
     console.error('Error leyendo premios:', error.message);
     res.json({ premio: { activo: false }, ganados: [] });
+  }
+});
+
+// ---- Tarjeta de sellos ----
+// El cliente consulta su tarjeta con su celular. Límite por IP para que no
+// se pueda recorrer números.
+const consultasSellos = new Map();
+app.get('/api/menu/:moduloId/sellos', async (req, res) => {
+  try {
+    if (!/^\d+$/.test(req.params.moduloId)) return res.status(404).json({ error: 'No disponible' });
+    const ip = ipCliente(req);
+    const ahora = Date.now();
+    const recientes = (consultasSellos.get(ip) || []).filter(t => ahora - t < 10 * 60 * 1000);
+    if (recientes.length >= 30) return res.status(429).json({ error: 'Muchas consultas seguidas. Intenta en unos minutos.' });
+    recientes.push(ahora);
+    consultasSellos.set(ip, recientes);
+    if (consultasSellos.size > 5000) consultasSellos.clear();
+
+    const t = await sellos.tarjeta(pool, req.params.moduloId, req.query.telefono);
+    if (!t.config.activo) return res.status(404).json({ error: 'Este negocio no tiene tarjeta de sellos' });
+    if (!t.telefono) return res.status(400).json({ error: 'Escribe tu número de celular' });
+    res.json({ ...t.config, sellos: t.sellos, premios: t.premios, canjes: t.canjes });
+  } catch (error) {
+    console.error('Error consultando sellos:', error.message);
+    res.status(500).json({ error: 'No se pudo consultar la tarjeta' });
+  }
+});
+
+app.get('/api/sellos', authenticateToken, checkAccess, async (req, res) => {
+  try {
+    if (req.query.telefono) {
+      const t = await sellos.tarjeta(pool, req.moduloId, req.query.telefono);
+      return res.json(t);
+    }
+    res.json(await sellos.clientesConSellos(pool, req.moduloId));
+  } catch (error) {
+    console.error('Error leyendo sellos:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+app.put('/api/sellos/config', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+  try {
+    const premio = String(req.body?.premio || '').trim();
+    if (req.body?.activo === true && !premio) return res.status(400).json({ error: 'Escribe cuál es el premio' });
+    const config = sellos.leerConfig({ ...req.body, premio });
+    await pool.query('UPDATE modulos SET sellos = $1 WHERE id = $2',
+      [JSON.stringify({ ...config, activo: req.body?.activo === true }), req.moduloId]);
+    res.json(config);
+  } catch (error) {
+    console.error('Error guardando tarjeta de sellos:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+app.post('/api/sellos/sellar', authenticateToken, checkAccess, async (req, res) => {
+  try {
+    const r = await sellos.sellarManual(pool, req.moduloId, req.body?.telefono,
+      { nombre: req.body?.nombre, usuarioId: req.user.id, cantidad: req.body?.cantidad ?? 1 });
+    if (r.error) return res.status(r.status).json({ error: r.error });
+    res.status(201).json(r.datos);
+  } catch (error) {
+    console.error('Error sellando:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+app.post('/api/sellos/canjear', authenticateToken, checkAccess, async (req, res) => {
+  try {
+    const r = await sellos.canjear(pool, req.moduloId, req.body?.telefono, req.user.id);
+    if (r.error) return res.status(r.status).json({ error: r.error });
+    res.json(r.datos);
+  } catch (error) {
+    console.error('Error entregando premio de sellos:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
   }
 });
 
@@ -8982,7 +9061,8 @@ app.get('/api/menu/pedido/:token', async (req, res) => {
     const { token } = req.params;
 
     const pedidoResult = await pool.query(
-      `SELECT pc.*, n.telefono as negocio_telefono, n.nombre as negocio_nombre, n.tipo as negocio_tipo, m.tiene_domicilio
+      `SELECT pc.*, n.telefono as negocio_telefono, n.nombre as negocio_nombre, n.tipo as negocio_tipo, m.tiene_domicilio,
+              COALESCE(m.nombre_publico, m.nombre) AS modulo_nombre_publico
        FROM pedidos_cliente pc
        JOIN modulos m ON pc.modulo_id = m.id
        JOIN negocios n ON m.negocio_id = n.id
@@ -8999,7 +9079,16 @@ app.get('/api/menu/pedido/:token', async (req, res) => {
       [pedidoResult.rows[0].id]
     );
 
-    res.json({ ...pedidoResult.rows[0], detalles: detalleResult.rows });
+    const pedido = pedidoResult.rows[0];
+    const tarjetaSellos = await sellos.tarjeta(pool, pedido.modulo_id, pedido.telefono).catch(() => null);
+    res.json({
+      ...pedido,
+      detalles: detalleResult.rows,
+      sellos: tarjetaSellos?.config.activo
+        ? { ...tarjetaSellos.config, sellos: tarjetaSellos.sellos, premios: tarjetaSellos.premios,
+            aplica: Number(pedido.total) >= tarjetaSellos.config.minimo }
+        : null
+    });
   } catch (error) {
     console.error('Error obteniendo pedido de cliente:', error);
     res.status(500).json({ error: 'Error interno del servidor' });

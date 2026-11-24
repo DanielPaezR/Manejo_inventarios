@@ -5,6 +5,7 @@ import { textosNegocio } from '../utils/tipoNegocio';
 import { obtenerColorPlaceholder } from '../utils/menuVisual';
 import SelectorDireccionMapa from './SelectorDireccionMapa';
 import AsistenteMenu from './AsistenteMenu';
+import MenuSellos, { guardarTelefonoSellos } from './MenuSellos';
 import './MenuPublico.css';
 import './MenuVitrina.css';
 
@@ -153,6 +154,7 @@ const MenuPublico = () => {
   const [cantidadFicha, setCantidadFicha] = useState(1);
   const [fotoAmpliada, setFotoAmpliada] = useState(null);
   const [verPedido, setVerPedido] = useState(false);
+  const [verSellos, setVerSellos] = useState(false);
   const [saltoBolsa, setSaltoBolsa] = useState(0);
 
   const heroRef = useRef(null);
@@ -248,14 +250,14 @@ const MenuPublico = () => {
   };
 
   // ---------- Capas + botón atrás ----------
-  const capaAbierta = Boolean(productoAbierto || fotoAmpliada || verPedido);
+  const capaAbierta = Boolean(productoAbierto || fotoAmpliada || verPedido || verSellos);
   const abrirCapa = (accion) => {
     window.history.pushState({ mvCapa: true }, '');
     accion();
   };
   const cerrarCapa = () => {
     if (window.history.state?.mvCapa) window.history.back();
-    else { setFotoAmpliada(null); setProductoAbierto(null); setVerPedido(false); }
+    else { setFotoAmpliada(null); setProductoAbierto(null); setVerPedido(false); setVerSellos(false); }
   };
   useEffect(() => {
     const alVolver = () => {
@@ -263,10 +265,11 @@ const MenuPublico = () => {
       if (fotoAmpliada) setFotoAmpliada(null);
       else if (productoAbierto) setProductoAbierto(null);
       else if (verPedido) setVerPedido(false);
+      else if (verSellos) setVerSellos(false);
     };
     window.addEventListener('popstate', alVolver);
     return () => window.removeEventListener('popstate', alVolver);
-  }, [fotoAmpliada, productoAbierto, verPedido]);
+  }, [fotoAmpliada, productoAbierto, verPedido, verSellos]);
 
   useEffect(() => {
     document.body.style.overflow = capaAbierta ? 'hidden' : '';
@@ -398,6 +401,7 @@ const MenuPublico = () => {
         ]
       });
       document.body.style.overflow = '';
+      if (modulo?.sellos) guardarTelefonoSellos(telefono.replace(/\D/g, ''));
       navigate(`/menu/${moduloId}/pedido/${response.data.token_publico}`, { replace: true });
     } catch (err) {
       console.error('Error generando pedido:', err);
@@ -487,6 +491,9 @@ const MenuPublico = () => {
             {modulo?.horario && <span className="mv-chip-hero">🕐 {modulo.horario}</span>}
             {modulo?.juegos_activos !== false && (
               <button type="button" className="mv-chip-hero mv-chip-hero--boton" onClick={() => navigate(`/menu/${moduloId}/juegos`)}>🎲 Juegos</button>
+            )}
+            {modulo?.sellos && (
+              <button type="button" className="mv-chip-hero mv-chip-hero--boton" onClick={() => abrirCapa(() => setVerSellos(true))}>🎟️ Mis sellos</button>
             )}
           </div>
           <button type="button" className="mv-hero__cta" onClick={irAlMenu}>
@@ -584,6 +591,11 @@ const MenuPublico = () => {
           <strong>{nombre}</strong>
           {modulo?.horario && <span>🕐 {modulo.horario}</span>}
           <small>Haz tu pedido aquí y te avisamos cuando esté listo.</small>
+          {modulo?.sellos && (
+            <button type="button" className="mv-btn mv-btn--suave mv-pie__juegos" onClick={() => abrirCapa(() => setVerSellos(true))}>
+              🎟️ Junta {modulo.sellos.meta} sellos y gana {modulo.sellos.premio}
+            </button>
+          )}
           {modulo?.juegos_activos !== false && (
             <button type="button" className="mv-btn mv-btn--suave mv-pie__juegos" onClick={() => navigate(`/menu/${moduloId}/juegos`)}>
               🎲 ¿Un rato libre? Entra a la zona de juegos
@@ -740,6 +752,13 @@ const MenuPublico = () => {
                 <div className="mv-totales__total"><span>Total</span><span>{pesos(totalCarrito + (esDomicilio && modulo?.envio_costo ? modulo.envio_costo : 0))}</span></div>
                 {esDomicilio && modulo?.envio_costo && <small>El negocio confirmará el valor final del domicilio.</small>}
               </div>
+              {modulo?.sellos && (
+                <p className="mv-sellos__aviso">
+                  🎟️ {totalCarrito >= modulo.sellos.minimo
+                    ? <>Este pedido suma <b>1 sello</b> a tu tarjeta (con el celular que escribiste).</>
+                    : <>Desde {pesos(modulo.sellos.minimo)} tu pedido suma un sello a tu tarjeta.</>}
+                </p>
+              )}
             </div>
 
             <div className="mv-pedido__pie">
@@ -748,6 +767,20 @@ const MenuPublico = () => {
                 {enviando ? 'Enviando tu pedido...' : `Enviar pedido · ${pesos(totalCarrito)}`}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================= Tarjeta de sellos ================= */}
+      {verSellos && modulo?.sellos && (
+        <div className="mv-capa" onClick={cerrarCapa}>
+          <div className="mv-hoja mv-ficha" role="dialog" aria-modal="true" aria-label="Tarjeta de sellos" onClick={(e) => e.stopPropagation()}>
+            <span className="mv-hoja__agarre" aria-hidden="true" />
+            <div className="mv-pedido__cabecera">
+              <button type="button" className="mv-atras" onClick={cerrarCapa}><Icono.atras /> Volver</button>
+              <h2>Mis sellos</h2>
+            </div>
+            <MenuSellos moduloId={moduloId} negocio={nombre} config={{ ...modulo.sellos, textoMenu: textos.menu }} />
           </div>
         </div>
       )}
