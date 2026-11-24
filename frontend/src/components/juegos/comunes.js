@@ -1,4 +1,16 @@
+import { useEffect, useState } from 'react';
 import apiPublico from '../../services/apiPublico';
+
+// ¿Este negocio tiene la zona de juegos encendida? null mientras carga.
+export const useJuegosActivos = (moduloId) => {
+  const [activos, setActivos] = useState(null);
+  useEffect(() => {
+    apiPublico.get(`/menu/${moduloId}`)
+      .then(r => setActivos(r.data.modulo?.juegos_activos !== false))
+      .catch(() => setActivos(false));
+  }, [moduloId]);
+  return activos;
+};
 
 // Catálogo de la zona de juegos. Los juegos con podio guardan puntaje.
 export const JUEGOS = [

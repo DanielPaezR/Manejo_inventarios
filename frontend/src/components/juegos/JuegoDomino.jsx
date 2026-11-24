@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Link, useParams } from 'react-router-dom';
+import { useJuegosActivos } from './comunes';
 import './Juegos.css';
 
 // Contador de dominó: las 28 fichas en una matriz triangular (fila N =
@@ -47,6 +48,7 @@ const JuegoDomino = () => {
   });
   const [numeroResaltado, setNumeroResaltado] = useState(null);
   const bloqueoRef = useRef(null);
+  const activos = useJuegosActivos(moduloId);
 
   useEffect(() => {
     try { localStorage.setItem(clave, JSON.stringify(jugadas)); } catch { /* modo privado */ }
@@ -85,6 +87,18 @@ const JuegoDomino = () => {
       setNumeroResaltado(null);
     }
   };
+
+  if (activos === false) {
+    return (
+      <div className="jg">
+        <div className="jg-inicio" style={{ '--jg-c1': '#374151', '--jg-c2': '#1f2937' }}>
+          <div className="jg-inicio__emoji">🎲</div>
+          <p>Los juegos no están disponibles en este negocio.</p>
+          <Link to={`/menu/${moduloId}`} className="jg-btn jg-btn--grande">Ver el menú</Link>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="jg jg-domino">

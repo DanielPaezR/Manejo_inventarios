@@ -485,7 +485,9 @@ const MenuPublico = () => {
               <span className="mv-chip-hero">🛵 Domicilios{modulo.envio_costo !== null ? ` · ${modulo.envio_costo === 0 ? 'gratis' : pesos(modulo.envio_costo)}` : ''}</span>
             )}
             {modulo?.horario && <span className="mv-chip-hero">🕐 {modulo.horario}</span>}
-            <button type="button" className="mv-chip-hero mv-chip-hero--boton" onClick={() => navigate(`/menu/${moduloId}/juegos`)}>🎲 Juegos</button>
+            {modulo?.juegos_activos !== false && (
+              <button type="button" className="mv-chip-hero mv-chip-hero--boton" onClick={() => navigate(`/menu/${moduloId}/juegos`)}>🎲 Juegos</button>
+            )}
           </div>
           <button type="button" className="mv-hero__cta" onClick={irAlMenu}>
             Ver el {textos.menu}
@@ -582,9 +584,11 @@ const MenuPublico = () => {
           <strong>{nombre}</strong>
           {modulo?.horario && <span>🕐 {modulo.horario}</span>}
           <small>Haz tu pedido aquí y te avisamos cuando esté listo.</small>
-          <button type="button" className="mv-btn mv-btn--suave mv-pie__juegos" onClick={() => navigate(`/menu/${moduloId}/juegos`)}>
-            🎲 ¿Van a jugar dominó? Lleva la cuenta de las fichas
-          </button>
+          {modulo?.juegos_activos !== false && (
+            <button type="button" className="mv-btn mv-btn--suave mv-pie__juegos" onClick={() => navigate(`/menu/${moduloId}/juegos`)}>
+              🎲 ¿Un rato libre? Entra a la zona de juegos
+            </button>
+          )}
         </footer>
       </main>
 

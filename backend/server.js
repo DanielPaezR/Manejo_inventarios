@@ -768,7 +768,7 @@ app.get('/api/modulos/:id', authenticateToken, checkAccess, async (req, res) => 
       return res.status(404).json({ error: 'Módulo no encontrado' });
     }
 
-    res.json(result.rows[0]);
+    res.json({ ...result.rows[0], juegos_activos: await juegosActivos(id) });
   } catch (error) {
     console.error('Error obteniendo módulo:', error);
     res.status(500).json({ error: 'Error interno del servidor' });
@@ -823,6 +823,11 @@ app.put('/api/modulos/:id/portada', authenticateToken, checkAccess, requireAdmin
     if ('tiene_domicilio' in req.body) {
       sets.push(`tiene_domicilio = $${paramIndex++}`);
       values.push(!!req.body.tiene_domicilio);
+    }
+
+    if ('juegos_activos' in req.body) {
+      sets.push(`juegos_activos = $${paramIndex++}`);
+      values.push(!!req.body.juegos_activos);
     }
 
     if (sets.length === 0) {
@@ -8277,7 +8282,8 @@ app.get('/api/menu/:moduloId', async (req, res) => {
         bot_activo: moduloResult.rows[0].bot_activo && botDisponible(),
         // Nombre y saludo que el negocio eligió para su asistente.
         bot_nombre: limpiarEstilo(moduloResult.rows[0].bot_estilo).nombre_asistente || null,
-        bot_saludo: limpiarEstilo(moduloResult.rows[0].bot_estilo).saludo || null
+        bot_saludo: limpiarEstilo(moduloResult.rows[0].bot_estilo).saludo || null,
+        juegos_activos: await juegosActivos(moduloId)
       },
       productos: productosResult.rows,
       // Si la tabla de promociones aún no existe, el menú sigue funcionando.
@@ -8290,6 +8296,16 @@ app.get('/api/menu/:moduloId', async (req, res) => {
 });
 
 // ==================== ZONA DE JUEGOS DEL MENÚ ====================
+// Cada negocio decide si muestra la zona de juegos (modulos.juegos_activos).
+const juegosActivos = async (moduloId) => {
+  try {
+    const { rows: [m] } = await pool.query('SELECT juegos_activos FROM modulos WHERE id = $1', [moduloId]);
+    return m ? m.juegos_activos !== false : false;
+  } catch {
+    return true;
+  }
+};
+
 // Puntajes y podio por negocio. Públicas (sin sesión); si la tabla aún no
 // existe, el podio sale vacío y guardar avisa que todavía no está activo.
 app.get('/api/menu/:moduloId/juegos/podio', async (req, res) => {
@@ -8315,6 +8331,7 @@ app.get('/api/menu/:moduloId/juegos/campeones', async (req, res) => {
 app.post('/api/menu/:moduloId/juegos/puntajes', async (req, res) => {
   try {
     if (!/^\d+$/.test(req.params.moduloId)) return res.status(404).json({ error: 'Juegos no disponibles' });
+    if (!(await juegosActivos(req.params.moduloId))) return res.status(404).json({ error: 'Los juegos no están disponibles en este negocio' });
     const r = await guardarPuntaje(pool, req.params.moduloId, ipCliente(req), req.body || {});
     if (r.error) return res.status(r.status).json({ error: r.error });
     res.status(201).json(r.datos);

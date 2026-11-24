@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import apiPublico from '../../services/apiPublico';
-import { JUEGOS, juegoPorId, leerPerfil, mejorLocal, obtenerCampeones } from './comunes';
+import { JUEGOS, juegoPorId, leerPerfil, mejorLocal, obtenerCampeones, useJuegosActivos } from './comunes';
 import './Juegos.css';
 import './ZonaJuegos.css';
 
@@ -20,12 +20,25 @@ const Juegos = () => {
   const [negocio, setNegocio] = useState('');
   const [campeones, setCampeones] = useState({});
   const perfil = leerPerfil();
+  const activos = useJuegosActivos(moduloId);
 
   useEffect(() => {
     document.title = 'Zona de juegos';
     apiPublico.get(`/menu/${moduloId}`).then(r => setNegocio(r.data.modulo?.nombre_publico || '')).catch(() => {});
     obtenerCampeones(moduloId).then(setCampeones);
   }, [moduloId]);
+
+  if (activos === false) {
+    return (
+      <div className="jg">
+        <div className="jg-inicio" style={{ '--jg-c1': '#374151', '--jg-c2': '#1f2937' }}>
+          <div className="jg-inicio__emoji">🎲</div>
+          <p>Los juegos no están disponibles en este negocio.</p>
+          <Link to={`/menu/${moduloId}`} className="jg-btn jg-btn--grande">Ver el menú</Link>
+        </div>
+      </div>
+    );
+  }
 
   const listaCampeones = Object.entries(campeones).map(([juego, c]) => ({ juego: juegoPorId(juego), ...c })).filter(c => c.juego);
 

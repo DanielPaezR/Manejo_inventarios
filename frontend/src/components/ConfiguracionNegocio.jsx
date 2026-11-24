@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Link2, Copy, Check, ExternalLink, Bike, Store, MessageCircle } from 'lucide-react';
+import { Link2, Copy, Check, ExternalLink, Bike, Store, MessageCircle, Gamepad2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import api from '../services/api';
 import { useModulo } from '../hooks/useModulo';
@@ -46,6 +46,8 @@ const ConfiguracionNegocio = ({ user }) => {
   const [editandoNombre, setEditandoNombre] = useState(false);
   const [guardando, setGuardando] = useState(false);
   const [guardandoDomicilio, setGuardandoDomicilio] = useState(false);
+  const [juegosActivos, setJuegosActivos] = useState(true);
+  const [guardandoJuegos, setGuardandoJuegos] = useState(false);
   const [copiado, setCopiado] = useState(false);
   const [mensaje, setMensaje] = useState('');
 
@@ -59,6 +61,7 @@ const ConfiguracionNegocio = ({ user }) => {
         setFotoPortadaUrl(res.data.foto_portada_url || '');
         setNegocioNombre(res.data.negocio_nombre || '');
         setTieneDomicilio(res.data.tiene_domicilio !== false);
+        setJuegosActivos(res.data.juegos_activos !== false);
         setCargado(true);
       })
       .catch(err => {
@@ -101,6 +104,20 @@ const ConfiguracionNegocio = ({ user }) => {
       avisar(`❌ ${err.response?.data?.error || 'No se pudo cambiar'}`);
     } finally {
       setGuardandoDomicilio(false);
+    }
+  };
+
+  const cambiarJuegos = async (activo) => {
+    setJuegosActivos(activo);
+    try {
+      setGuardandoJuegos(true);
+      await api.put(`/modulos/${moduloActivo.id}/portada`, { juegos_activos: activo });
+      avisar(activo ? '✅ Zona de juegos activada' : '✅ Zona de juegos desactivada');
+    } catch (err) {
+      setJuegosActivos(!activo);
+      avisar(`❌ ${err.response?.data?.error || 'No se pudo cambiar'}`);
+    } finally {
+      setGuardandoJuegos(false);
     }
   };
 
@@ -158,6 +175,31 @@ const ConfiguracionNegocio = ({ user }) => {
             className={`conf-switch ${tieneDomicilio ? 'on' : ''}`}
             onClick={() => cambiarDomicilio(!tieneDomicilio)}
             disabled={!cargado || guardandoDomicilio}
+          >
+            <span />
+          </button>
+        </div>
+      </div>
+
+      {/* Zona de juegos */}
+      <div className="card conf-card">
+        <div className="conf-switch-fila">
+          <div>
+            <h3 className="conf-titulo"><Gamepad2 size={18} /> Zona de juegos</h3>
+            <p className="conf-ayuda">
+              {juegosActivos
+                ? `Activa: tus clientes ven el botón "🎲 Juegos" en tu ${textos.menu} (juegos para el celular con podio semanal y el contador de dominó).`
+                : `Apagada: el botón de juegos no aparece en tu ${textos.menu}.`}
+            </p>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={juegosActivos}
+            aria-label="Zona de juegos"
+            className={`conf-switch ${juegosActivos ? 'on' : ''}`}
+            onClick={() => cambiarJuegos(!juegosActivos)}
+            disabled={!cargado || guardandoJuegos}
           >
             <span />
           </button>

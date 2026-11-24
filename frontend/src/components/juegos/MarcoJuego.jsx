@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import Podio from './Podio';
-import { juegoPorId, AVATARES, leerPerfil, guardarPerfil, mejorLocal, registrarMejorLocal, enviarPuntaje } from './comunes';
+import { useJuegosActivos, juegoPorId, AVATARES, leerPerfil, guardarPerfil, mejorLocal, registrarMejorLocal, enviarPuntaje } from './comunes';
 import JuegoMemoria from './JuegoMemoria';
 import JuegoCulebrita from './JuegoCulebrita';
 import JuegoToque from './JuegoToque';
@@ -26,6 +26,7 @@ const MarcoJuego = () => {
   const { moduloId, juegoId } = useParams();
   const juego = juegoPorId(juegoId);
   const Componente = COMPONENTES[juegoId];
+  const activos = useJuegosActivos(moduloId);
 
   const [estado, setEstado] = useState('inicio'); // inicio | jugando | fin
   const [partida, setPartida] = useState(0);
@@ -39,6 +40,18 @@ const MarcoJuego = () => {
   const [mejor, setMejor] = useState(() => mejorLocal(juegoId));
 
   useEffect(() => { if (juego) document.title = juego.nombre; }, [juego]);
+
+  if (activos === false) {
+    return (
+      <div className="jg">
+        <div className="jg-inicio" style={{ '--jg-c1': '#374151', '--jg-c2': '#1f2937' }}>
+          <div className="jg-inicio__emoji">🎲</div>
+          <p>Los juegos no están disponibles en este negocio.</p>
+          <Link to={`/menu/${moduloId}`} className="jg-btn jg-btn--grande">Ver el menú</Link>
+        </div>
+      </div>
+    );
+  }
 
   if (!juego || !Componente) {
     return (
