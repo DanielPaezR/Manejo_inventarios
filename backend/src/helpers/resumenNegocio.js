@@ -13,6 +13,15 @@ const LINEAS_PROPIAS = `
     AND v.es_ajuste_manual = false
     AND v.metodo_pago <> 'consumo_propio'`;
 
+const LINEAS_COMPARABLES = `
+  FROM detalle_venta dv
+  JOIN ventas v ON v.id = dv.venta_id
+  JOIN productos p ON p.id = dv.producto_id
+  WHERE dv.modulo_dueno_id = $1
+    AND p.modulo_id = $1
+    AND v.es_ajuste_manual = false
+    AND v.metodo_pago <> 'consumo_propio'`;
+
 const num = (x) => (x === null || x === undefined ? 0 : Number(x));
 
 async function construirResumen(pool, moduloId) {
@@ -230,4 +239,134 @@ async function construirResumen(pool, moduloId) {
   };
 }
 
-module.exports = { construirResumen };
+// ---------------------------------------------------------------------------
+// "Antes y ahora": los primeros 30 días con ventas contra los últimos 30, con
+// el mismo largo para que la comparación sea justa, más la serie mes a mes.
+// ---------------------------------------------------------------------------
+async function metricasPeriodo(pool, moduloId, desde, hasta) {
+  const params = [moduloId, desde, hasta];
+  const rango = `${FECHA_VENTA} BETWEEN $2::date AND $3::date`;
+  const q = (sql) => pool.query(sql, params).then(r => r.rows);
+  const ventasCaja = `FROM ventas v
+       WHERE v.modulo_id = $1 AND v.es_ajuste_manual = false AND v.metodo_pago <> 'consumo_propio' AND ${rango}`;
+
+  const [[v], top, movidos, [dia], [hora], metodos, [compras], [pedidosCliente]] = await Promise.all([
+    q(`SELECT COALESCE(SUM(dv.subtotal), 0) AS ventas,
+              COUNT(DISTINCT v.id) AS num_ventas,
+              COUNT(DISTINCT ${FECHA_VENTA}) AS dias_con_ventas,
+              COALESCE(SUM(dv.cantidad), 0) AS unidades,
+              COUNT(DISTINCT dv.producto_id) AS productos_distintos,
+              COALESCE(SUM(dv.subtotal) FILTER (WHERE dv.costo_unitario > 0), 0) AS ventas_con_costo,
+              COALESCE(SUM(dv.subtotal - dv.cantidad * dv.costo_unitario) FILTER (WHERE dv.costo_unitario > 0), 0) AS ganancia
+       ${LINEAS_COMPARABLES} AND ${rango}`),
+    q(`SELECT p.nombre, SUM(dv.cantidad)::int AS unidades, SUM(dv.subtotal) AS ventas
+       FROM detalle_venta dv JOIN ventas v ON v.id = dv.venta_id JOIN productos p ON p.id = dv.producto_id
+       WHERE dv.modulo_dueno_id = $1 AND p.modulo_id = $1 AND v.es_ajuste_manual = false AND v.metodo_pago <> 'consumo_propio' AND ${rango}
+       GROUP BY p.nombre ORDER BY ventas DESC LIMIT 5`),
+    q(`SELECT m.nombre AS modulo, SUM(dv.subtotal) AS ventas,
+              string_agg(DISTINCT p.nombre, ', ') AS productos
+       FROM detalle_venta dv JOIN ventas v ON v.id = dv.venta_id
+       JOIN productos p ON p.id = dv.producto_id JOIN modulos m ON m.id = p.modulo_id
+       WHERE dv.modulo_dueno_id = $1 AND p.modulo_id <> $1
+         AND v.es_ajuste_manual = false AND v.metodo_pago <> 'consumo_propio' AND ${rango}
+       GROUP BY m.nombre ORDER BY ventas DESC`),
+    q(`SELECT EXTRACT(ISODOW FROM ${FECHA_VENTA})::int AS dia, SUM(v.total) AS total
+       ${ventasCaja}
+       GROUP BY 1 ORDER BY total DESC LIMIT 1`),
+    q(`SELECT EXTRACT(HOUR FROM (v.fecha_venta AT TIME ZONE 'UTC' AT TIME ZONE 'America/Bogota'))::int AS hora, COUNT(*) AS n
+       ${ventasCaja}
+       GROUP BY 1 ORDER BY n DESC LIMIT 1`),
+    q(`SELECT v.metodo_pago, SUM(v.total) AS total
+       ${ventasCaja}
+       GROUP BY 1`),
+    q(`SELECT COALESCE(SUM(total), 0) AS total, COUNT(*)::int AS pedidos
+       FROM pedidos_proveedor
+       WHERE modulo_id = $1 AND estado = 'recibido'
+         AND (fecha_pedido AT TIME ZONE 'UTC' AT TIME ZONE 'America/Bogota')::date BETWEEN $2::date AND $3::date`),
+    q(`SELECT COUNT(*)::int AS pedidos, COUNT(*) FILTER (WHERE es_domicilio)::int AS domicilios
+       FROM pedidos_cliente
+       WHERE modulo_id = $1 AND estado <> 'cancelado'
+         AND (fecha_creacion AT TIME ZONE 'UTC' AT TIME ZONE 'America/Bogota')::date BETWEEN $2::date AND $3::date`)
+  ]);
+
+  const ventas = num(v.ventas);
+  const numVentas = Number(v.num_ventas);
+  const totalMetodos = metodos.reduce((s, m) => s + num(m.total), 0);
+  const porMetodo = Object.fromEntries(metodos.map(m => [m.metodo_pago, totalMetodos > 0 ? Math.round((num(m.total) / totalMetodos) * 100) : 0]));
+  const dias = Math.round((new Date(`${hasta}T12:00:00Z`) - new Date(`${desde}T12:00:00Z`)) / 86400000) + 1;
+
+  return {
+    desde, hasta, dias,
+    ventas: Math.round(ventas),
+    ventas_por_dia: Math.round(ventas / dias),
+    num_ventas: numVentas,
+    ventas_diarias: Math.round((numVentas / dias) * 10) / 10,
+    ticket: numVentas > 0 ? Math.round(ventas / numVentas) : 0,
+    dias_con_ventas: Number(v.dias_con_ventas),
+    unidades: Math.round(num(v.unidades)),
+    productos_distintos: Number(v.productos_distintos),
+    ganancia: Math.round(num(v.ganancia)),
+    margen: num(v.ventas_con_costo) > 0 ? Math.round((num(v.ganancia) / num(v.ventas_con_costo)) * 100) : null,
+    porcentaje_sin_costo: ventas > 0 ? Math.round(((ventas - num(v.ventas_con_costo)) / ventas) * 100) : 0,
+    top: top.map(t => ({ nombre: t.nombre.trim(), unidades: t.unidades, ventas: Math.round(num(t.ventas)) })),
+    movidos: movidos.map(m => ({ modulo: m.modulo, ventas: Math.round(num(m.ventas)), productos: m.productos })),
+    mejor_dia: dia ? dia.dia : null,
+    hora_pico: hora ? hora.hora : null,
+    metodos: porMetodo,
+    compras: Math.round(num(compras.total)),
+    pedidos_proveedor: compras.pedidos,
+    pedidos_cliente: pedidosCliente.pedidos,
+    domicilios: pedidosCliente.domicilios
+  };
+}
+
+const sumarDias = (fecha, n) => {
+  const d = new Date(`${fecha}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+};
+
+async function construirAntesYAhora(pool, moduloId) {
+  const [inicio] = (await pool.query(
+    `SELECT MIN(${FECHA_VENTA})::text AS primera, ${HOY}::text AS hoy
+     ${LINEAS_PROPIAS}`, [moduloId])).rows;
+
+  if (!inicio.primera) {
+    return { suficiente: false, dias_con_datos: 0 };
+  }
+  const diasConDatos = Math.round((new Date(`${inicio.hoy}T12:00:00Z`) - new Date(`${inicio.primera}T12:00:00Z`)) / 86400000) + 1;
+  // Hacen falta al menos dos periodos de 30 días que no se crucen.
+  if (diasConDatos < 60) {
+    return { suficiente: false, dias_con_datos: diasConDatos, primera_venta: inicio.primera };
+  }
+
+  const [antes, ahora, mensual] = await Promise.all([
+    metricasPeriodo(pool, moduloId, inicio.primera, sumarDias(inicio.primera, 29)),
+    metricasPeriodo(pool, moduloId, sumarDias(inicio.hoy, -29), inicio.hoy),
+    pool.query(
+      `SELECT to_char(${FECHA_VENTA}, 'YYYY-MM') AS mes,
+              COALESCE(SUM(dv.subtotal), 0) AS ventas,
+              COUNT(DISTINCT v.id)::int AS num_ventas,
+              COUNT(DISTINCT ${FECHA_VENTA})::int AS dias,
+              COALESCE(SUM(dv.subtotal - dv.cantidad * dv.costo_unitario) FILTER (WHERE dv.costo_unitario > 0), 0) AS ganancia
+       ${LINEAS_COMPARABLES}
+       GROUP BY 1 ORDER BY 1`, [moduloId]).then(r => r.rows)
+  ]);
+
+  return {
+    suficiente: true,
+    dias_con_datos: diasConDatos,
+    primera_venta: inicio.primera,
+    antes,
+    ahora,
+    mensual: mensual.map(m => ({
+      mes: m.mes,
+      ventas: Math.round(num(m.ventas)),
+      num_ventas: m.num_ventas,
+      dias: m.dias,
+      ganancia: Math.round(num(m.ganancia))
+    }))
+  };
+}
+
+module.exports = { construirResumen, construirAntesYAhora };

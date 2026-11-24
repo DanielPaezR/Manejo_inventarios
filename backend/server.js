@@ -31,7 +31,7 @@ const { generarNumeroCliente } = require('./src/helpers/generarNumeroCliente');
 const { geocodificar } = require('./src/helpers/geocodificar');
 const OpenAI = require('openai');
 const { botDisponible, responder: responderBot, limpiarEstilo } = require('./src/helpers/asistenteBot');
-const { construirResumen } = require('./src/helpers/resumenNegocio');
+const { construirResumen, construirAntesYAhora } = require('./src/helpers/resumenNegocio');
 
 // Divide el ingreso de una venta entre los módulos dueños reales de cada
 // línea vendida (duenoPorProducto), no todo al módulo que hizo la venta —
@@ -2135,6 +2135,19 @@ app.get('/api/estadisticas/resumen', authenticateToken, checkAccess, requireAdmi
     res.json(await construirResumen(pool, req.moduloId));
   } catch (error) {
     console.error('Error armando el resumen del negocio:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// Primeros 30 días con ventas contra los últimos 30 (pestaña "Antes y ahora").
+app.get('/api/estadisticas/antes-y-ahora', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+  try {
+    if (!req.moduloId) {
+      return res.status(400).json({ error: 'Se requiere un módulo' });
+    }
+    res.json(await construirAntesYAhora(pool, req.moduloId));
+  } catch (error) {
+    console.error('Error armando antes y ahora:', error);
     res.status(500).json({ error: 'Error interno del servidor' });
   }
 });

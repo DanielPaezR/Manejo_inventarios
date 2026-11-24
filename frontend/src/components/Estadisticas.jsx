@@ -3,6 +3,7 @@ import api from '../services/api';
 import { useModulo } from '../hooks/useModulo';
 import GraficoLineas from './GraficoLineas';
 import ResumenNegocio from './ResumenNegocio';
+import AntesYAhora from './AntesYAhora';
 import './Estadisticas.css';
 
 // Aritmética de calendario pura en UTC (año/mes/día, sin horas): evita que
@@ -35,7 +36,7 @@ const Estadisticas = ({ user }) => {
   const [loading, setLoading] = useState(false);
   const [periodo, setPeriodo] = useState('hoy');
   const [fechas, setFechas] = useState({ inicio: '', fin: '' });
-  const [vistaActiva, setVistaActiva] = useState('resumen'); // 'resumen', 'general', 'productos', 'ventas', 'finanzas', 'cruzadas', 'evolucion'
+  const [vistaActiva, setVistaActiva] = useState('resumen'); // 'resumen', 'ventas', 'productos', 'dinero', 'historia'
   const [hoveredProducto, setHoveredProducto] = useState(null);
   const [finanzasResumen, setFinanzasResumen] = useState(null);
   const [loadingFinanzas, setLoadingFinanzas] = useState(false);
@@ -136,7 +137,7 @@ const Estadisticas = ({ user }) => {
   }, [periodo, fechas, periodoOffset]);
 
   useEffect(() => {
-    if (moduloActivo && vistaActiva === 'finanzas') {
+    if (moduloActivo && vistaActiva === 'dinero') {
       cargarFinanzasResumen();
     }
   }, [moduloActivo, vistaActiva, periodo, periodoOffset, cargarFinanzasResumen]);
@@ -162,7 +163,7 @@ const Estadisticas = ({ user }) => {
   }, [periodo, fechas, periodoOffset]);
 
   useEffect(() => {
-    if (moduloActivo && vistaActiva === 'cruzadas') {
+    if (moduloActivo && vistaActiva === 'dinero') {
       cargarVentasCruzadas();
     }
   }, [moduloActivo, vistaActiva, periodo, periodoOffset, cargarVentasCruzadas]);
@@ -264,12 +265,6 @@ const Estadisticas = ({ user }) => {
     }
   }, []);
 
-  useEffect(() => {
-    if (moduloActivo && vistaActiva === 'evolucion') {
-      cargarTendenciaNegocio();
-    }
-  }, [moduloActivo, vistaActiva, cargarTendenciaNegocio]);
-
   const cambiarEvolucionGranularidad = (nuevaGranularidad) => {
     setEvolucionGranularidad(nuevaGranularidad);
     setEvolucionOffset(0);
@@ -326,7 +321,7 @@ const Estadisticas = ({ user }) => {
   }, [evolucionGranularidad, evolucionModoRango, evolucionOffset, evolucionFechas, evolucionAnchor]);
 
   useEffect(() => {
-    if (moduloActivo && vistaActiva === 'evolucion' && evolucionModoRango !== 'personalizado') {
+    if (moduloActivo && vistaActiva === 'historia' && evolucionModoRango !== 'personalizado') {
       cargarEvolucion();
     }
   }, [moduloActivo, vistaActiva, evolucionGranularidad, evolucionModoRango, evolucionOffset, cargarEvolucion]);
@@ -397,54 +392,28 @@ const Estadisticas = ({ user }) => {
       {/* Header */}
       <div className="estadisticas-header">
         <div className="header-right">
-          <button
-            className={`btn-vista ${vistaActiva === 'resumen' ? 'active' : ''}`}
-            onClick={() => setVistaActiva('resumen')}
-          >
-            📖 Resumen
-          </button>
-          <button 
-            className={`btn-vista ${vistaActiva === 'general' ? 'active' : ''}`}
-            onClick={() => setVistaActiva('general')}
-          >
-            📊 General
-          </button>
-          <button 
-            className={`btn-vista ${vistaActiva === 'productos' ? 'active' : ''}`}
-            onClick={() => setVistaActiva('productos')}
-          >
-            📦 Productos
-          </button>
-          <button
-            className={`btn-vista ${vistaActiva === 'ventas' ? 'active' : ''}`}
-            onClick={() => setVistaActiva('ventas')}
-          >
-            💰 Ventas
-          </button>
-          <button
-            className={`btn-vista ${vistaActiva === 'finanzas' ? 'active' : ''}`}
-            onClick={() => setVistaActiva('finanzas')}
-          >
-            💰 Ingresos y Egresos
-          </button>
-          <button
-            className={`btn-vista ${vistaActiva === 'cruzadas' ? 'active' : ''}`}
-            onClick={() => setVistaActiva('cruzadas')}
-          >
-            🔗 Ventas cruzadas
-          </button>
-          <button
-            className={`btn-vista ${vistaActiva === 'evolucion' ? 'active' : ''}`}
-            onClick={() => setVistaActiva('evolucion')}
-          >
-            📈 Evolución
-          </button>
+          {[
+            { valor: 'resumen', titulo: '📖 Resumen', ayuda: '¿Cómo voy?' },
+            { valor: 'ventas', titulo: '💵 Ventas', ayuda: '¿Cuánto y cuándo vendo?' },
+            { valor: 'productos', titulo: '📦 Productos', ayuda: '¿Qué se vende y qué me deja?' },
+            { valor: 'dinero', titulo: '💰 Dinero', ayuda: '¿Entra más de lo que sale?' },
+            { valor: 'historia', titulo: '🔭 Antes y ahora', ayuda: '¿He mejorado?' }
+          ].map(t => (
+            <button
+              key={t.valor}
+              className={`btn-vista btn-vista--pregunta ${vistaActiva === t.valor ? 'active' : ''}`}
+              onClick={() => setVistaActiva(t.valor)}
+            >
+              <span>{t.titulo}</span>
+              <small>{t.ayuda}</small>
+            </button>
+          ))}
         </div>
       </div>
 
       {/* Filtros de período: no aplican a la pestaña "Evolución", que tiene
           su propio selector de granularidad/rango más abajo. */}
-      {vistaActiva !== 'evolucion' && vistaActiva !== 'resumen' && (
+      {vistaActiva !== 'historia' && vistaActiva !== 'resumen' && (
       <div className="filtros-periodo">
         <div className="periodo-selector">
           <button
@@ -523,7 +492,7 @@ const Estadisticas = ({ user }) => {
             <button
               onClick={() => {
                 cargarEstadisticas();
-                if (vistaActiva === 'finanzas') cargarFinanzasResumen();
+                if (vistaActiva === 'dinero') cargarFinanzasResumen();
               }}
               className="btn-aplicar"
             >
@@ -546,7 +515,7 @@ const Estadisticas = ({ user }) => {
           {/* ============================================================
               VISTA GENERAL
               ============================================================ */}
-          {vistaActiva === 'general' && (
+          {vistaActiva === 'ventas' && (
             <div className="estadisticas-grid">
               {/* Métricas principales */}
               <div className="card metricas-principales">
@@ -587,18 +556,6 @@ const Estadisticas = ({ user }) => {
                 </div>
               </div>
 
-              {/* Valor en mercancía */}
-              <div className="card valor-mercancia-card">
-                <div className="metrica-item">
-                  <div className="metrica-icono">💰</div>
-                  <div className="metrica-info">
-                    <span className="metrica-valor">{formatearMoneda(estadisticas.valor_mercancia)}</span>
-                    <span className="metrica-label">Valor en mercancía</span>
-                    <span className="metrica-nota">A precio de venta</span>
-                  </div>
-                </div>
-              </div>
-
               {/* Gráfico de ventas por día */}
               <div className="card grafico-ventas-dia">
                 <h3>📈 Ventas por día</h3>
@@ -634,45 +591,6 @@ const Estadisticas = ({ user }) => {
                   </div>
                 ) : (
                   <p className="sin-datos">No hay ventas en este período</p>
-                )}
-              </div>
-
-              {/* Top productos */}
-              <div className="card top-productos">
-                <h3>🔥 Productos más vendidos</h3>
-                {estadisticas.topProductos?.length > 0 ? (
-                  <div className="top-productos-lista">
-                    {estadisticas.topProductos.map((producto, index) => {
-                      const maxVentas = estadisticas.topProductos[0]?.total_vendido || 1;
-                      const porcentaje = (producto.total_vendido / maxVentas) * 100;
-                      return (
-                        <div 
-                          key={index} 
-                          className="producto-top-item"
-                          onMouseEnter={() => setHoveredProducto(index)}
-                          onMouseLeave={() => setHoveredProducto(null)}
-                        >
-                          <div className="producto-top-info">
-                            <span className="producto-posicion">{index + 1}</span>
-                            <span className="producto-top-nombre">{producto.nombre}</span>
-                            <span className="producto-top-cantidad">{producto.total_vendido} uds</span>
-                          </div>
-                          <div className="producto-top-bar">
-                            <div 
-                              className="producto-top-progreso" 
-                              style={{ 
-                                width: `${porcentaje}%`,
-                                background: getColorPorPosicion(index)
-                              }}
-                            />
-                          </div>
-                          <span className="producto-top-monto">{formatearMoneda(producto.monto_total)}</span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <p className="sin-datos">No hay datos de productos vendidos</p>
                 )}
               </div>
 
@@ -718,6 +636,18 @@ const Estadisticas = ({ user }) => {
               ============================================================ */}
           {vistaActiva === 'productos' && (
             <div className="estadisticas-grid productos-view">
+              {/* Valor en mercancía */}
+              <div className="card valor-mercancia-card">
+                <div className="metrica-item">
+                  <div className="metrica-icono">💰</div>
+                  <div className="metrica-info">
+                    <span className="metrica-valor">{formatearMoneda(estadisticas.valor_mercancia)}</span>
+                    <span className="metrica-label">Valor en mercancía</span>
+                    <span className="metrica-nota">A precio de venta</span>
+                  </div>
+                </div>
+              </div>
+
               <div className="card productos-detalle">
                 <h3>📦 Análisis de Productos</h3>
                 <div className="productos-stats">
@@ -981,7 +911,7 @@ const Estadisticas = ({ user }) => {
           {/* ============================================================
               VISTA DE FINANZAS (ingresos y egresos)
               ============================================================ */}
-          {vistaActiva === 'finanzas' && (
+          {vistaActiva === 'dinero' && (
             <div className="estadisticas-grid">
               {loadingFinanzas && !finanzasResumen ? (
                 <div className="loading-container">
@@ -1060,7 +990,10 @@ const Estadisticas = ({ user }) => {
           {/* ============================================================
               VISTA DE VENTAS CRUZADAS (productos compartidos entre módulos)
               ============================================================ */}
-          {vistaActiva === 'cruzadas' && (
+          {vistaActiva === 'dinero' && (
+            <h3 className="est-seccion">🔗 Ventas cruzadas con otros módulos</h3>
+          )}
+          {vistaActiva === 'dinero' && (
             <div className="estadisticas-grid">
               {loadingCruzadas && !ventasCruzadas ? (
                 <div className="loading-container">
@@ -1150,71 +1083,14 @@ const Estadisticas = ({ user }) => {
           {/* ============================================================
               VISTA DE EVOLUCIÓN (balance acumulado + egresos en el tiempo)
               ============================================================ */}
-          {vistaActiva === 'evolucion' && (
+          {vistaActiva === 'historia' && (
+            <AntesYAhora />
+          )}
+          {vistaActiva === 'historia' && (
+            <h3 className="est-seccion">📈 Evolución en el tiempo</h3>
+          )}
+          {vistaActiva === 'historia' && (
             <div className="estadisticas-grid">
-              <div className="card tendencia-negocio-card">
-                <h3>🔮 Tendencia del negocio</h3>
-                {loadingTendencia && !tendenciaNegocio ? (
-                  <div className="loading-container">
-                    <div className="spinner"></div>
-                    <p>Calculando tendencia...</p>
-                  </div>
-                ) : !tendenciaNegocio || !tendenciaNegocio.tieneDatosSuficientes ? (
-                  <p className="sin-datos">Todavía no hay suficiente historial de ventas en los últimos 30 días para calcular una tendencia confiable.</p>
-                ) : (
-                  <>
-                    <div className={`tendencia-conclusion tendencia-${tendenciaNegocio.conclusion}`}>
-                      <span className="tendencia-icono">
-                        {tendenciaNegocio.conclusion === 'creciendo' ? '📈' : tendenciaNegocio.conclusion === 'empeorando' ? '📉' : '➡️'}
-                      </span>
-                      <div>
-                        <strong>
-                          {tendenciaNegocio.conclusion === 'creciendo' && 'Tu negocio está creciendo'}
-                          {tendenciaNegocio.conclusion === 'empeorando' && 'Tu negocio está empeorando'}
-                          {tendenciaNegocio.conclusion === 'estable' && 'Tu negocio está estable'}
-                        </strong>
-                        <p>
-                          Últimos 30 días ({formatearRangoFechas(tendenciaNegocio.periodo.inicio_actual, tendenciaNegocio.periodo.fin_actual)})
-                          {' '}vs. los 30 anteriores ({formatearRangoFechas(tendenciaNegocio.periodo.inicio_anterior, tendenciaNegocio.periodo.fin_anterior)})
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="tendencia-factores">
-                      {[
-                        { key: 'ventas', label: '💰 Ventas' },
-                        { key: 'margen', label: '📊 Margen bruto' },
-                        { key: 'ticketPromedio', label: '🎫 Ticket promedio' }
-                      ].map(({ key, label }) => {
-                        const factor = tendenciaNegocio.factores[key];
-                        const signo = factor.cambioPorcentaje === null ? null : factor.cambioPorcentaje > 0 ? 'positivo' : factor.cambioPorcentaje < 0 ? 'negativo' : 'neutral';
-                        return (
-                          <div key={key} className="tendencia-factor-item">
-                            <span className="tendencia-factor-label">{label}</span>
-                            <span className="tendencia-factor-valor">{formatearMoneda(factor.actual)}</span>
-                            {factor.cambioPorcentaje !== null ? (
-                              <span className={`tendencia-factor-cambio ${signo}`}>
-                                {factor.cambioPorcentaje > 0 ? '↑' : factor.cambioPorcentaje < 0 ? '↓' : '→'} {Math.abs(factor.cambioPorcentaje).toFixed(1)}%
-                              </span>
-                            ) : (
-                              <span className="tendencia-factor-cambio neutral">
-                                {factor.puntaje > 0 ? '↑ Nuevo' : 'Sin dato previo'}
-                              </span>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-
-                    {tendenciaNegocio.stockCritico.total > 0 && (
-                      <p className="tendencia-stock-aviso">
-                        ⚠️ Ahora mismo tienes {tendenciaNegocio.stockCritico.total} producto(s) con stock bajo o agotado ({tendenciaNegocio.stockCritico.agotados} agotados) — dato informativo del momento, no afecta la conclusión de arriba.
-                      </p>
-                    )}
-                  </>
-                )}
-              </div>
-
               <div className="card evolucion-controles-card">
                 <div className="periodo-selector">
                   <button

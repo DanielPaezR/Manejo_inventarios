@@ -445,3 +445,151 @@
     height: 90px;
   }
 }
+
+/* ---------- Antes y ahora ---------- */
+.aa-titular p {
+  margin: 0 0 8px;
+  font-size: 16px;
+  line-height: 1.5;
+  color: var(--text-strong);
+}
+
+.aa-titular p:last-child {
+  margin-bottom: 0;
+}
+
+.aa-icono {
+  background: var(--surface-subtle);
+  font-size: 16px;
+}
+
+.aa-fila {
+  padding: 10px 0;
+  border-bottom: 1px dashed var(--border);
+}
+
+.aa-fila:last-of-type {
+  border-bottom: none;
+}
+
+.aa-fila__titulo {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.aa-fila__valores {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+.aa-antes {
+  font-size: 15px;
+  color: var(--text-muted);
+}
+
+.aa-flecha {
+  color: var(--text-faint, var(--text-muted));
+}
+
+.aa-ahora {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-strong);
+}
+
+.aa-fila__explicacion {
+  margin: 4px 0 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-default);
+}
+
+.aa-tops {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  margin-top: 10px;
+}
+
+.aa-tops h4 {
+  margin: 0 0 6px;
+  font-size: 13.5px;
+  color: var(--text-strong);
+}
+
+.aa-tops ol {
+  margin: 0;
+  padding-left: 20px;
+  font-size: 13px;
+  color: var(--text-default);
+}
+
+.aa-tops li {
+  padding: 3px 0;
+}
+
+.aa-tops small {
+  color: var(--text-muted);
+}
+
+.aa-tops .aa-nuevo {
+  color: var(--success);
+  font-weight: 600;
+}
+
+.aa-tops .aa-salio {
+  color: var(--text-muted);
+  text-decoration: line-through;
+}
+
+.aa-meses {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.aa-mes {
+  display: grid;
+  grid-template-columns: 60px 1fr auto;
+  align-items: center;
+  gap: 4px 10px;
+}
+
+.aa-mes .rn-barra {
+  margin: 0;
+}
+
+.aa-mes__nombre {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-strong);
+  text-transform: capitalize;
+}
+
+.aa-mes__valor {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-strong);
+}
+
+.aa-mes__valor small {
+  font-weight: 400;
+  color: var(--text-muted);
+}
+
+.aa-mes__extra {
+  grid-column: 2 / -1;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+@media (max-width: 640px) {
+  .aa-tops {
+    grid-template-columns: 1fr;
+  }
+}
