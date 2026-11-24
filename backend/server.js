@@ -8119,6 +8119,7 @@ app.get('/api/menu/:moduloId', async (req, res) => {
 
     const moduloResult = await pool.query(
       `SELECT m.id, m.nombre, m.nombre_publico, m.activo, m.foto_portada_url, m.tiene_domicilio, m.bot_activo, m.bot_estilo,
+              m.bot_horario, m.bot_envio_costo,
               n.nombre as negocio_nombre, n.tipo as negocio_tipo
        FROM modulos m
        JOIN negocios n ON m.negocio_id = n.id
@@ -8152,6 +8153,11 @@ app.get('/api/menu/:moduloId', async (req, res) => {
         foto_portada_url: moduloResult.rows[0].foto_portada_url,
         tiene_domicilio: moduloResult.rows[0].tiene_domicilio,
         negocio_tipo: moduloResult.rows[0].negocio_tipo,
+        // Datos que el negocio llenó en la configuración del asistente; la
+        // portada del menú los muestra aunque el asistente esté apagado.
+        horario: moduloResult.rows[0].bot_horario || null,
+        envio_costo: moduloResult.rows[0].bot_envio_costo !== null && moduloResult.rows[0].bot_envio_costo !== undefined
+          ? Number(moduloResult.rows[0].bot_envio_costo) : null,
         // El asistente solo aparece si el negocio lo encendió y el servidor
         // tiene la clave de la API configurada.
         bot_activo: moduloResult.rows[0].bot_activo && botDisponible(),

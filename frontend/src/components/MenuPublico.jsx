@@ -1,104 +1,95 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import apiPublico from '../services/apiPublico';
 import { textosNegocio } from '../utils/tipoNegocio';
-import { IconoHoja, obtenerColorPlaceholder } from '../utils/menuVisual';
+import { obtenerColorPlaceholder } from '../utils/menuVisual';
 import SelectorDireccionMapa from './SelectorDireccionMapa';
 import AsistenteMenu from './AsistenteMenu';
 import './MenuPublico.css';
+import './MenuVitrina.css';
 
 // ============================================================
-// Iconografía — SVG en línea, paths tal cual especificados en el
-// diseño "Modernist". stroke="currentColor" para heredar el color del
-// contenedor vía CSS `color`.
-// IconoHoja y obtenerColorPlaceholder viven en utils/menuVisual.js porque
-// la vista previa editable de PedidosCliente.jsx también los necesita.
+// Menú / catálogo público ("vitrina"). Portada grande, barra fija con
+// buscador y categorías que se marcan solas al bajar, cuadrícula de
+// productos con fotos grandes, ficha del producto en una hoja que sube
+// desde abajo, foto a pantalla completa y carrito flotante. El botón
+// "atrás" del celular cierra la capa abierta en vez de salir del menú.
+// Los estilos nuevos están en MenuVitrina.css (clases mv-*); MenuPublico.css
+// se mantiene porque sus primitivos (mp-btn, mp-input...) los usa también
+// la pantalla de confirmación del pedido.
 // ============================================================
-const IconoMontana = (props) => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
-    <path d="M3 20l5.5-9.5L12 16l3-5L21 20H3z" />
-  </svg>
-);
 
-const IconoGota = (props) => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
-    <path d="M12 3s6.5 7.5 6.5 12A6.5 6.5 0 015.5 15C5.5 10.5 12 3 12 3z" />
-  </svg>
-);
-
-const IconoEspiga = (props) => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
-    <path d="M12 21V9" />
-    <path d="M12 9c-2.2 0-4-1.8-4-4M12 9c2.2 0 4-1.8 4-4M12 14c-2.2 0-4-1.8-4-4M12 14c2.2 0 4-1.8 4-4" />
-  </svg>
-);
-
-const IconoChevronAbajo = (props) => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" {...props}>
-    <path d="M6 9l6 6 6-6" />
-  </svg>
-);
-
-const IconoChevronIzquierda = (props) => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" {...props}>
-    <path d="M15 18l-6-6 6-6" />
-  </svg>
-);
-
-const IconoChevronDerecha = (props) => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" {...props}>
-    <path d="M9 6l6 6-6 6" />
-  </svg>
-);
-
-// Categoría -> ícono temático. Sin coincidencia, la hoja sirve de
-// genérico por defecto (pedido explícito del diseño).
-const obtenerIconoCategoria = (nombreCategoria) => {
-  const n = (nombreCategoria || '').toLowerCase();
-  if (n.includes('entrada')) return IconoHoja;
-  if (n.includes('fuerte') || n.includes('principal') || n.includes('plato')) return IconoMontana;
-  if (n.includes('bebida') || n.includes('trago') || n.includes('jugo') || n.includes('gaseosa')) return IconoGota;
-  if (n.includes('postre') || n.includes('dulce')) return IconoEspiga;
-  return IconoHoja;
+const Icono = {
+  buscar: (p) => (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" {...p}><circle cx="11" cy="11" r="7" /><path d="M20 20l-3.5-3.5" /></svg>),
+  cerrar: (p) => (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" {...p}><path d="M6 6l12 12M18 6L6 18" /></svg>),
+  bolsa: (p) => (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...p}><path d="M5 8h14l-1.2 11.2a2 2 0 01-2 1.8H8.2a2 2 0 01-2-1.8L5 8z" /><path d="M9 8V6a3 3 0 016 0v2" /></svg>),
+  flechaAbajo: (p) => (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" {...p}><path d="M12 5v14M6 13l6 6 6-6" /></svg>),
+  atras: (p) => (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" {...p}><path d="M15 18l-6-6 6-6" /></svg>),
+  ampliar: (p) => (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" {...p}><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" /></svg>)
 };
 
-const obtenerIniciales = (nombre) =>
-  nombre.trim().split(/\s+/).slice(0, 2).map(palabra => palabra[0]).join('').toUpperCase();
-
-// Productos con ignora_stock = true (se preparan al pedir, ej.
-// "Preparados") no dependen de stock_actual — se les da un tope fijo
-// razonable en el stepper en vez de dejarlo sin límite por error.
 const TOPE_CANTIDAD_SIN_STOCK = 50;
 const obtenerTopeCantidad = (producto) => (producto.ignora_stock ? TOPE_CANTIDAD_SIN_STOCK : producto.stock_actual);
+const pesos = (valor) => `$${Math.round(Number(valor || 0)).toLocaleString('es-CO')}`;
+const iniciales = (nombre) => nombre.trim().split(/\s+/).slice(0, 2).map(p => p[0]).join('').toUpperCase();
+const normalizar = (t) => (t || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+const idSeccion = (nombre) => `mv-cat-${normalizar(nombre).replace(/[^a-z0-9]+/g, '-')}`;
+const reducirMovimiento = () => typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
 
-// Compartido entre las tarjetas de categoría y las del carrusel de
-// Novedades: mismo criterio de placeholder (sin foto_url o si falla al
-// cargar) en los dos lugares.
-const ImagenProducto = ({ producto, conError, onError }) => {
-  const mostrarFoto = producto.foto_url && !conError;
-  return mostrarFoto ? (
-    <img src={producto.foto_url} alt={producto.nombre} onError={onError} />
-  ) : (
-    <div
-      className="mp-imagen-placeholder"
-      style={{ background: obtenerColorPlaceholder(producto.nombre) }}
-    >
-      {obtenerIniciales(producto.nombre)}
+// Foto con brillo de espera mientras carga y aparición suave; si no hay
+// foto o falla, un fondo de color con las iniciales.
+const Foto = ({ producto, className = '' }) => {
+  const [estado, setEstado] = useState(producto.foto_url ? 'cargando' : 'sin');
+  if (estado === 'sin' || estado === 'error') {
+    return (
+      <div className={`mv-foto mv-foto--placeholder ${className}`} style={{ '--mv-ph': obtenerColorPlaceholder(producto.nombre) }}>
+        <span>{iniciales(producto.nombre)}</span>
+      </div>
+    );
+  }
+  return (
+    <div className={`mv-foto ${estado === 'cargando' ? 'mv-foto--cargando' : ''} ${className}`}>
+      <img src={producto.foto_url} alt={producto.nombre} loading="lazy" decoding="async"
+        onLoad={() => setEstado('lista')} onError={() => setEstado('error')} />
     </div>
   );
 };
 
-const Stepper = ({ cantidad, onRestar, onSumar, disabledSumar }) => (
-  <div className="mp-stepper">
-    <button type="button" onClick={onRestar} disabled={cantidad === 0} className="mp-stepper__btn" aria-label="Quitar uno">
-      −
-    </button>
-    <span className="mp-stepper__cantidad">{cantidad}</span>
-    <button type="button" onClick={onSumar} disabled={disabledSumar} className="mp-stepper__btn" aria-label="Agregar uno">
-      +
-    </button>
+const Stepper = ({ cantidad, onRestar, onSumar, disabledSumar, grande = false }) => (
+  <div className={`mv-stepper ${grande ? 'mv-stepper--grande' : ''}`}>
+    <button type="button" onClick={onRestar} disabled={cantidad === 0} aria-label="Quitar uno">−</button>
+    <span aria-live="polite">{cantidad}</span>
+    <button type="button" onClick={onSumar} disabled={disabledSumar} aria-label="Agregar uno">+</button>
   </div>
 );
+
+// Tarjeta de la cuadrícula. Tocarla abre la ficha; el "+" agrega directo.
+const TarjetaProducto = ({ producto, cantidad, onAbrir, onCambiar, destacada = false }) => {
+  const tope = obtenerTopeCantidad(producto);
+  const pocas = !producto.ignora_stock && producto.stock_actual <= 3;
+  return (
+    <article className={`mv-card ${destacada ? 'mv-card--destacada' : ''} ${cantidad > 0 ? 'mv-card--en-bolsa' : ''}`} data-revelar>
+      <button type="button" className="mv-card__foto-btn" onClick={() => onAbrir(producto)} aria-label={`Ver ${producto.nombre}`}>
+        <Foto producto={producto} />
+        {producto.es_novedad && <span className="mv-badge mv-badge--nuevo">Nuevo</span>}
+        {pocas && <span className="mv-badge mv-badge--pocas">{producto.stock_actual === 1 ? '¡Última unidad!' : `¡Últimas ${producto.stock_actual}!`}</span>}
+        {cantidad > 0 && <span className="mv-card__cantidad">{cantidad}</span>}
+      </button>
+      <div className="mv-card__body" onClick={() => onAbrir(producto)}>
+        <h3 className="mv-card__nombre">{producto.nombre}</h3>
+        {producto.descripcion && <p className="mv-card__desc">{producto.descripcion}</p>}
+      </div>
+      <div className="mv-card__pie">
+        <span className="mv-card__precio">{pesos(producto.precio_venta)}</span>
+        {cantidad === 0 ? (
+          <button type="button" className="mv-mas" onClick={() => onCambiar(producto, 1)} disabled={tope <= 0} aria-label={`Agregar ${producto.nombre}`}>+</button>
+        ) : (
+          <Stepper cantidad={cantidad} onRestar={() => onCambiar(producto, -1)} onSumar={() => onCambiar(producto, 1)} disabledSumar={cantidad >= tope} />
+        )}
+      </div>
+    </article>
+  );
+};
 
 const MenuPublico = () => {
   const { moduloId } = useParams();
@@ -114,25 +105,25 @@ const MenuPublico = () => {
   const [montoRecibido, setMontoRecibido] = useState('');
   const [esDomicilio, setEsDomicilio] = useState(false);
   const [direccionEntrega, setDireccionEntrega] = useState('');
-  // { lat, lng, direccion } de la última ubicación que el cliente confirmó
-  // en el mapa (ver SelectorDireccionMapa) — direccion sirve para saber si
-  // sigue siendo válida o el texto cambió después de confirmar.
   const [ubicacionDomicilio, setUbicacionDomicilio] = useState(null);
   const [enviando, setEnviando] = useState(false);
   const [errorEnvio, setErrorEnvio] = useState('');
-  const [categoriasAbiertas, setCategoriasAbiertas] = useState(new Set());
-  const [imagenesConError, setImagenesConError] = useState(new Set());
-  const [heroImagenConError, setHeroImagenConError] = useState(false);
   const [busqueda, setBusqueda] = useState('');
-  // Recuerda qué categorías estaban abiertas antes de buscar, para
-  // restaurarlas tal cual al borrar el texto (en vez de volver siempre al
-  // estado por defecto, todas cerradas).
-  const categoriasAntesDeBuscarRef = useRef(null);
-  // Vista interna (NO una ruta nueva): 'menu' es la vitrina de productos,
-  // 'checkout' es el resumen antes de generar el pedido. Tocar la barra
-  // de carrito cambia esta vista; el carrito en sí no se pierde porque
-  // sigue siendo el mismo estado `carrito` del componente.
-  const [pantallaActiva, setPantallaActiva] = useState('menu');
+  const [heroConError, setHeroConError] = useState(false);
+  const [categoriaActiva, setCategoriaActiva] = useState(null);
+  const [navCompacta, setNavCompacta] = useState(false);
+  // Capas que se abren encima del menú: ficha de producto, foto ampliada y
+  // el pedido. Cada una agrega un paso al historial para que "atrás" la cierre.
+  const [productoAbierto, setProductoAbierto] = useState(null);
+  const [cantidadFicha, setCantidadFicha] = useState(1);
+  const [fotoAmpliada, setFotoAmpliada] = useState(null);
+  const [verPedido, setVerPedido] = useState(false);
+  const [saltoBolsa, setSaltoBolsa] = useState(0);
+
+  const heroRef = useRef(null);
+  const chipsRef = useRef(null);
+  const carruselRef = useRef(null);
+  const textos = textosNegocio(modulo?.negocio_tipo);
 
   const cargarMenu = useCallback(async () => {
     try {
@@ -149,44 +140,38 @@ const MenuPublico = () => {
     }
   }, [moduloId]);
 
+  useEffect(() => { cargarMenu(); }, [cargarMenu]);
+
   useEffect(() => {
-    cargarMenu();
-  }, [cargarMenu]);
+    if (modulo?.nombre_publico) document.title = modulo.nombre_publico;
+  }, [modulo]);
 
-  const toggleCategoria = (categoria) => {
-    setCategoriasAbiertas(prev => {
-      const copia = new Set(prev);
-      if (copia.has(categoria)) {
-        copia.delete(categoria);
-      } else {
-        copia.add(categoria);
-      }
-      return copia;
-    });
-  };
-
-  const marcarImagenConError = (productoId) => {
-    setImagenesConError(prev => new Set(prev).add(productoId));
-  };
-
-  // Al empezar a buscar (primer caracter) se guarda una copia de qué
-  // categorías estaban abiertas, y se cierran todas (no importa mientras
-  // se muestra la lista plana de resultados). Al borrar el texto de
-  // búsqueda, se restauran tal cual estaban.
-  const handleBusquedaChange = (valor) => {
-    const empezabaVacia = busqueda.trim() === '';
-    const quedaVacia = valor.trim() === '';
-
-    if (empezabaVacia && !quedaVacia) {
-      categoriasAntesDeBuscarRef.current = categoriasAbiertas;
-    } else if (!empezabaVacia && quedaVacia && categoriasAntesDeBuscarRef.current) {
-      setCategoriasAbiertas(categoriasAntesDeBuscarRef.current);
-      categoriasAntesDeBuscarRef.current = null;
+  // ---------- Datos derivados ----------
+  const categorias = useMemo(() => {
+    const mapa = new Map();
+    for (const p of productos) {
+      const c = p.categoria_nombre || 'Otros';
+      if (!mapa.has(c)) mapa.set(c, []);
+      mapa.get(c).push(p);
     }
+    return Array.from(mapa.entries());
+  }, [productos]);
+  const novedades = useMemo(() => productos.filter(p => p.es_novedad), [productos]);
 
-    setBusqueda(valor);
-  };
+  const q = normalizar(busqueda.trim());
+  const buscando = q.length > 0;
+  const resultados = useMemo(() => (buscando
+    ? productos.filter(p => normalizar(p.nombre).includes(q) || normalizar(p.descripcion).includes(q) || normalizar(p.categoria_nombre).includes(q))
+    : []), [buscando, productos, q]);
 
+  const itemsCarrito = Object.entries(carrito).map(([id, cantidad]) => {
+    const producto = productos.find(p => p.id === parseInt(id, 10));
+    return producto ? { producto, cantidad } : null;
+  }).filter(Boolean);
+  const totalItems = itemsCarrito.reduce((s, i) => s + i.cantidad, 0);
+  const totalCarrito = itemsCarrito.reduce((s, i) => s + i.cantidad * Number(i.producto.precio_venta), 0);
+
+  // ---------- Carrito ----------
   const cambiarCantidad = (producto, delta) => {
     setCarrito(prev => {
       const actual = prev[producto.id] || 0;
@@ -198,62 +183,153 @@ const MenuPublico = () => {
       }
       return { ...prev, [producto.id]: nueva };
     });
+    if (delta > 0) setSaltoBolsa(n => n + 1);
   };
 
-  const productosPorCategoria = productos.reduce((acc, producto) => {
-    const categoria = producto.categoria_nombre || 'Otros';
-    if (!acc[categoria]) acc[categoria] = [];
-    acc[categoria].push(producto);
-    return acc;
-  }, {});
+  const agregarDesdeFicha = () => {
+    const p = productoAbierto;
+    const actual = carrito[p.id] || 0;
+    const nueva = Math.min(obtenerTopeCantidad(p), actual + cantidadFicha);
+    setCarrito(prev => ({ ...prev, [p.id]: nueva }));
+    setSaltoBolsa(n => n + 1);
+    cerrarCapa();
+  };
 
-  // El carrusel es un destacado adicional: un producto marcado como novedad
-  // sigue apareciendo también en su categoría normal más abajo.
-  const productosNovedad = productos.filter(p => p.es_novedad);
+  // ---------- Capas + botón atrás ----------
+  const capaAbierta = Boolean(productoAbierto || fotoAmpliada || verPedido);
+  const abrirCapa = (accion) => {
+    window.history.pushState({ mvCapa: true }, '');
+    accion();
+  };
+  const cerrarCapa = () => {
+    if (window.history.state?.mvCapa) window.history.back();
+    else { setFotoAmpliada(null); setProductoAbierto(null); setVerPedido(false); }
+  };
+  useEffect(() => {
+    const alVolver = () => {
+      // Cierra la capa de más arriba primero.
+      if (fotoAmpliada) setFotoAmpliada(null);
+      else if (productoAbierto) setProductoAbierto(null);
+      else if (verPedido) setVerPedido(false);
+    };
+    window.addEventListener('popstate', alVolver);
+    return () => window.removeEventListener('popstate', alVolver);
+  }, [fotoAmpliada, productoAbierto, verPedido]);
 
-  // Búsqueda 100% en el cliente (ya se tienen todos los productos
-  // cargados) por nombre y, si tiene, descripción.
-  const busquedaNormalizada = busqueda.trim().toLowerCase();
-  const buscando = busquedaNormalizada.length > 0;
-  const productosFiltrados = buscando
-    ? productos.filter(p =>
-        p.nombre.toLowerCase().includes(busquedaNormalizada) ||
-        (p.descripcion && p.descripcion.toLowerCase().includes(busquedaNormalizada))
-      )
-    : [];
+  useEffect(() => {
+    document.body.style.overflow = capaAbierta ? 'hidden' : '';
+    const conEscape = (e) => { if (e.key === 'Escape' && capaAbierta) cerrarCapa(); };
+    window.addEventListener('keydown', conEscape);
+    return () => { document.body.style.overflow = ''; window.removeEventListener('keydown', conEscape); };
+  }); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const itemsCarrito = Object.entries(carrito).map(([productoId, cantidad]) => {
-    const producto = productos.find(p => p.id === parseInt(productoId));
-    return producto ? { producto, cantidad } : null;
-  }).filter(Boolean);
+  const abrirProducto = (producto) => abrirCapa(() => {
+    setProductoAbierto(producto);
+    setCantidadFicha(1);
+  });
 
-  const totalItems = itemsCarrito.reduce((sum, item) => sum + item.cantidad, 0);
-  const totalCarrito = itemsCarrito.reduce((sum, item) => sum + item.cantidad * Number(item.producto.precio_venta), 0);
+  // ---------- Efectos de scroll ----------
+  // Profundidad de la portada y barra compacta cuando la portada sale.
+  useEffect(() => {
+    if (loading) return undefined;
+    let pendiente = false;
+    const alHacerScroll = () => {
+      if (pendiente) return;
+      pendiente = true;
+      requestAnimationFrame(() => {
+        pendiente = false;
+        const alto = heroRef.current?.offsetHeight || 1;
+        const y = window.scrollY;
+        if (!reducirMovimiento()) heroRef.current?.style.setProperty('--mv-scroll', String(Math.min(y / alto, 1)));
+        setNavCompacta(y > alto - 80);
+      });
+    };
+    window.addEventListener('scroll', alHacerScroll, { passive: true });
+    alHacerScroll();
+    return () => window.removeEventListener('scroll', alHacerScroll);
+  }, [loading]);
 
+  // Categoría activa según la sección visible.
+  useEffect(() => {
+    if (loading || buscando) return undefined;
+    const secciones = Array.from(document.querySelectorAll('[data-seccion]'));
+    if (secciones.length === 0) return undefined;
+    const observador = new IntersectionObserver((entradas) => {
+      const visibles = entradas.filter(e => e.isIntersecting).sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
+      if (visibles[0]) setCategoriaActiva(visibles[0].target.dataset.seccion);
+    }, { rootMargin: '-140px 0px -55% 0px' });
+    secciones.forEach(s => observador.observe(s));
+    return () => observador.disconnect();
+  }, [loading, buscando, categorias]);
+
+  // Mantiene visible el chip activo dentro de la barra.
+  useEffect(() => {
+    const chip = chipsRef.current?.querySelector('[data-activo="true"]');
+    chip?.scrollIntoView({ behavior: reducirMovimiento() ? 'auto' : 'smooth', inline: 'center', block: 'nearest' });
+  }, [categoriaActiva]);
+
+  // Las tarjetas aparecen con animación al entrar en pantalla.
+  useEffect(() => {
+    if (loading) return undefined;
+    const tarjetas = document.querySelectorAll('[data-revelar]:not(.mv-visible)');
+    if (reducirMovimiento() || !('IntersectionObserver' in window)) {
+      tarjetas.forEach(t => t.classList.add('mv-visible'));
+      return undefined;
+    }
+    const observador = new IntersectionObserver((entradas) => {
+      entradas.forEach(e => {
+        if (e.isIntersecting) {
+          e.target.classList.add('mv-visible');
+          observador.unobserve(e.target);
+        }
+      });
+    }, { rootMargin: '0px 0px -40px 0px' });
+    tarjetas.forEach(t => observador.observe(t));
+    return () => observador.disconnect();
+  });
+
+  // Vitrina de "Lo nuevo": el producto del centro se ve grande y nítido; los
+  // de los lados se achican y se desenfocan (como un perchero).
+  useEffect(() => {
+    const carrusel = carruselRef.current;
+    if (!carrusel || reducirMovimiento()) return undefined;
+    let pendiente = false;
+    const actualizar = () => {
+      pendiente = false;
+      const centro = carrusel.scrollLeft + carrusel.clientWidth / 2;
+      for (const tarjeta of carrusel.children) {
+        const medio = tarjeta.offsetLeft + tarjeta.offsetWidth / 2;
+        const distancia = Math.min(Math.abs(centro - medio) / tarjeta.offsetWidth, 1.5);
+        tarjeta.style.setProperty('--mv-lejos', distancia.toFixed(3));
+      }
+    };
+    const alMover = () => { if (!pendiente) { pendiente = true; requestAnimationFrame(actualizar); } };
+    actualizar();
+    carrusel.addEventListener('scroll', alMover, { passive: true });
+    window.addEventListener('resize', alMover);
+    return () => { carrusel.removeEventListener('scroll', alMover); window.removeEventListener('resize', alMover); };
+  }, [loading, buscando, novedades.length]);
+
+  const irASeccion = (nombre) => {
+    setBusqueda('');
+    setTimeout(() => {
+      document.getElementById(idSeccion(nombre))?.scrollIntoView({ behavior: reducirMovimiento() ? 'auto' : 'smooth', block: 'start' });
+    }, 0);
+  };
+  const irAlMenu = () => {
+    document.getElementById('mv-inicio-menu')?.scrollIntoView({ behavior: reducirMovimiento() ? 'auto' : 'smooth' });
+  };
+
+  // ---------- Enviar pedido (misma lógica de siempre) ----------
   const handleGenerarPedido = async () => {
     setErrorEnvio('');
-
-    if (!mesaNombre.trim()) {
-      setErrorEnvio(`⚠️ ${textosNegocio(modulo?.negocio_tipo).faltaNombrePedido}`);
-      return;
-    }
-    if (!telefono.trim()) {
-      setErrorEnvio('⚠️ Ingresa tu número de teléfono');
-      return;
-    }
-    if (itemsCarrito.length === 0) {
-      setErrorEnvio('⚠️ Agrega al menos un producto');
-      return;
-    }
-    if (esDomicilio && !direccionEntrega.trim()) {
-      setErrorEnvio('⚠️ Ingresa la dirección de entrega');
-      return;
-    }
+    if (!mesaNombre.trim()) return setErrorEnvio(`⚠️ ${textos.faltaNombrePedido}`);
+    if (!telefono.trim()) return setErrorEnvio('⚠️ Ingresa tu número de teléfono');
+    if (itemsCarrito.length === 0) return setErrorEnvio('⚠️ Agrega al menos un producto');
+    if (esDomicilio && !direccionEntrega.trim()) return setErrorEnvio('⚠️ Ingresa la dirección de entrega');
     if (esDomicilio && (!ubicacionDomicilio || ubicacionDomicilio.direccion !== direccionEntrega.trim())) {
-      setErrorEnvio('⚠️ Confirma tu ubicación en el mapa antes de enviar el pedido');
-      return;
+      return setErrorEnvio('⚠️ Confirma tu ubicación en el mapa antes de enviar el pedido');
     }
-
     try {
       setEnviando(true);
       const response = await apiPublico.post(`/menu/${moduloId}/pedidos`, {
@@ -264,13 +340,10 @@ const MenuPublico = () => {
         direccion_entrega: esDomicilio ? direccionEntrega.trim() : undefined,
         lat: esDomicilio ? ubicacionDomicilio.lat : undefined,
         lng: esDomicilio ? ubicacionDomicilio.lng : undefined,
-        items: itemsCarrito.map(item => ({
-          producto_id: item.producto.id,
-          cantidad: item.cantidad
-        }))
+        items: itemsCarrito.map(item => ({ producto_id: item.producto.id, cantidad: item.cantidad }))
       });
-
-      navigate(`/menu/${moduloId}/pedido/${response.data.token_publico}`);
+      document.body.style.overflow = '';
+      navigate(`/menu/${moduloId}/pedido/${response.data.token_publico}`, { replace: true });
     } catch (err) {
       console.error('Error generando pedido:', err);
       setErrorEnvio(err.response?.data?.error || '❌ Error al generar el pedido');
@@ -279,319 +352,319 @@ const MenuPublico = () => {
     }
   };
 
-  const formatearMoneda = (valor) => `$${Number(valor || 0).toLocaleString('es-CO')}`;
-
+  // ---------- Pantallas de carga / error ----------
   if (loading) {
     return (
-      <div className="menu-publico-container">
-        <div className="menu-publico-loading">Cargando...</div>
+      <div className="mv mv--cargando">
+        <div className="mv-hero mv-hero--esqueleto" />
+        <div className="mv-contenido">
+          <div className="mv-grid">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="mv-card mv-card--esqueleto mv-visible"><div className="mv-foto mv-foto--cargando" /><span /><span /></div>
+            ))}
+          </div>
+        </div>
       </div>
     );
   }
-
   if (error) {
     return (
-      <div className="menu-publico-container">
-        <div className="menu-publico-error">⚠️ {error}</div>
+      <div className="mv mv-error">
+        <div className="mv-error__caja">
+          <span className="mv-error__icono" aria-hidden="true">🍽️</span>
+          <h1>Uy, no pudimos abrir este {textos.menu}</h1>
+          <p>{error}</p>
+          <button type="button" className="mv-btn" onClick={cargarMenu}>Intentar de nuevo</button>
+        </div>
       </div>
     );
   }
 
-  const hayItemsEnCarrito = itemsCarrito.length > 0;
+  const nombre = modulo?.nombre_publico || '';
+  const colorMarca = obtenerColorPlaceholder(nombre);
+  const conFoto = modulo?.foto_portada_url && !heroConError;
+  const hayCarrito = totalItems > 0;
+  // Hasta 12 fotos de productos (primero las novedades) para el mosaico.
+  const fotosMosaico = [...novedades, ...productos.filter(p => !p.es_novedad)]
+    .filter(p => p.foto_url).slice(0, 12).map(p => p.foto_url);
+  const cantidadProductos = productos.length;
+
+  const renderGrid = (lista) => (
+    <div className="mv-grid">
+      {lista.map(p => (
+        <TarjetaProducto key={p.id} producto={p} cantidad={carrito[p.id] || 0} onAbrir={abrirProducto} onCambiar={cambiarCantidad} />
+      ))}
+    </div>
+  );
 
   return (
-    <div className={`menu-publico-container ${hayItemsEnCarrito && pantallaActiva === 'menu' ? 'menu-publico-container--con-cartbar' : ''}`}>
-      {pantallaActiva === 'checkout' ? (
-        <div className="mp-checkout">
-          <button type="button" className="mp-volver" onClick={() => setPantallaActiva('menu')}>
-            <IconoChevronIzquierda className="mp-volver__icono" />
-            Volver al {textosNegocio(modulo?.negocio_tipo).menu}
-          </button>
-
-          <h1 className="mp-checkout__titulo">Tu pedido</h1>
-
-          <div className="mp-card mp-resumen">
-            {itemsCarrito.map(item => (
-              <div key={item.producto.id} className="mp-resumen__fila">
-                <span>{item.producto.nombre} × {item.cantidad}</span>
-                <span>{formatearMoneda(item.cantidad * item.producto.precio_venta)}</span>
-              </div>
-            ))}
-            <div className="mp-resumen__total">
-              <span>Total</span>
-              <span>{formatearMoneda(totalCarrito)}</span>
+    <div className={`mv ${hayCarrito ? 'mv--con-bolsa' : ''}`} style={{ '--mv-marca': colorMarca }}>
+      {/* ================= Portada ================= */}
+      <header ref={heroRef} className={`mv-hero ${conFoto ? '' : 'mv-hero--sin-foto'} ${!conFoto && fotosMosaico.length >= 3 ? 'mv-hero--mosaico' : ''}`}>
+        <div className="mv-hero__fondo">
+          {conFoto ? (
+            <img src={modulo.foto_portada_url} alt="" onError={() => setHeroConError(true)} />
+          ) : fotosMosaico.length >= 3 ? (
+            // Sin portada: un mosaico de los propios productos que se desliza lento.
+            <div className="mv-hero__mosaico" aria-hidden="true">
+              {[0, 1, 2].map(col => {
+                const fotos = fotosMosaico.filter((_, i) => i % 3 === col);
+                return (
+                  <div key={col} className={`mv-mosaico__col mv-mosaico__col--${col}`}>
+                    {[...fotos, ...fotos].map((url, i) => <img key={i} src={url} alt="" loading="lazy" />)}
+                  </div>
+                );
+              })}
             </div>
-          </div>
-
-          <div className="mp-campos">
-            <input
-              type="text"
-              placeholder={textosNegocio(modulo?.negocio_tipo).nombrePedido}
-              value={mesaNombre}
-              onChange={(e) => setMesaNombre(e.target.value)}
-              className="mp-input"
-            />
-            <input
-              type="tel"
-              placeholder="Tu número de teléfono *"
-              value={telefono}
-              onChange={(e) => setTelefono(e.target.value)}
-              className="mp-input"
-            />
-            <input
-              type="number"
-              min="0"
-              placeholder="¿Con qué billete vas a pagar? (opcional)"
-              value={montoRecibido}
-              onChange={(e) => setMontoRecibido(e.target.value)}
-              className="mp-input"
-            />
-
+          ) : (
+            <div className="mv-hero__patron" aria-hidden="true">{iniciales(nombre || 'M')}</div>
+          )}
+        </div>
+        <div className="mv-hero__velo" />
+        <div className="mv-hero__contenido">
+          {modulo?.negocio_nombre && modulo.negocio_nombre !== nombre && <span className="mv-hero__eyebrow">{modulo.negocio_nombre}</span>}
+          <h1 className="mv-hero__nombre">{nombre}</h1>
+          <div className="mv-hero__chips">
+            <span className="mv-chip-hero">🛍️ {cantidadProductos} {cantidadProductos === 1 ? 'producto' : 'productos'}</span>
             {modulo?.tiene_domicilio && (
-              <>
-                <label className="mp-checkbox">
-                  <input
-                    type="checkbox"
-                    checked={esDomicilio}
-                    onChange={(e) => setEsDomicilio(e.target.checked)}
-                  />
-                  <span>🛵 Es domicilio (necesito que me lo lleven)</span>
-                </label>
-
-                {esDomicilio && (
-                  <>
-                    <input
-                      type="text"
-                      placeholder="Dirección de entrega *"
-                      value={direccionEntrega}
-                      onChange={(e) => setDireccionEntrega(e.target.value)}
-                      className="mp-input"
-                    />
-                    <SelectorDireccionMapa
-                      direccion={direccionEntrega}
-                      ubicacion={ubicacionDomicilio}
-                      onConfirmar={setUbicacionDomicilio}
-                    />
-                  </>
-                )}
-              </>
+              <span className="mv-chip-hero">🛵 Domicilios{modulo.envio_costo !== null ? ` · ${modulo.envio_costo === 0 ? 'gratis' : pesos(modulo.envio_costo)}` : ''}</span>
             )}
+            {modulo?.horario && <span className="mv-chip-hero">🕐 {modulo.horario}</span>}
           </div>
-
-          {errorEnvio && <p className="mp-error">{errorEnvio}</p>}
-
-          <button
-            onClick={handleGenerarPedido}
-            disabled={enviando}
-            className="mp-btn mp-btn--primary mp-btn--full"
-          >
-            <IconoHoja className="mp-btn__icono" />
-            {enviando ? 'Generando...' : 'Generar pedido'}
+          <button type="button" className="mv-hero__cta" onClick={irAlMenu}>
+            Ver el {textos.menu}
+            <Icono.flechaAbajo className="mv-hero__cta-icono" />
           </button>
         </div>
-      ) : (
-        <>
-          <div
-            className="mp-hero"
-            style={(!modulo?.foto_portada_url || heroImagenConError) ? { background: obtenerColorPlaceholder(modulo?.nombre_publico || '') } : undefined}
-          >
-            {modulo?.foto_portada_url && !heroImagenConError && (
-              <img
-                src={modulo.foto_portada_url}
-                alt=""
-                className="mp-hero__foto"
-                onError={() => setHeroImagenConError(true)}
-              />
+      </header>
+
+      {/* ================= Barra fija: buscador + categorías ================= */}
+      <nav id="mv-inicio-menu" className={`mv-nav ${navCompacta ? 'mv-nav--compacta' : ''}`} aria-label={`Categorías del ${textos.menu}`}>
+        <div className="mv-nav__fila">
+          <span className="mv-nav__nombre" aria-hidden={!navCompacta}>{nombre}</span>
+          <label className="mv-buscador">
+            <Icono.buscar className="mv-buscador__icono" />
+            <input type="search" value={busqueda} onChange={(e) => setBusqueda(e.target.value)}
+              placeholder={`Buscar en el ${textos.menu}...`} aria-label={`Buscar en el ${textos.menu}`} />
+            {busqueda && (
+              <button type="button" className="mv-buscador__limpiar" onClick={() => setBusqueda('')} aria-label="Borrar búsqueda">
+                <Icono.cerrar />
+              </button>
             )}
-            <IconoMontana className="mp-hero__silueta" aria-hidden="true" stroke="rgba(255,255,255,.14)" strokeWidth="1.4" />
-            <div className="mp-hero__overlay" />
-            <div className="mp-hero__contenido">
-              <span className="mp-hero__icono-wrap">
-                <IconoHoja className="mp-hero__icono" />
-              </span>
-              <div>
-                <h1 className="mp-hero__nombre">{modulo?.nombre_publico}</h1>
-                <p className="mp-hero__tagline">{modulo?.negocio_nombre}</p>
+          </label>
+        </div>
+        {!buscando && categorias.length > 1 && (
+          <div className="mv-chips" ref={chipsRef}>
+            {novedades.length > 0 && (
+              <button type="button" className="mv-chip" data-activo={categoriaActiva === 'Lo nuevo'} onClick={() => irASeccion('Lo nuevo')}>✨ Lo nuevo</button>
+            )}
+            {categorias.map(([c, items]) => (
+              <button key={c} type="button" className="mv-chip" data-activo={categoriaActiva === c} onClick={() => irASeccion(c)}>
+                {c} <small>{items.length}</small>
+              </button>
+            ))}
+          </div>
+        )}
+      </nav>
+
+      {/* ================= Contenido ================= */}
+      <main className="mv-contenido">
+        {buscando ? (
+          <section className="mv-seccion">
+            <h2 className="mv-seccion__titulo">
+              {resultados.length === 0 ? 'Sin resultados' : `${resultados.length} ${resultados.length === 1 ? 'resultado' : 'resultados'}`}
+              <small>para “{busqueda.trim()}”</small>
+            </h2>
+            {resultados.length === 0 ? (
+              <div className="mv-vacio">
+                <span aria-hidden="true">🔎</span>
+                <p>No encontramos nada con ese nombre. Prueba con otra palabra o explora las categorías.</p>
+                <button type="button" className="mv-btn mv-btn--suave" onClick={() => setBusqueda('')}>Ver todo el {textos.menu}</button>
               </div>
+            ) : renderGrid(resultados)}
+          </section>
+        ) : cantidadProductos === 0 ? (
+          <div className="mv-vacio">
+            <span aria-hidden="true">🧺</span>
+            <p>No hay productos disponibles en este momento. Vuelve pronto.</p>
+          </div>
+        ) : (
+          <>
+            {novedades.length > 0 && (
+              <section id={idSeccion('Lo nuevo')} data-seccion="Lo nuevo" className="mv-seccion">
+                <h2 className="mv-seccion__titulo">✨ Lo nuevo <small>Recién llegado</small></h2>
+                <div className="mv-carrusel" ref={carruselRef}>
+                  {novedades.map(p => (
+                    <TarjetaProducto key={p.id} producto={p} cantidad={carrito[p.id] || 0} onAbrir={abrirProducto} onCambiar={cambiarCantidad} destacada />
+                  ))}
+                </div>
+              </section>
+            )}
+            {categorias.map(([c, items]) => (
+              <section key={c} id={idSeccion(c)} data-seccion={c} className="mv-seccion">
+                <h2 className="mv-seccion__titulo">{c} <small>{items.length} {items.length === 1 ? 'producto' : 'productos'}</small></h2>
+                {renderGrid(items)}
+              </section>
+            ))}
+          </>
+        )}
+
+        <footer className="mv-pie">
+          <strong>{nombre}</strong>
+          {modulo?.horario && <span>🕐 {modulo.horario}</span>}
+          <small>Haz tu pedido aquí y te avisamos cuando esté listo.</small>
+        </footer>
+      </main>
+
+      {/* ================= Bolsa flotante ================= */}
+      {hayCarrito && !verPedido && (
+        <button type="button" key={saltoBolsa} className="mv-bolsa" onClick={() => abrirCapa(() => setVerPedido(true))}>
+          <span className="mv-bolsa__icono"><Icono.bolsa /><b>{totalItems}</b></span>
+          <span className="mv-bolsa__texto">Ver pedido</span>
+          <span className="mv-bolsa__total">{pesos(totalCarrito)}</span>
+        </button>
+      )}
+
+      {/* ================= Ficha del producto ================= */}
+      {productoAbierto && (
+        <div className="mv-capa" onClick={cerrarCapa}>
+          <div className="mv-hoja mv-ficha" role="dialog" aria-modal="true" aria-label={productoAbierto.nombre} onClick={(e) => e.stopPropagation()}>
+            <span className="mv-hoja__agarre" aria-hidden="true" />
+            <button type="button" className="mv-cerrar" onClick={cerrarCapa} aria-label="Cerrar"><Icono.cerrar /></button>
+            <button type="button" className="mv-ficha__foto" onClick={() => productoAbierto.foto_url && abrirCapa(() => setFotoAmpliada(productoAbierto))}
+              aria-label={productoAbierto.foto_url ? 'Ver foto en grande' : undefined} disabled={!productoAbierto.foto_url}>
+              <Foto producto={productoAbierto} />
+              {productoAbierto.foto_url && <span className="mv-ficha__ampliar"><Icono.ampliar /> Ampliar</span>}
+            </button>
+            <div className="mv-ficha__info">
+              {productoAbierto.categoria_nombre && <span className="mv-ficha__categoria">{productoAbierto.categoria_nombre}</span>}
+              <h2>{productoAbierto.nombre}</h2>
+              <span className="mv-ficha__precio">{pesos(productoAbierto.precio_venta)}</span>
+              {productoAbierto.descripcion && <p>{productoAbierto.descripcion}</p>}
+              {!productoAbierto.ignora_stock && productoAbierto.stock_actual <= 3 && (
+                <p className="mv-ficha__aviso">Quedan pocas unidades: {productoAbierto.stock_actual}.</p>
+              )}
+              {(carrito[productoAbierto.id] || 0) > 0 && (
+                <p className="mv-ficha__ya">Ya tienes {carrito[productoAbierto.id]} en tu pedido.</p>
+              )}
+            </div>
+            <div className="mv-ficha__acciones">
+              <Stepper grande cantidad={cantidadFicha}
+                onRestar={() => setCantidadFicha(c => Math.max(1, c - 1))}
+                onSumar={() => setCantidadFicha(c => Math.min(obtenerTopeCantidad(productoAbierto) - (carrito[productoAbierto.id] || 0), c + 1))}
+                disabledSumar={cantidadFicha >= obtenerTopeCantidad(productoAbierto) - (carrito[productoAbierto.id] || 0)} />
+              <button type="button" className="mv-btn mv-btn--grande" onClick={agregarDesdeFicha}
+                disabled={(carrito[productoAbierto.id] || 0) >= obtenerTopeCantidad(productoAbierto)}>
+                Agregar · {pesos(cantidadFicha * productoAbierto.precio_venta)}
+              </button>
             </div>
           </div>
+        </div>
+      )}
 
-          <div className="mp-busqueda">
-            <input
-              type="text"
-              value={busqueda}
-              onChange={(e) => handleBusquedaChange(e.target.value)}
-              placeholder={`Buscar en el ${textosNegocio(modulo?.negocio_tipo).menu}...`}
-              className="mp-busqueda__input"
-            />
-          </div>
+      {/* ================= Foto a pantalla completa ================= */}
+      {fotoAmpliada && (
+        <div className="mv-visor" onClick={cerrarCapa} role="dialog" aria-modal="true" aria-label={`Foto de ${fotoAmpliada.nombre}`}>
+          <button type="button" className="mv-cerrar mv-cerrar--claro" onClick={cerrarCapa} aria-label="Cerrar"><Icono.cerrar /></button>
+          <img src={fotoAmpliada.foto_url} alt={fotoAmpliada.nombre} onClick={(e) => e.stopPropagation()} />
+          <span className="mv-visor__nombre">{fotoAmpliada.nombre} · {pesos(fotoAmpliada.precio_venta)}</span>
+        </div>
+      )}
 
-          {buscando ? (
-            productosFiltrados.length === 0 ? (
-              <p className="menu-publico-sin-productos">No encontramos productos con ese nombre</p>
-            ) : (
-              <div className="mp-seccion mp-resultados-busqueda">
-                {productosFiltrados.map(producto => {
-                  const cantidad = carrito[producto.id] || 0;
+      {/* ================= Tu pedido ================= */}
+      {verPedido && (
+        <div className="mv-capa" onClick={cerrarCapa}>
+          <div className="mv-hoja mv-pedido" role="dialog" aria-modal="true" aria-label="Tu pedido" onClick={(e) => e.stopPropagation()}>
+            <span className="mv-hoja__agarre" aria-hidden="true" />
+            <div className="mv-pedido__cabecera">
+              <button type="button" className="mv-atras" onClick={cerrarCapa}><Icono.atras /> Seguir viendo</button>
+              <h2>Tu pedido</h2>
+            </div>
 
-                  return (
-                    <div key={producto.id} className="mp-producto-card mp-producto-card--busqueda">
-                      <div className="mp-producto-card__foto">
-                        <ImagenProducto
-                          producto={producto}
-                          conError={imagenesConError.has(producto.id)}
-                          onError={() => marcarImagenConError(producto.id)}
-                        />
-                      </div>
-                      <div className="mp-producto-card__body">
-                        {producto.categoria_nombre && (
-                          <span className="mp-pill mp-pill--neutral mp-resultado-categoria">{producto.categoria_nombre}</span>
-                        )}
-                        <div className="mp-producto-card__fila">
-                          <span className="mp-producto-card__nombre">{producto.nombre}</span>
-                          <span className="mp-producto-card__precio">{formatearMoneda(producto.precio_venta)}</span>
-                        </div>
-                        {producto.descripcion && (
-                          <p className="mp-producto-card__descripcion">{producto.descripcion}</p>
-                        )}
-                        <div className="mp-producto-card__stepper-fila">
-                          <Stepper
-                            cantidad={cantidad}
-                            onRestar={() => cambiarCantidad(producto, -1)}
-                            onSumar={() => cambiarCantidad(producto, 1)}
-                            disabledSumar={cantidad >= obtenerTopeCantidad(producto)}
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )
-          ) : (
-            <>
-              {productosNovedad.length > 0 && (
-                <div className="mp-seccion">
-                  <h2 className="mp-seccion__titulo">Prueba lo nuevo</h2>
-                  <div className="mp-novedades-carrusel">
-                    {productosNovedad.map(producto => {
-                      const cantidad = carrito[producto.id] || 0;
-                      return (
-                        <div key={producto.id} className="mp-novedad-card">
-                          <div className="mp-novedad-card__foto">
-                            <ImagenProducto
-                              producto={producto}
-                              conError={imagenesConError.has(producto.id)}
-                              onError={() => marcarImagenConError(producto.id)}
-                            />
-                            <span className="mp-pill mp-pill--accent mp-novedad-card__badge">NUEVO</span>
-                          </div>
-                          <div className="mp-novedad-card__body">
-                            <span className="mp-novedad-card__nombre">{producto.nombre}</span>
-                            <span className="mp-novedad-card__precio">{formatearMoneda(producto.precio_venta)}</span>
-                            <Stepper
-                              cantidad={cantidad}
-                              onRestar={() => cambiarCantidad(producto, -1)}
-                              onSumar={() => cambiarCantidad(producto, 1)}
-                              disabledSumar={cantidad >= obtenerTopeCantidad(producto)}
-                            />
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
+            <div className="mv-pedido__scroll">
+              {itemsCarrito.length === 0 ? (
+                <div className="mv-vacio">
+                  <span aria-hidden="true">🛍️</span>
+                  <p>Tu pedido está vacío.</p>
                 </div>
-              )}
-
-              {productos.length === 0 ? (
-                <p className="menu-publico-sin-productos">No hay productos disponibles en este momento</p>
               ) : (
-                <div className="mp-seccion mp-categorias">
-                  {Object.entries(productosPorCategoria).map(([categoria, items]) => {
-                    const abierta = categoriasAbiertas.has(categoria);
-                    const cantidadCategoria = items.reduce((sum, p) => sum + (carrito[p.id] || 0), 0);
-                    const IconoCategoria = obtenerIconoCategoria(categoria);
-
-                    return (
-                      <div key={categoria} className="mp-categoria">
-                        <button
-                          type="button"
-                          className="mp-categoria__header"
-                          onClick={() => toggleCategoria(categoria)}
-                          aria-expanded={abierta}
-                        >
-                          <span className="mp-categoria__icono">
-                            <IconoCategoria />
-                          </span>
-                          <span className="mp-categoria__nombre">{categoria}</span>
-                          {cantidadCategoria > 0 && (
-                            <span className="mp-pill mp-pill--accent">{cantidadCategoria}</span>
-                          )}
-                          <span className={`mp-chevron ${abierta ? 'mp-chevron--open' : ''}`}>
-                            <IconoChevronAbajo />
-                          </span>
-                        </button>
-
-                        {abierta && (
-                          <div className="mp-categoria__productos">
-                            {items.map(producto => {
-                              const cantidad = carrito[producto.id] || 0;
-
-                              return (
-                                <div key={producto.id} className="mp-producto-card">
-                                  <div className="mp-producto-card__foto">
-                                    <ImagenProducto
-                                      producto={producto}
-                                      conError={imagenesConError.has(producto.id)}
-                                      onError={() => marcarImagenConError(producto.id)}
-                                    />
-                                  </div>
-                                  <div className="mp-producto-card__body">
-                                    <div className="mp-producto-card__fila">
-                                      <span className="mp-producto-card__nombre">{producto.nombre}</span>
-                                      <span className="mp-producto-card__precio">{formatearMoneda(producto.precio_venta)}</span>
-                                    </div>
-                                    {producto.descripcion && (
-                                      <p className="mp-producto-card__descripcion">{producto.descripcion}</p>
-                                    )}
-                                    <div className="mp-producto-card__stepper-fila">
-                                      <Stepper
-                                        cantidad={cantidad}
-                                        onRestar={() => cambiarCantidad(producto, -1)}
-                                        onSumar={() => cambiarCantidad(producto, 1)}
-                                        disabledSumar={cantidad >= obtenerTopeCantidad(producto)}
-                                      />
-                                    </div>
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        )}
+                <ul className="mv-lista">
+                  {itemsCarrito.map(({ producto, cantidad }) => (
+                    <li key={producto.id} className="mv-lista__item">
+                      <Foto producto={producto} className="mv-lista__foto" />
+                      <div className="mv-lista__info">
+                        <span>{producto.nombre}</span>
+                        <small>{pesos(producto.precio_venta)} c/u</small>
                       </div>
-                    );
-                  })}
+                      <div className="mv-lista__lado">
+                        <b>{pesos(cantidad * producto.precio_venta)}</b>
+                        <Stepper cantidad={cantidad} onRestar={() => cambiarCantidad(producto, -1)} onSumar={() => cambiarCantidad(producto, 1)}
+                          disabledSumar={cantidad >= obtenerTopeCantidad(producto)} />
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+
+              {modulo?.tiene_domicilio && (
+                <div className="mv-segmento" role="radiogroup" aria-label="¿Cómo recibes tu pedido?">
+                  <button type="button" role="radio" aria-checked={!esDomicilio} className={!esDomicilio ? 'activo' : ''} onClick={() => setEsDomicilio(false)}>
+                    🏪 Recoger
+                  </button>
+                  <button type="button" role="radio" aria-checked={esDomicilio} className={esDomicilio ? 'activo' : ''} onClick={() => setEsDomicilio(true)}>
+                    🛵 Domicilio
+                  </button>
                 </div>
               )}
-            </>
-          )}
 
-          {hayItemsEnCarrito && (
-            <button type="button" className="mp-cartbar" onClick={() => setPantallaActiva('checkout')}>
-              <span className="mp-cartbar__resumen">
-                {totalItems} item{totalItems !== 1 ? 's' : ''} · {formatearMoneda(totalCarrito)}
-              </span>
-              <span className="mp-cartbar__cta">
-                Ver pedido
-                <IconoChevronDerecha className="mp-cartbar__icono" />
-              </span>
-            </button>
-          )}
+              <div className="mv-form">
+                <label className="mv-campo">
+                  <span>{textos.etiquetaNombrePedido === 'Cliente' ? 'Tu nombre' : 'Mesa o tu nombre'}</span>
+                  <input type="text" value={mesaNombre} onChange={(e) => setMesaNombre(e.target.value)} autoComplete="name"
+                    placeholder={textos.etiquetaNombrePedido === 'Cliente' ? 'Ej. Laura Gómez' : 'Ej. Mesa 4 o Laura'} />
+                </label>
+                <label className="mv-campo">
+                  <span>Celular</span>
+                  <input type="tel" inputMode="tel" value={telefono} onChange={(e) => setTelefono(e.target.value)} autoComplete="tel" placeholder="Ej. 300 123 4567" />
+                </label>
+                {esDomicilio && (
+                  <>
+                    <label className="mv-campo">
+                      <span>Dirección de entrega</span>
+                      <input type="text" value={direccionEntrega} onChange={(e) => setDireccionEntrega(e.target.value)} autoComplete="street-address"
+                        placeholder="Ej. Calle 10 # 20-30, apto 201" />
+                    </label>
+                    <SelectorDireccionMapa direccion={direccionEntrega} ubicacion={ubicacionDomicilio} onConfirmar={setUbicacionDomicilio} />
+                  </>
+                )}
+                <label className="mv-campo">
+                  <span>¿Con cuánto vas a pagar? <small>(opcional, para llevarte el cambio)</small></span>
+                  <input type="number" min="0" inputMode="numeric" value={montoRecibido} onChange={(e) => setMontoRecibido(e.target.value)} placeholder="Ej. 50000" />
+                </label>
+              </div>
 
-          {modulo?.bot_activo && (
-            <AsistenteMenu moduloId={moduloId} modulo={modulo} subirPorCarrito={hayItemsEnCarrito} />
-          )}
-        </>
+              <div className="mv-totales">
+                <div><span>Productos ({totalItems})</span><span>{pesos(totalCarrito)}</span></div>
+                {esDomicilio && modulo?.envio_costo !== null && modulo?.envio_costo !== undefined && (
+                  <div><span>Domicilio</span><span>{modulo.envio_costo === 0 ? 'Gratis' : pesos(modulo.envio_costo)}</span></div>
+                )}
+                <div className="mv-totales__total"><span>Total</span><span>{pesos(totalCarrito + (esDomicilio && modulo?.envio_costo ? modulo.envio_costo : 0))}</span></div>
+                {esDomicilio && modulo?.envio_costo && <small>El negocio confirmará el valor final del domicilio.</small>}
+              </div>
+            </div>
+
+            <div className="mv-pedido__pie">
+              {errorEnvio && <p className="mv-error-envio" role="alert">{errorEnvio}</p>}
+              <button type="button" className="mv-btn mv-btn--grande mv-btn--full" onClick={handleGenerarPedido} disabled={enviando || itemsCarrito.length === 0}>
+                {enviando ? 'Enviando tu pedido...' : `Enviar pedido · ${pesos(totalCarrito)}`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {modulo?.bot_activo && !capaAbierta && (
+        <AsistenteMenu moduloId={moduloId} modulo={modulo} subirPorCarrito={hayCarrito} />
       )}
     </div>
   );
