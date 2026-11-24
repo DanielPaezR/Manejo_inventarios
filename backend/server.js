@@ -34,6 +34,7 @@ const { botDisponible, responder: responderBot, limpiarEstilo } = require('./src
 const { construirResumen, construirAntesYAhora, metricasPeriodo } = require('./src/helpers/resumenNegocio');
 const { cargarPromociones, expandirDetalles, limpiarPromocion } = require('./src/helpers/promociones');
 const { guardarPuntaje, podio: podioJuego, campeones: campeonesJuegos } = require('./src/helpers/juegos');
+const { aplicarMigraciones } = require('./src/helpers/migraciones');
 const { productosParaSimulador, mermas, ventasPorEquipo, clientesEnLinea, hoyRapido, miDia } = require('./src/helpers/analisisExtra');
 const { enviarResumenModulo, programarResumenSemanal } = require('./src/helpers/resumenSemanal');
 const { canalesDisponibles, normalizarTelefono } = require('./src/helpers/notificador');
@@ -9159,5 +9160,8 @@ app.listen(PORT, () => {
   console.log(`📊 Sistema de Inventario con Módulos`);
   console.log(`💾 Base de datos: ${process.env.DB_NAME || 'inventario_negocio'}`);
 });
+
+// Aplica las migraciones pendientes de backend/migrations al arrancar.
+aplicarMigraciones(pool).catch(error => console.error('Error aplicando migraciones:', error.message));
 
 programarResumenSemanal(pool);
