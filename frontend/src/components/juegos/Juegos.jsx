@@ -8,9 +8,10 @@ import './ZonaJuegos.css';
 // Zona de juegos del negocio: juegos para el celular con podio semanal, y
 // herramientas para los juegos de mesa (dominó; ajedrez y cartas después).
 const HERRAMIENTAS = [
-  { id: 'domino', nombre: 'Contador de dominó', icono: '🁫', descripcion: 'Marca las fichas que salen y mira cuántas quedan de cada número.', listo: true },
-  { id: 'ajedrez', nombre: 'Reloj de ajedrez', icono: '♞', descripcion: 'Tiempo para dos jugadores.', listo: false },
-  { id: 'cartas', nombre: 'Anotador de cartas', icono: '🂡', descripcion: 'Lleva los puntos de cada jugador.', listo: false }
+  { id: 'domino', nombre: 'Contador de dominó', icono: '🁫', descripcion: 'Marca las fichas que salen y mira cuántas quedan de cada número.' },
+  { id: 'ajedrez', nombre: 'Reloj de ajedrez', icono: '♞', descripcion: 'Tiempo para dos jugadores, con incremento. El celular va en medio de la mesa.' },
+  { id: 'cartas', nombre: 'Anotador de cartas', icono: '🂡', descripcion: 'Lleva los puntos de cada jugador ronda por ronda, para cualquier juego.' },
+  { id: 'tiro', nombre: 'Tiro al blanco', icono: '🎯', descripcion: 'Anota los 7 tiros de cada uno y mira quién gana.' }
 ];
 
 const FLOTANTES = ['🎮', '🏆', '⭐', '🎲', '🍎', '🧠', '⚡', '🐍'];
@@ -73,7 +74,8 @@ const Juegos = () => {
       )}
 
       <section className="jz-seccion">
-        <h2>🎮 Juegos</h2>
+        <h2>🎮 Juegos en el celular</h2>
+        <p className="jz-nota">Para jugar solo o retar a otros clientes en el podio de la semana.</p>
         <div className="jz-juegos">
           {JUEGOS.map((j, i) => {
             const record = j.podio ? mejorLocal(j.id) : 0;
@@ -92,21 +94,16 @@ const Juegos = () => {
       </section>
 
       <section className="jz-seccion">
-        <h2>🎲 Para la mesa</h2>
-        <div className="jg-lista">
-          {HERRAMIENTAS.map(h => (h.listo ? (
-            <Link key={h.id} to={`/menu/${moduloId}/juegos/${h.id}`} className="jg-tarjeta">
-              <span className="jg-tarjeta__icono" aria-hidden="true">{h.icono}</span>
-              <span className="jg-tarjeta__texto"><strong>{h.nombre}</strong><small>{h.descripcion}</small></span>
+        <h2>🧰 Apoyos para la mesa</h2>
+        <p className="jz-nota">Para los juegos de verdad que hay en el local: el celular lleva la cuenta por ustedes.</p>
+        <div className="jz-apoyos">
+          {HERRAMIENTAS.map((h, i) => (
+            <Link key={h.id} to={`/menu/${moduloId}/juegos/${h.id}`} className="jz-apoyo" style={{ '--i': i }}>
+              <span className="jz-apoyo__icono" aria-hidden="true">{h.icono}</span>
+              <span className="jz-apoyo__texto"><strong>{h.nombre}</strong><small>{h.descripcion}</small></span>
               <span className="jg-tarjeta__ir" aria-hidden="true">›</span>
             </Link>
-          ) : (
-            <div key={h.id} className="jg-tarjeta jg-tarjeta--pronto" aria-disabled="true">
-              <span className="jg-tarjeta__icono" aria-hidden="true">{h.icono}</span>
-              <span className="jg-tarjeta__texto"><strong>{h.nombre}</strong><small>{h.descripcion}</small></span>
-              <span className="jg-pronto">Pronto</span>
-            </div>
-          )))}
+          ))}
         </div>
       </section>
 

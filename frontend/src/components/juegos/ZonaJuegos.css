@@ -895,3 +895,60 @@
 .jg .jz-seccion h2 {
   color: var(--jg-texto);
 }
+
+.jz-nota {
+  margin: -6px 0 12px;
+  font-size: 13px;
+  color: var(--jg-suave);
+}
+
+.jz-apoyos {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.jz-apoyo {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px;
+  border-radius: 18px;
+  background: linear-gradient(120deg, #1d212b, #171a21);
+  border: 1px solid var(--jg-borde);
+  color: var(--jg-texto);
+  text-decoration: none;
+  animation: jz-entrar 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: calc(0.3s + var(--i) * 0.06s);
+}
+
+.jz-apoyo__icono {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 56px;
+  height: 56px;
+  border-radius: 16px;
+  background: #f4efe4;
+  color: #1a1a1a;
+  font-size: 32px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+}
+
+.jz-apoyo__texto {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.jz-apoyo__texto strong {
+  font-size: 16px;
+}
+
+.jz-apoyo__texto small {
+  font-size: 12.5px;
+  line-height: 1.4;
+  color: var(--jg-suave);
+}

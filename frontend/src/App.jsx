@@ -24,6 +24,9 @@ import MenuPedidoConfirmacion from './components/MenuPedidoConfirmacion';
 import Juegos from './components/juegos/Juegos';
 import JuegoDomino from './components/juegos/JuegoDomino';
 import MarcoJuego from './components/juegos/MarcoJuego';
+import RelojAjedrez from './components/juegos/RelojAjedrez';
+import AnotadorCartas from './components/juegos/AnotadorCartas';
+import TiroAlBlanco from './components/juegos/TiroAlBlanco';
 import api from './services/api';
 import './App.css';
 
@@ -108,6 +111,9 @@ function App() {
             <Route path="/menu/:moduloId/pedido/:token" element={<MenuPedidoConfirmacion />} />
             <Route path="/menu/:moduloId/juegos" element={<Juegos />} />
             <Route path="/menu/:moduloId/juegos/domino" element={<JuegoDomino />} />
+            <Route path="/menu/:moduloId/juegos/ajedrez" element={<RelojAjedrez />} />
+            <Route path="/menu/:moduloId/juegos/cartas" element={<AnotadorCartas />} />
+            <Route path="/menu/:moduloId/juegos/tiro" element={<TiroAlBlanco />} />
             <Route path="/menu/:moduloId/juegos/:juegoId" element={<MarcoJuego />} />
             <Route
               path="/"

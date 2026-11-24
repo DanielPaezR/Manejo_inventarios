@@ -1,0 +1,690 @@
+/* ===== Apoyos para juegos de mesa (cartas, tiro al blanco) ===== */
+.ap-tarjeta {
+  margin-top: 14px;
+  padding: 16px;
+  border: 1px solid var(--jg-borde);
+  border-radius: 20px;
+  background: var(--jg-superficie);
+}
+
+.jg .ap-tarjeta h2 {
+  margin: 0 0 12px;
+  font-size: 16px;
+  font-weight: 900;
+  color: var(--jg-texto);
+}
+
+.ap-jugadores {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ap-jugador {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px 6px 12px;
+  border-radius: 14px;
+  background: #0f1115;
+  border: 1px solid var(--jg-borde);
+}
+
+.ap-jugador__punto {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--color, #374151);
+  color: var(--jg-suave);
+  font-size: 16px;
+  font-weight: 800;
+}
+
+.ap-jugador--nuevo .ap-jugador__punto {
+  background: none;
+}
+
+.ap-jugador input {
+  flex: 1;
+  min-width: 0;
+  height: 40px;
+  border: none;
+  background: none;
+  color: var(--jg-texto);
+  font: 700 16px Archivo, system-ui, sans-serif;
+  outline: none;
+}
+
+.ap-quitar {
+  width: 34px;
+  height: 34px;
+  border: none;
+  border-radius: 50%;
+  background: #222733;
+  color: var(--jg-suave);
+  cursor: pointer;
+}
+
+.ap-agregar {
+  min-height: 38px;
+  padding: 0 14px;
+  font-size: 13.5px;
+}
+
+.ap-segmento {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  margin-bottom: 14px;
+  padding: 4px;
+  border-radius: 14px;
+  background: #0f1115;
+}
+
+.ap-segmento button {
+  height: 44px;
+  border: none;
+  border-radius: 11px;
+  background: none;
+  color: var(--jg-suave);
+  font-size: 14.5px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.ap-segmento button.activo {
+  background: #262b35;
+  color: var(--jg-texto);
+}
+
+.ap-campo {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.ap-campo > span {
+  font-size: 13.5px;
+  font-weight: 800;
+}
+
+.ap-campo input {
+  height: 48px;
+  padding: 0 14px;
+  border: 1px solid var(--jg-borde);
+  border-radius: 14px;
+  background: #0f1115;
+  color: var(--jg-texto);
+  font: 700 17px Archivo, system-ui, sans-serif;
+}
+
+.ap-campo small {
+  font-size: 12.5px;
+  color: var(--jg-suave);
+}
+
+.ap-dos {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.ap-valores-vista {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.ap-valores-vista span {
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #222733;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.ap-botones {
+  display: flex;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.ap-botones .jg-btn {
+  flex: 1;
+}
+
+/* Marcador */
+.ap-marcador {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.ap-tarjeta .ap-marcador {
+  margin-top: 0;
+}
+
+.ap-total {
+  position: relative;
+  display: grid;
+  grid-template-columns: 30px 1fr auto;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  overflow: hidden;
+  border-radius: 16px;
+  background: var(--jg-superficie);
+  border: 1px solid var(--jg-borde);
+  border-left: 5px solid var(--color);
+  transition: transform 0.3s ease;
+}
+
+.ap-tarjeta .ap-total {
+  background: #0f1115;
+}
+
+.ap-total.lider {
+  box-shadow: 0 0 0 1px var(--color), 0 0 20px color-mix(in srgb, var(--color) 30%, transparent);
+}
+
+.ap-total.turno {
+  transform: scale(1.02);
+  border-color: var(--color);
+}
+
+.ap-total__pos {
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--jg-suave);
+}
+
+.ap-total__nombre {
+  overflow: hidden;
+  font-size: 16px;
+  font-weight: 800;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.ap-total strong {
+  font-size: 26px;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+}
+
+.ap-total__barra {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 4px;
+  background: #222733;
+}
+
+.ap-total__barra i {
+  display: block;
+  height: 100%;
+  background: var(--color);
+  transition: width 0.4s ease;
+}
+
+.ap-ganador {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  margin-top: 6px;
+  padding: 18px;
+  border-radius: 20px;
+  background: linear-gradient(150deg, #a16207, #ca8a04);
+  text-align: center;
+  animation: jg-rebote 0.7s ease both;
+}
+
+.ap-ganador span {
+  font-size: 42px;
+}
+
+.ap-ganador strong {
+  font-size: 22px;
+  font-weight: 900;
+}
+
+/* Anotar ronda */
+.ap-ronda__fila {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--jg-borde);
+}
+
+.ap-ronda__fila > span {
+  overflow: hidden;
+  font-size: 15px;
+  font-weight: 800;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--color);
+}
+
+.ap-ronda__control {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.ap-ronda__control button {
+  width: 44px;
+  height: 44px;
+  border: 1px solid var(--jg-borde);
+  border-radius: 12px;
+  background: #222733;
+  color: var(--jg-texto);
+  font-size: 14px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.ap-ronda__control input {
+  width: 74px;
+  height: 44px;
+  border: 1px solid var(--jg-borde);
+  border-radius: 12px;
+  background: #0f1115;
+  color: var(--jg-texto);
+  font: 900 20px Archivo, system-ui, sans-serif;
+  text-align: center;
+}
+
+.ap-tabla-wrap {
+  overflow-x: auto;
+}
+
+.ap-tabla {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+
+.ap-tabla th,
+.ap-tabla td {
+  padding: 7px 6px;
+  border-bottom: 1px solid var(--jg-borde);
+  text-align: center;
+  white-space: nowrap;
+}
+
+.ap-tabla th {
+  font-size: 12.5px;
+}
+
+.ap-tabla td:first-child,
+.ap-tabla th:first-child {
+  color: var(--jg-suave);
+}
+
+.ap-tabla tfoot td {
+  font-size: 16px;
+  font-weight: 900;
+  border-bottom: none;
+}
+
+/* Tiro al blanco */
+.ap-turno {
+  border-color: var(--color);
+  box-shadow: 0 0 24px color-mix(in srgb, var(--color) 18%, transparent);
+}
+
+.ap-turno__cabeza {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: end;
+  margin-bottom: 12px;
+}
+
+.ap-turno__cabeza span {
+  grid-column: 1 / -1;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--jg-suave);
+}
+
+.ap-turno__cabeza strong {
+  overflow: hidden;
+  font-size: 26px;
+  font-weight: 900;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--color);
+}
+
+.ap-turno__cabeza b {
+  font-size: 22px;
+  font-weight: 900;
+}
+
+.ap-tiros {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
+.ap-tiro {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  border: 2px dashed var(--jg-borde);
+  color: #4b5262;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.ap-tiro.lleno {
+  border: none;
+  background: radial-gradient(circle at 50% 50%, #fff 0 18%, #ef4444 19% 38%, #fff 39% 58%, #ef4444 59% 100%);
+  color: #fff;
+  font-size: 15px;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.7);
+  animation: jg-rebote 0.35s ease;
+}
+
+.ap-tiro.siguiente {
+  border-color: var(--color);
+  color: var(--color);
+}
+
+.ap-teclado {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.ap-teclado button {
+  height: 62px;
+  border: 1px solid var(--jg-borde);
+  border-radius: 16px;
+  background: #222733;
+  color: var(--jg-texto);
+  font-size: 24px;
+  font-weight: 900;
+  cursor: pointer;
+  transition: transform 0.08s ease;
+}
+
+.ap-teclado button:active {
+  transform: scale(0.92);
+  background: var(--color);
+}
+
+.ap-teclado button.cero {
+  font-size: 15px;
+  color: #f87171;
+}
+
+.ap-teclado button.maximo {
+  background: linear-gradient(150deg, #b91c1c, #ef4444);
+  border-color: transparent;
+}
+
+.ap-final {
+  text-align: center;
+}
+
+.ap-final__copa {
+  font-size: 56px;
+  animation: jg-rebote 0.8s ease both;
+}
+
+.jg .ap-final h2 {
+  margin: 4px 0;
+  font-size: 24px;
+}
+
+.ap-final p {
+  margin: 0;
+  font-size: 13.5px;
+  color: var(--jg-suave);
+}
+
+.ap-podio {
+  display: grid;
+  grid-template-columns: 1fr 1.1fr 1fr;
+  align-items: end;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.ap-podio__puesto {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+}
+
+.ap-podio__puesto strong {
+  max-width: 100%;
+  overflow: hidden;
+  font-size: 13.5px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--color);
+}
+
+.ap-podio__puesto span {
+  font-size: 18px;
+  font-weight: 900;
+}
+
+.ap-podio__puesto div {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  margin-top: 4px;
+  border-radius: 12px 12px 4px 4px;
+  background: linear-gradient(180deg, #2a2f3b, #1b1f28);
+  font-size: 24px;
+}
+
+.ap-podio__puesto--1 div { height: 80px; background: linear-gradient(180deg, #4b3d0f, #2a230b); }
+.ap-podio__puesto--2 div { height: 58px; }
+.ap-podio__puesto--3 div { height: 44px; }
+
+/* ===== Reloj de ajedrez (pantalla completa) ===== */
+.ra {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  background: #0b0c10;
+  font-family: Archivo, system-ui, sans-serif;
+  color: #fff;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.ra-mitad {
+  position: relative;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin: 8px;
+  border: none;
+  border-radius: 28px;
+  background: #1a1d24;
+  color: #8b93a3;
+  cursor: pointer;
+  transition: background 0.25s ease, color 0.25s ease;
+}
+
+.ra-mitad--arriba {
+  transform: rotate(180deg);
+}
+
+.ra-mitad.activa {
+  background: linear-gradient(160deg, #f5c542, #e8a317);
+  color: #17120a;
+}
+
+.ra-mitad.activa.poco {
+  background: linear-gradient(160deg, #f87171, #dc2626);
+  color: #fff;
+  animation: jg-latido 1s ease-in-out infinite;
+}
+
+.ra-mitad.caido {
+  background: #7f1d1d;
+  color: #fff;
+}
+
+.ra-mitad.gana {
+  background: linear-gradient(160deg, #22c55e, #15803d);
+  color: #fff;
+}
+
+.ra-tiempo {
+  font-size: clamp(64px, 22vw, 150px);
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.ra-info {
+  max-width: 80%;
+  font-size: 14px;
+  font-weight: 700;
+  opacity: 0.85;
+  text-align: center;
+}
+
+.ra-centro {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 12px;
+}
+
+.ra-boton {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 46px;
+  height: 46px;
+  border: 1px solid #262b35;
+  border-radius: 50%;
+  background: #181b22;
+  color: #eef0f4;
+  font-size: 22px;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.ra-boton--grande {
+  width: 56px;
+  height: 56px;
+  font-size: 18px;
+}
+
+.ra-acciones {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.ra-modo {
+  font-size: 13px;
+  font-weight: 700;
+  color: #8b93a3;
+}
+
+.ra-tiempos {
+  display: flex;
+  flex: 1;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.ra-tiempos::-webkit-scrollbar {
+  display: none;
+}
+
+.ra-tiempos button {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  align-items: center;
+  padding: 6px 10px;
+  border: 1px solid #262b35;
+  border-radius: 12px;
+  background: #181b22;
+  color: #eef0f4;
+  cursor: pointer;
+}
+
+.ra-tiempos button b {
+  font-size: 15px;
+}
+
+.ra-tiempos button small {
+  font-size: 10.5px;
+  color: #8b93a3;
+}
+
+.ra-tiempos button.activo {
+  border-color: #f5c542;
+  background: #2a2510;
+}
+
+.ra-personal {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  padding: 8px 12px 0;
+  font-size: 13px;
+  color: #8b93a3;
+}
+
+.ra-personal input {
+  width: 64px;
+  height: 36px;
+  margin-left: 6px;
+  border: 1px solid #262b35;
+  border-radius: 10px;
+  background: #181b22;
+  color: #fff;
+  font-weight: 800;
+  text-align: center;
+}
+
+.ra-pausa {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgba(0, 0, 0, 0.65);
+  font-size: 18px;
+  font-weight: 800;
+  cursor: pointer;
+}
