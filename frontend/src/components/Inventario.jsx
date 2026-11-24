@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Search, Save, CircleCheck, TriangleAlert } from 'lucide-react';
 import api from '../services/api';
 import { useModulo } from '../hooks/useModulo';
+import Burbuja from './Burbuja';
 import './Inventario.css';
 
 const pesos = (valor) => {
@@ -326,6 +327,11 @@ const ConteoFisico = ({ proveedores, onConteoGuardado }) => {
                     <td>
                       <span className="inv-nombre">{p.nombre}</span>
                       <small>{p.categoria_nombre}</small>
+                      {p.veces_faltante > 0 && (
+                        <Burbuja compacta tono="ojo" icono="🔍">
+                          Ya faltó en {p.veces_faltante} {p.veces_faltante === 1 ? 'conteo' : 'conteos'} ({p.unidades_faltantes} uds). Cuéntalo con cuidado.
+                        </Burbuja>
+                      )}
                     </td>
                     <td className="num">{p.stock_actual}</td>
                     <td>

@@ -3,6 +3,7 @@ import api from '../services/api';
 import { useModulo } from '../hooks/useModulo';
 import { tienePermiso } from '../utils/permisos';
 import SubidaImagen from './SubidaImagen';
+import Burbuja from './Burbuja';
 import './Productos.css';
 
 const Productos = ({ user }) => {
@@ -13,6 +14,7 @@ const Productos = ({ user }) => {
   const [search, setSearch] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [editProducto, setEditProducto] = useState(null);
+  const [unidadesMes, setUnidadesMes] = useState(null);
   const [formData, setFormData] = useState({
     codigo_ean: '',
     nombre: '',
@@ -216,6 +218,8 @@ Sus ${cantidad} producto(s) pasarán a "General".`
 
   const handleEdit = (producto) => {
     setEditProducto(producto);
+    setUnidadesMes(null);
+    api.get(`/productos/${producto.id}/contexto`).then(r => setUnidadesMes(r.data.unidades_28)).catch(() => {});
     setFormData({
       codigo_ean: producto.codigo_ean || '',
       nombre: producto.nombre,
@@ -392,6 +396,35 @@ Sus ${cantidad} producto(s) pasarán a "General".`
                   />
                 </div>
               </div>
+              {(() => {
+                const pv = parseFloat(formData.precio_venta) || 0;
+                const pc = parseFloat(formData.precio_compra) || 0;
+                if (pv <= 0) return null;
+                const $ = (n) => `$${Math.round(n).toLocaleString('es-CO')}`;
+                if (pc <= 0) {
+                  return <Burbuja compacta icono="🏷️">Escribe cuánto te cuesta para saber cuánto te deja cada venta.</Burbuja>;
+                }
+                if (pc >= pv) {
+                  return <Burbuja compacta tono="ojo" icono="⚠️">Con este precio pierdes {$(pc - pv)} en cada unidad que vendes.</Burbuja>;
+                }
+                const ganancia = pv - pc;
+                const margen = Math.round((ganancia / pv) * 100);
+                const pvAntes = Number(editProducto?.precio_venta) || 0;
+                const pcAntes = Number(editProducto?.precio_compra) || 0;
+                const cambio = editProducto && (pv !== pvAntes || pc !== pcAntes) && pvAntes > 0 && pcAntes > 0;
+                const gananciaAntes = pvAntes - pcAntes;
+                return (
+                  <Burbuja compacta tono={margen < 15 ? 'ojo' : 'info'} icono="💰">
+                    Te deja <b>{$(ganancia)}</b> por unidad ({margen}%).
+                    {cambio && <> Antes: {$(gananciaAntes)} ({Math.round((gananciaAntes / pvAntes) * 100)}%).</>}
+                    {editProducto && unidadesMes > 0 && (
+                      <> Vendes ~{unidadesMes} al mes: {cambio
+                        ? <>pasarías de {$(gananciaAntes * unidadesMes)} a <b>{$(ganancia * unidadesMes)}</b> de ganancia al mes si vendes lo mismo.</>
+                        : <>unos {$(ganancia * unidadesMes)} de ganancia al mes.</>}</>
+                    )}
+                  </Burbuja>
+                );
+              })()}
 
               <div className="form-row">
                 <div className="form-group">

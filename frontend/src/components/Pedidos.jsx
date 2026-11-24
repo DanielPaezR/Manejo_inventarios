@@ -4,6 +4,7 @@ import { useModulo } from '../hooks/useModulo';
 import { tienePermiso } from '../utils/permisos';
 import './Pedidos.css';
 import CalendarioPedidos from './CalendarioPedidos';
+import Burbuja from './Burbuja';
 
 const Pedidos = ({ user }) => {
   const { moduloActivo } = useModulo();
@@ -35,6 +36,10 @@ const Pedidos = ({ user }) => {
   const [sugerenciaPedido, setSugerenciaPedido] = useState([]);
   const [sugerenciaConsultada, setSugerenciaConsultada] = useState(false);
   const [cargandoSugerencia, setCargandoSugerencia] = useState(false);
+  // Contexto del proveedor (cuánto se le pide normalmente) para las burbujas.
+  const [contextoSugerencia, setContextoSugerencia] = useState(null);
+  const [contextoNuevo, setContextoNuevo] = useState(null);
+  const [comparacionPedido, setComparacionPedido] = useState(null);
   const [enviandoSugerencia, setEnviandoSugerencia] = useState(false);
   const sugerenciaPedidoRef = useRef(null);
 
@@ -133,6 +138,8 @@ const Pedidos = ({ user }) => {
 
     try {
       setCargandoSugerencia(true);
+      setContextoSugerencia(null);
+      api.get(`/proveedores/${idProveedor}/contexto`).then(r => setContextoSugerencia(r.data)).catch(() => {});
       const response = await api.get(`/proveedores/${idProveedor}/sugerencia-pedido`, {
         params: { dias_historial: diasHistorial || 30 }
       });
@@ -254,6 +261,10 @@ const Pedidos = ({ user }) => {
       const response = await api.get(`/pedidos/${id}`);
       setPedidoSeleccionado(response.data);
       setEdicionDetalles(null);
+      setComparacionPedido(null);
+      if (['pendiente', 'enviado'].includes(response.data.estado)) {
+        api.get(`/pedidos/${id}/comparacion`).then(r => setComparacionPedido(r.data)).catch(() => {});
+      }
       setShowDetalleModal(true);
     } catch (error) {
       console.error('Error cargando detalle del pedido:', error);
@@ -378,6 +389,39 @@ const Pedidos = ({ user }) => {
       ...nuevoPedido,
       detalles: nuevoPedido.detalles.filter(d => d.producto_id !== productoId)
     });
+  };
+
+  const pesosCO = (n) => `$${Math.round(Number(n) || 0).toLocaleString('es-CO')}`;
+
+  // "A oky normalmente le pides $460.000 cada ~9 días..."
+  const textoContextoProveedor = (ctx, nombre) => {
+    if (!ctx || ctx.pedidos_90 === 0) return null;
+    return (
+      <>
+        A <b>{nombre}</b> normalmente le pides <b>{pesosCO(ctx.total_promedio)}</b>
+        {ctx.cada_dias ? <> cada <b>~{ctx.cada_dias} días</b></> : null}, unos {ctx.productos_promedio} productos por pedido.
+        {ctx.dias_desde_ultimo !== null && <> El último fue hace {ctx.dias_desde_ultimo === 0 ? 'hoy' : `${ctx.dias_desde_ultimo} ${ctx.dias_desde_ultimo === 1 ? 'día' : 'días'}`} ({pesosCO(ctx.ultimo_total)}).</>}
+      </>
+    );
+  };
+
+  // Por qué se sugiere esa cantidad de un producto.
+  const razonSugerencia = (item) => {
+    const partes = [];
+    if (item.ventas_por_semana > 0) {
+      let ritmo = `Vendes ~${item.ventas_por_semana} por semana`;
+      if (item.tendencia !== null && Math.abs(item.tendencia) >= 15) {
+        ritmo += ` (últimas 2 semanas ${item.tendencia > 0 ? '▲' : '▼'}${Math.abs(item.tendencia)}%)`;
+      }
+      partes.push(ritmo);
+    } else {
+      partes.push('Sin ventas recientes');
+    }
+    partes.push(item.stock_actual <= 0
+      ? 'agotado'
+      : item.dias_stock !== null ? `quedan ${item.stock_actual}, ${item.dias_stock > 60 ? 'alcanza para más de 2 meses' : `alcanza ~${item.dias_stock} ${item.dias_stock === 1 ? 'día' : 'días'}`}` : `quedan ${item.stock_actual}`);
+    if (item.ultima_cantidad) partes.push(`la última vez pediste ${item.ultima_cantidad}`);
+    return partes.join(' · ');
   };
 
   const getEstadoBadge = (estado) => {
@@ -575,6 +619,16 @@ const Pedidos = ({ user }) => {
             </p>
           ) : (
             <>
+              {contextoSugerencia && (
+                <Burbuja icono="📦">
+                  {textoContextoProveedor(contextoSugerencia, proveedores.find(p => p.id === parseInt(proveedorSugerenciaId))?.nombre || 'este proveedor')}
+                  {contextoSugerencia.en_camino > 0 && <> ⚠️ Ya tienes {contextoSugerencia.en_camino} {contextoSugerencia.en_camino === 1 ? 'pedido' : 'pedidos'} en camino con este proveedor.</>}
+                </Burbuja>
+              )}
+              <p className="sugerencia-explicacion">
+                La cantidad sugerida tiene en cuenta lo que vendes normalmente, si en las últimas 2 semanas se está vendiendo más o menos,
+                lo que te queda y que alcance hasta el siguiente pedido.
+              </p>
               <table className="tabla-sugerencia-pedido">
                 <thead>
                   <tr>
@@ -598,7 +652,12 @@ const Pedidos = ({ user }) => {
                             onChange={() => toggleIncluidoSugerencia(item.producto_id)}
                           />
                         </td>
-                        <td>{item.nombre}</td>
+                        <td>
+                          {item.nombre}
+                          <Burbuja compacta icono={null} tono={item.stock_actual <= 0 || (item.dias_stock !== null && item.dias_stock <= 2) ? 'ojo' : 'info'}>
+                            {razonSugerencia(item)}
+                          </Burbuja>
+                        </td>
                         <td>{item.stock_actual}</td>
                         <td>{item.ventas_por_semana.toFixed(1)} uds/sem</td>
                         <td>
@@ -620,6 +679,20 @@ const Pedidos = ({ user }) => {
                   })}
                 </tbody>
               </table>
+              {(() => {
+                const totalPedido = sugerenciaPedido
+                  .filter(item => item.incluido)
+                  .reduce((sum, item) => sum + (parseInt(item.cantidadEditada) || 0) * (item.unidades_por_paquete || 1) * (item.costo_unitario || 0), 0);
+                if (totalPedido <= 0) return null;
+                const normal = contextoSugerencia?.total_promedio || 0;
+                const diferencia = normal > 0 ? Math.round(((totalPedido - normal) / normal) * 100) : null;
+                return (
+                  <Burbuja icono="🧾" tono={diferencia !== null && diferencia > 30 ? 'ojo' : 'info'}>
+                    Este pedido va en <b>{pesosCO(totalPedido)}</b>
+                    {normal > 0 && <>; normalmente le pides {pesosCO(normal)}{diferencia !== null && Math.abs(diferencia) >= 10 ? ` (${diferencia > 0 ? `${diferencia}% más` : `${Math.abs(diferencia)}% menos`})` : ''}</>}.
+                  </Burbuja>
+                );
+              })()}
               <button onClick={enviarSugerenciaPorWhatsApp} className="btn-pedir-todo" disabled={enviandoSugerencia}>
                 {enviandoSugerencia ? '⏳ Creando pedido...' : '📤 Enviar por WhatsApp'}
               </button>
@@ -673,6 +746,36 @@ const Pedidos = ({ user }) => {
                   )}
                 </div>
               </div>
+
+              {comparacionPedido && ['pendiente', 'enviado'].includes(pedidoSeleccionado.estado) && (() => {
+                const subieron = comparacionPedido.cambios_precio.filter(c => c.precio > c.precio_anterior);
+                const bajaron = comparacionPedido.cambios_precio.filter(c => c.precio < c.precio_anterior);
+                const normal = comparacionPedido.total_promedio;
+                const dif = normal ? Math.round(((comparacionPedido.total - normal) / normal) * 100) : null;
+                return (
+                  <>
+                    {subieron.length > 0 && (
+                      <Burbuja tono="ojo" icono="📈">
+                        Precios que subieron desde el último pedido:{' '}
+                        {subieron.slice(0, 4).map((c, i) => (
+                          <span key={c.nombre}>{i > 0 ? ', ' : ''}<b>{c.nombre}</b> {pesosCO(c.precio_anterior)} → {pesosCO(c.precio)}</span>
+                        ))}
+                        {subieron.length > 4 && ` y ${subieron.length - 4} más`}. Revisa si debes subir el precio de venta.
+                      </Burbuja>
+                    )}
+                    {bajaron.length > 0 && (
+                      <Burbuja tono="bien" icono="📉">
+                        Bajaron de precio: {bajaron.slice(0, 4).map(c => `${c.nombre} (${pesosCO(c.precio_anterior)} → ${pesosCO(c.precio)})`).join(', ')}.
+                      </Burbuja>
+                    )}
+                    {dif !== null && Math.abs(dif) >= 15 && (
+                      <Burbuja icono="🧾">
+                        Este pedido es de {pesosCO(comparacionPedido.total)}, un {Math.abs(dif)}% {dif > 0 ? 'más' : 'menos'} que lo normal con este proveedor ({pesosCO(normal)}).
+                      </Burbuja>
+                    )}
+                  </>
+                );
+              })()}
 
               <div className="detalle-productos">
                 <h4>📦 Productos</h4>
@@ -787,7 +890,13 @@ const Pedidos = ({ user }) => {
                   <label>Proveedor *</label>
                   <select
                     value={nuevoPedido.proveedor_id}
-                    onChange={(e) => setNuevoPedido({ ...nuevoPedido, proveedor_id: e.target.value })}
+                    onChange={(e) => {
+                      setNuevoPedido({ ...nuevoPedido, proveedor_id: e.target.value });
+                      setContextoNuevo(null);
+                      if (e.target.value) {
+                        api.get(`/proveedores/${e.target.value}/contexto`).then(r => setContextoNuevo(r.data)).catch(() => {});
+                      }
+                    }}
                   >
                     <option value="">Seleccionar proveedor...</option>
                     {proveedores.map(prov => (
@@ -796,6 +905,12 @@ const Pedidos = ({ user }) => {
                       </option>
                     ))}
                   </select>
+                  {contextoNuevo && (
+                    <Burbuja icono="📦">
+                      {textoContextoProveedor(contextoNuevo, proveedores.find(p => p.id === parseInt(nuevoPedido.proveedor_id))?.nombre || 'este proveedor')}
+                      {contextoNuevo.en_camino > 0 && <> ⚠️ Ya tienes {contextoNuevo.en_camino} {contextoNuevo.en_camino === 1 ? 'pedido' : 'pedidos'} en camino con este proveedor.</>}
+                    </Burbuja>
+                  )}
                 </div>
 
                 <div className="form-group">

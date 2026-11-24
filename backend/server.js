@@ -32,7 +32,7 @@ const { geocodificar } = require('./src/helpers/geocodificar');
 const OpenAI = require('openai');
 const { botDisponible, responder: responderBot, limpiarEstilo } = require('./src/helpers/asistenteBot');
 const { construirResumen, construirAntesYAhora, metricasPeriodo } = require('./src/helpers/resumenNegocio');
-const { productosParaSimulador, mermas, ventasPorEquipo, clientesEnLinea } = require('./src/helpers/analisisExtra');
+const { productosParaSimulador, mermas, ventasPorEquipo, clientesEnLinea, hoyRapido } = require('./src/helpers/analisisExtra');
 const { enviarResumenModulo, programarResumenSemanal } = require('./src/helpers/resumenSemanal');
 const { canalesDisponibles, normalizarTelefono } = require('./src/helpers/notificador');
 
@@ -2245,6 +2245,7 @@ rutaAnalisis('/api/estadisticas/productos-simulador', (req) => productosParaSimu
 rutaAnalisis('/api/estadisticas/mermas', (req) => mermas(pool, req.moduloId));
 rutaAnalisis('/api/estadisticas/equipo', (req) => ventasPorEquipo(pool, req.moduloId));
 rutaAnalisis('/api/estadisticas/clientes-en-linea', (req) => clientesEnLinea(pool, req.moduloId));
+rutaAnalisis('/api/estadisticas/hoy', (req) => hoyRapido(pool, req.moduloId));
 
 // Informe de un mes (para imprimir o guardar en PDF) comparado con el anterior.
 rutaAnalisis('/api/estadisticas/informe-mes', async (req) => {
@@ -3420,6 +3421,69 @@ app.put('/api/proveedores/:id/proxima-visita', authenticateToken, checkAccess, r
 // y tiempo de entrega (producto_proveedor.tiempo_entrega_dias tiene
 // prioridad sobre proveedores.dias_entrega, que a su vez tiene prioridad
 // sobre el default de 3 días).
+// Cuánto se vendió de un producto en 4 semanas (burbuja del formulario de
+// productos). Disponible para quien pueda editar productos.
+app.get('/api/productos/:id/contexto', authenticateToken, checkAccess, requirePermiso('productos'), async (req, res) => {
+  try {
+    if (!/^\d+$/.test(req.params.id)) {
+      return res.status(404).json({ error: 'Producto no encontrado' });
+    }
+    const { rows: [d] } = await pool.query(
+      `SELECT COALESCE(SUM(dv.cantidad), 0) AS unidades_28
+       FROM detalle_venta dv JOIN ventas v ON v.id = dv.venta_id
+       JOIN productos p ON p.id = dv.producto_id AND p.modulo_id = $2
+       WHERE dv.producto_id = $1 AND v.es_ajuste_manual = false
+         AND v.fecha_venta >= NOW() - interval '28 days'`,
+      [req.params.id, req.moduloId]);
+    res.json({ unidades_28: Number(d.unidades_28) });
+  } catch (error) {
+    console.error('Error obteniendo contexto del producto:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// Datos de contexto de un proveedor para las burbujas de Mis pedidos:
+// cuánto se le pide normalmente, cada cuánto y si hay pedidos en camino.
+app.get('/api/proveedores/:id/contexto', authenticateToken, checkAccess, requirePermiso('proveedores'), async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!/^\d+$/.test(id)) {
+      return res.status(404).json({ error: 'Proveedor no encontrado' });
+    }
+    const { rows: [datos] } = await pool.query(
+      `WITH recibidos AS (
+         SELECT pe.id, pe.total, pe.fecha_pedido,
+                (SELECT COUNT(*) FROM pedido_detalle pd WHERE pd.pedido_id = pe.id) AS productos
+         FROM pedidos_proveedor pe
+         WHERE pe.proveedor_id = $1 AND pe.modulo_id = $2 AND pe.estado = 'recibido'
+           AND pe.fecha_pedido >= NOW() - interval '90 days'
+       )
+       SELECT COUNT(*)::int AS pedidos,
+              AVG(total) AS total_promedio,
+              AVG(productos) AS productos_promedio,
+              MIN(fecha_pedido) AS primero,
+              MAX(fecha_pedido) AS ultimo,
+              (SELECT total FROM recibidos ORDER BY fecha_pedido DESC LIMIT 1) AS ultimo_total,
+              (SELECT COUNT(*)::int FROM pedidos_proveedor
+               WHERE proveedor_id = $1 AND modulo_id = $2 AND estado IN ('pendiente', 'enviado')) AS en_camino
+       FROM recibidos`,
+      [id, req.moduloId]);
+    const pedidos = datos.pedidos;
+    res.json({
+      pedidos_90: pedidos,
+      total_promedio: Math.round(Number(datos.total_promedio) || 0),
+      productos_promedio: Math.round(Number(datos.productos_promedio) || 0),
+      cada_dias: pedidos > 1 ? Math.round((new Date(datos.ultimo) - new Date(datos.primero)) / 86400000 / (pedidos - 1)) : null,
+      dias_desde_ultimo: datos.ultimo ? Math.floor((Date.now() - new Date(datos.ultimo).getTime()) / 86400000) : null,
+      ultimo_total: Math.round(Number(datos.ultimo_total) || 0),
+      en_camino: datos.en_camino
+    });
+  } catch (error) {
+    console.error('Error obteniendo contexto del proveedor:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
 app.get('/api/proveedores/:id/sugerencia-pedido', authenticateToken, checkAccess, requirePermiso('proveedores'), async (req, res) => {
   try {
     const { id } = req.params;
@@ -3458,7 +3522,7 @@ app.get('/api/proveedores/:id/sugerencia-pedido', authenticateToken, checkAccess
       `SELECT
           p.id, p.nombre, p.codigo_ean, p.stock_actual, p.stock_minimo,
           pp.tiempo_entrega_dias, pp.cantidad_minima_pedido, pp.precio_compra,
-          pp.unidades_por_paquete
+          pp.unidades_por_paquete, p.precio_compra AS precio_compra_producto
        FROM productos p
        JOIN producto_proveedor pp ON pp.producto_id = p.id
        WHERE pp.proveedor_id = $1
@@ -3468,27 +3532,54 @@ app.get('/api/proveedores/:id/sugerencia-pedido', authenticateToken, checkAccess
       [id, moduloId]
     );
 
+    // Cuánto se vende de cada producto (en cualquier módulo: el stock es uno
+    // solo) en el periodo base y en las últimas 2 semanas, y cuánto se le
+    // suele comprar a este proveedor. La sugerencia combina el ritmo base con
+    // el reciente para seguir la tendencia sin exagerar una semana rara.
+    const ids = productosResult.rows.map(p => p.id);
+    const [ventasRows, comprasRows] = ids.length === 0 ? [[], []] : await Promise.all([
+      pool.query(
+        `SELECT dv.producto_id,
+                COALESCE(SUM(dv.cantidad) FILTER (WHERE v.fecha_venta >= NOW() - ($2 || ' days')::interval), 0) AS base,
+                COALESCE(SUM(dv.cantidad) FILTER (WHERE v.fecha_venta >= NOW() - interval '14 days'), 0) AS reciente
+         FROM detalle_venta dv JOIN ventas v ON v.id = dv.venta_id
+         WHERE dv.producto_id = ANY($1::int[])
+           AND v.fecha_venta >= NOW() - (GREATEST($2::int, 14) || ' days')::interval
+         GROUP BY dv.producto_id`,
+        [ids, diasHistorial]).then(r => r.rows),
+      pool.query(
+        `SELECT pd.producto_id,
+                COALESCE(SUM(pd.cantidad) FILTER (WHERE pe.fecha_pedido >= NOW() - interval '56 days'), 0) AS compradas_56,
+                COUNT(*) FILTER (WHERE pe.fecha_pedido >= NOW() - interval '56 days')::int AS veces_56,
+                (array_agg(pd.cantidad ORDER BY pe.fecha_pedido DESC))[1] AS ultima_cantidad,
+                (array_agg(pd.precio_unitario ORDER BY pe.fecha_pedido DESC))[1] AS ultimo_precio
+         FROM pedido_detalle pd JOIN pedidos_proveedor pe ON pe.id = pd.pedido_id
+         WHERE pe.proveedor_id = $1 AND pe.estado = 'recibido' AND pd.producto_id = ANY($2::int[])
+         GROUP BY pd.producto_id`,
+        [id, ids]).then(r => r.rows)
+    ]);
+    const ventasPorProducto = new Map(ventasRows.map(r => [r.producto_id, r]));
+    const comprasPorProducto = new Map(comprasRows.map(r => [r.producto_id, r]));
+
     const sugerencias = [];
 
     for (const producto of productosResult.rows) {
-      const ventasResult = await pool.query(
-        `SELECT COALESCE(SUM(dv.cantidad), 0) as total_vendido
-         FROM detalle_venta dv
-         JOIN ventas v ON dv.venta_id = v.id
-         WHERE dv.producto_id = $1
-         AND v.modulo_id = $2
-         AND v.fecha_venta >= NOW() - ($3 || ' days')::interval`,
-        [producto.id, moduloId, diasHistorial]
-      );
+      const ventas = ventasPorProducto.get(producto.id) || { base: 0, reciente: 0 };
+      const compras = comprasPorProducto.get(producto.id) || {};
+      const ventasBaseSemana = Number(ventas.base) / (diasHistorial / 7);
+      const ventasRecientesSemana = Number(ventas.reciente) / 2;
+      // Ritmo esperado: 60% lo de las últimas 2 semanas, 40% lo habitual.
+      const ritmoSemanal = ventasBaseSemana > 0 || ventasRecientesSemana > 0
+        ? 0.6 * ventasRecientesSemana + 0.4 * ventasBaseSemana
+        : 0;
+      const tendencia = ventasBaseSemana > 0
+        ? Math.round(((ventasRecientesSemana - ventasBaseSemana) / ventasBaseSemana) * 100)
+        : null;
 
-      const totalVendido = Number(ventasResult.rows[0]?.total_vendido || 0);
-      const ventasPorSemana = totalVendido / (diasHistorial / 7);
       const tiempoEntrega = diasCobertura || producto.tiempo_entrega_dias || proveedor.dias_entrega || 3;
-      const tiempoEntregaSemanas = tiempoEntrega / 7;
-      const consumoEsperado = ventasPorSemana * tiempoEntregaSemanas;
-      let cantidadSugerida = Math.ceil(
-        Math.max(0, consumoEsperado + producto.stock_minimo - producto.stock_actual)
-      );
+      const consumoEsperado = ritmoSemanal * (tiempoEntrega / 7);
+      const stockActual = Number(producto.stock_actual) || 0;
+      let cantidadSugerida = Math.ceil(Math.max(0, consumoEsperado + (Number(producto.stock_minimo) || 0) - stockActual));
 
       // Respeta el mínimo de pedido del proveedor si existe
       if (producto.cantidad_minima_pedido && cantidadSugerida > 0 && cantidadSugerida < producto.cantidad_minima_pedido) {
@@ -3497,6 +3588,7 @@ app.get('/api/proveedores/:id/sugerencia-pedido', authenticateToken, checkAccess
 
       const unidadesPorPaquete = producto.unidades_por_paquete || 1;
       const cantidadSugeridaPaquetes = Math.ceil(cantidadSugerida / unidadesPorPaquete);
+      const costoUnitario = Number(producto.precio_compra) || Number(compras.ultimo_precio) || Number(producto.precio_compra_producto) || 0;
 
       sugerencias.push({
         producto_id: producto.id,
@@ -3504,7 +3596,14 @@ app.get('/api/proveedores/:id/sugerencia-pedido', authenticateToken, checkAccess
         codigo_ean: producto.codigo_ean,
         stock_actual: producto.stock_actual,
         stock_minimo: producto.stock_minimo,
-        ventas_por_semana: Math.round(ventasPorSemana * 10) / 10,
+        ventas_por_semana: Math.round(ritmoSemanal * 10) / 10,
+        ventas_base_semana: Math.round(ventasBaseSemana * 10) / 10,
+        ventas_recientes_semana: Math.round(ventasRecientesSemana * 10) / 10,
+        tendencia,
+        compra_semanal_habitual: Math.round((Number(compras.compradas_56 || 0) / 8) * 10) / 10,
+        ultima_cantidad: compras.ultima_cantidad !== undefined && compras.ultima_cantidad !== null ? Number(compras.ultima_cantidad) : null,
+        dias_stock: ritmoSemanal > 0 ? Math.floor(stockActual / (ritmoSemanal / 7)) : null,
+        costo_unitario: costoUnitario,
         tiempoEntrega,
         cantidad_sugerida: cantidadSugerida,
         cantidad_sugerida_paquetes: cantidadSugeridaPaquetes,
@@ -4071,6 +4170,56 @@ app.put('/api/pedidos/:id/detalles', authenticateToken, checkAccess, requirePerm
     res.status(500).json({ error: 'Error interno del servidor' });
   } finally {
     if (client) client.release();
+  }
+});
+
+// Burbuja al revisar un pedido: productos cuyo precio cambió frente al
+// último pedido recibido del mismo proveedor, y el total frente a lo normal.
+app.get('/api/pedidos/:id/comparacion', authenticateToken, checkAccess, requirePermiso('proveedores'), async (req, res) => {
+  try {
+    if (!/^\d+$/.test(req.params.id)) {
+      return res.status(404).json({ error: 'Pedido no encontrado' });
+    }
+    const { rows: [pedido] } = await pool.query(
+      'SELECT id, proveedor_id, total, fecha_pedido FROM pedidos_proveedor WHERE id = $1 AND modulo_id = $2',
+      [req.params.id, req.moduloId]);
+    if (!pedido) {
+      return res.status(404).json({ error: 'Pedido no encontrado' });
+    }
+    const [{ rows: cambios }, { rows: [normal] }] = await Promise.all([
+      pool.query(
+        `SELECT p.nombre, pd.precio_unitario AS precio, anterior.precio_unitario AS precio_anterior
+         FROM pedido_detalle pd
+         JOIN productos p ON p.id = pd.producto_id
+         JOIN LATERAL (
+           SELECT pd2.precio_unitario
+           FROM pedido_detalle pd2 JOIN pedidos_proveedor pe2 ON pe2.id = pd2.pedido_id
+           WHERE pd2.producto_id = pd.producto_id AND pe2.proveedor_id = $2 AND pe2.estado = 'recibido'
+             AND pe2.id <> $1 AND pe2.fecha_pedido < $3
+           ORDER BY pe2.fecha_pedido DESC LIMIT 1
+         ) anterior ON true
+         WHERE pd.pedido_id = $1 AND anterior.precio_unitario > 0
+           AND ABS(pd.precio_unitario - anterior.precio_unitario) >= 1
+         ORDER BY (pd.precio_unitario - anterior.precio_unitario) DESC`,
+        [pedido.id, pedido.proveedor_id, pedido.fecha_pedido]),
+      pool.query(
+        `SELECT AVG(total) AS promedio, COUNT(*)::int AS pedidos FROM pedidos_proveedor
+         WHERE proveedor_id = $1 AND modulo_id = $2 AND estado = 'recibido' AND id <> $3
+           AND fecha_pedido >= NOW() - interval '90 days'`,
+        [pedido.proveedor_id, req.moduloId, pedido.id])
+    ]);
+    res.json({
+      total: Math.round(Number(pedido.total)),
+      total_promedio: normal.pedidos > 0 ? Math.round(Number(normal.promedio)) : null,
+      cambios_precio: cambios.map(c => ({
+        nombre: c.nombre.trim(),
+        precio: Math.round(Number(c.precio)),
+        precio_anterior: Math.round(Number(c.precio_anterior))
+      }))
+    });
+  } catch (error) {
+    console.error('Error comparando el pedido:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
   }
 });
 
@@ -5287,7 +5436,10 @@ app.get('/api/inventario/conteo', authenticateToken, checkAccess, requirePermiso
     }
 
     const result = await pool.query(
-      `SELECT p.id, p.nombre, p.codigo_ean, p.stock_actual, p.precio_compra, c.nombre AS categoria_nombre
+      `SELECT p.id, p.nombre, p.codigo_ean, p.stock_actual, p.precio_compra, c.nombre AS categoria_nombre,
+              -- Para la burbuja: en cuántos conteos anteriores faltó y cuánto.
+              (SELECT COUNT(*)::int FROM ajustes_inventario a WHERE a.producto_id = p.id AND a.diferencia < 0) AS veces_faltante,
+              (SELECT COALESCE(SUM(a.diferencia), 0)::int FROM ajustes_inventario a WHERE a.producto_id = p.id AND a.diferencia < 0) AS unidades_faltantes
        FROM productos p
        LEFT JOIN categorias c ON c.id = p.categoria_id
        WHERE p.modulo_id = $1 AND p.activo = true AND p.ignora_stock = false ${filtro}

@@ -4,6 +4,7 @@ import { textosNegocio, tipoNegocioUsuario } from '../utils/tipoNegocio';
 import { useModulo } from '../hooks/useModulo';
 import { Html5Qrcode } from 'html5-qrcode';
 import { Search, ScanBarcode, RotateCw, Trash2, Plus, Minus, X, ShoppingCart, Link2 } from 'lucide-react';
+import Burbuja from './Burbuja';
 import './Ventas.css';
 
 // Los precios llegan como numeric de Postgres (string "9000.00"):
@@ -63,6 +64,36 @@ const resolverCuentasIniciales = () => {
     console.error('Error migrando carrito/cliente del formato anterior:', error);
   }
   return [cuenta];
+};
+
+// Barra discreta arriba de Ventas (solo administradores): cómo va el día
+// contra un día normal y la meta de la semana. Se refresca después de cada
+// venta con el evento "ventaRegistrada".
+const DIAS_SEMANA = ['', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado', 'domingo'];
+const BarraDelDia = () => {
+  const [datos, setDatos] = useState(null);
+  useEffect(() => {
+    let vivo = true;
+    const cargar = () => api.get('/estadisticas/hoy').then(r => { if (vivo) setDatos(r.data); }).catch(() => {});
+    cargar();
+    const intervalo = setInterval(cargar, 5 * 60 * 1000);
+    window.addEventListener('ventaRegistrada', cargar);
+    return () => { vivo = false; clearInterval(intervalo); window.removeEventListener('ventaRegistrada', cargar); };
+  }, []);
+  if (!datos || (datos.normal_a_esta_hora === 0 && !datos.meta_semana)) return null;
+  const $ = (n) => `$${Math.round(n).toLocaleString('es-CO')}`;
+  const partes = [];
+  let tono = 'info';
+  if (datos.normal_a_esta_hora > 0) {
+    const dif = Math.round(((datos.hoy - datos.normal_a_esta_hora) / datos.normal_a_esta_hora) * 100);
+    tono = dif >= 5 ? 'bien' : dif <= -15 ? 'ojo' : 'info';
+    partes.push(<span key="hoy">Hoy llevas <b>{$(datos.hoy)}</b>; un {DIAS_SEMANA[datos.dia_semana]} normal a esta hora lleva {$(datos.normal_a_esta_hora)}{dif >= 5 ? ' 🎉' : ''}.</span>);
+  }
+  if (datos.meta_semana) {
+    const falta = datos.meta_semana - datos.semana;
+    partes.push(<span key="meta"> {falta <= 0 ? <>¡Cumpliste la meta de la semana! 🏆</> : <>Para la meta de la semana faltan <b>{$(falta)}</b> (~{$(falta / (datos.dias_restantes_semana + 1))} por día).</>}</span>);
+  }
+  return <Burbuja icono="📊" tono={tono} className="ventas-barra-dia">{partes}</Burbuja>;
 };
 
 const Ventas = ({ user }) => {
@@ -513,6 +544,7 @@ const Ventas = ({ user }) => {
           precio_unitario: producto.precio_venta,
           cantidad: 1,
           stock_actual: producto.stock_actual,
+          stock_minimo: producto.stock_minimo,
           ignora_stock: producto.ignora_stock,
           codigo_ean: producto.codigo_ean
         }]
@@ -627,6 +659,7 @@ const Ventas = ({ user }) => {
       if (response.data) {
         setFacturaData(response.data);
         setMostrarFactura(true);
+        window.dispatchEvent(new Event('ventaRegistrada'));
 
         // Si es la única cuenta, se resetea en el mismo lugar (igual que
         // antes). Si hay más, la cuenta que acaba de pagar se cierra (la
@@ -809,6 +842,7 @@ const Ventas = ({ user }) => {
 
   return (
     <div className="ventas-container">
+      {(user?.rol === 'admin' || user?.rol === 'super_admin') && <BarraDelDia />}
       {/* Scanner y búsqueda */}
       <div className={`busqueda-section ${vistaMobileActiva === 'productos' && !modoScanner ? 'busqueda-fija-movil' : ''}`}>
         <div className="busqueda-fila">
@@ -1104,6 +1138,12 @@ const Ventas = ({ user }) => {
             />
           </div>
 
+          {metodoPago === 'credito' && clienteSeleccionado && Number(clienteSeleccionado.deuda_actual) > 0 && (
+            <Burbuja tono="ojo" icono="📒">
+              {clienteSeleccionado.nombre} ya debe <b>${Math.round(Number(clienteSeleccionado.deuda_actual)).toLocaleString('es-CO')}</b>.
+              Con esta venta quedaría en ${Math.round(Number(clienteSeleccionado.deuda_actual) + subtotal).toLocaleString('es-CO')}.
+            </Burbuja>
+          )}
           {metodoPago === 'credito' && !clienteSeleccionado && (
             <p className="credito-sin-cliente-warning">
               ⚠️ Selecciona o registra un cliente para vender a crédito
@@ -1124,6 +1164,13 @@ const Ventas = ({ user }) => {
                   <div className="item-info">
                     <span className="item-nombre">{item.nombre}</span>
                     <span className="item-precio">{pesos(item.precio_unitario)}</span>
+                    {!item.ignora_stock && item.stock_actual - item.cantidad <= Math.max(item.stock_minimo || 0, 2) && (
+                      <Burbuja compacta tono="ojo" icono="📦">
+                        {item.stock_actual - item.cantidad <= 0
+                          ? 'Con esta venta se acaba. Tenlo en cuenta para el próximo pedido.'
+                          : `Después de esta venta quedan ${item.stock_actual - item.cantidad}.`}
+                      </Burbuja>
+                    )}
                   </div>
                   <div className="item-controls">
                     <button 

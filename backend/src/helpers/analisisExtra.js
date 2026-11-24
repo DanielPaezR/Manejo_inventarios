@@ -159,4 +159,37 @@ async function clientesEnLinea(pool, moduloId) {
   };
 }
 
-module.exports = { productosParaSimulador, mermas, ventasPorEquipo, clientesEnLinea };
+// Lo que va del día contra un día normal, y la meta de la semana. Es
+// liviano porque se pide en Ventas después de cada venta.
+async function hoyRapido(pool, moduloId) {
+  const lineas = `FROM detalle_venta dv JOIN ventas v ON v.id = dv.venta_id
+    WHERE dv.modulo_dueno_id = $1 AND v.es_ajuste_manual = false AND v.metodo_pago <> 'consumo_propio'`;
+  const [{ rows: [d] }, metasRes] = await Promise.all([
+    pool.query(
+      `SELECT
+         COALESCE(SUM(dv.subtotal) FILTER (WHERE ${FECHA_VENTA} = ${HOY}), 0) AS hoy,
+         COALESCE(SUM(dv.subtotal) FILTER (
+           WHERE ${FECHA_VENTA} IN (${HOY} - 7, ${HOY} - 14, ${HOY} - 21, ${HOY} - 28)
+             AND (v.fecha_venta AT TIME ZONE 'UTC' AT TIME ZONE 'America/Bogota')::time <= (now() AT TIME ZONE 'America/Bogota')::time
+         ), 0) / 4.0 AS normal_a_esta_hora,
+         COALESCE(SUM(dv.subtotal) FILTER (WHERE ${FECHA_VENTA} IN (${HOY} - 7, ${HOY} - 14, ${HOY} - 21, ${HOY} - 28)), 0) / 4.0 AS normal_dia,
+         COALESCE(SUM(dv.subtotal) FILTER (WHERE ${FECHA_VENTA} >= date_trunc('week', ${HOY})::date), 0) AS semana,
+         (7 - EXTRACT(ISODOW FROM ${HOY}))::int AS dias_restantes_semana,
+         EXTRACT(ISODOW FROM ${HOY})::int AS dia_semana
+       ${lineas}
+         AND ${FECHA_VENTA} >= LEAST(${HOY} - 28, date_trunc('week', ${HOY})::date)`, [moduloId]),
+    pool.query('SELECT metas FROM modulos WHERE id = $1', [moduloId]).catch(() => ({ rows: [] }))
+  ]);
+  const metas = metasRes.rows[0]?.metas || {};
+  return {
+    hoy: Math.round(num(d.hoy)),
+    normal_a_esta_hora: Math.round(num(d.normal_a_esta_hora)),
+    normal_dia: Math.round(num(d.normal_dia)),
+    dia_semana: d.dia_semana,
+    semana: Math.round(num(d.semana)),
+    meta_semana: num(metas.ventas_semana) || null,
+    dias_restantes_semana: d.dias_restantes_semana
+  };
+}
+
+module.exports = { productosParaSimulador, mermas, ventasPorEquipo, clientesEnLinea, hoyRapido };
