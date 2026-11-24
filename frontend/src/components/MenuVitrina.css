@@ -1535,3 +1535,14 @@
   font-size: 13px;
   color: var(--mv-suave);
 }
+
+.mv-chip-hero--boton {
+  color: #fff;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.mv-pie__juegos {
+  margin-top: 14px;
+  font-size: 14px;
+}

@@ -1328,15 +1328,41 @@
   opacity: 0.75;
 }
 
-@media (max-width: 640px) {
-  .header-right {
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    padding-bottom: 4px;
+/* En celular y tablet las pestañas se deslizan de lado (carrusel), igual
+   que los filtros de período, en vez de amontonarse en varias filas. */
+@media (max-width: 768px) {
+  .estadisticas-header {
+    min-width: 0;
   }
 
-  .btn-vista--pregunta {
-    flex-shrink: 0;
+  .estadisticas-header .header-right {
+    flex-wrap: nowrap;
+    min-width: 0;
+    width: auto;
+    max-width: calc(100% + 24px);
+    margin: 0 -12px;
+    padding: 2px 12px 6px;
+    overflow-x: auto;
+    scroll-snap-type: x proximity;
+    scroll-padding: 0 12px;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .estadisticas-header .header-right::-webkit-scrollbar {
+    display: none;
+  }
+
+  .estadisticas-header .btn-vista--pregunta {
+    flex: 0 0 auto;
+    scroll-snap-align: start;
+    padding: 8px 14px;
+    font-size: 13px;
+  }
+
+  /* Como los filtros de abajo: píldoras de una sola línea. */
+  .estadisticas-header .btn-vista--pregunta small {
+    display: none;
   }
 }
 

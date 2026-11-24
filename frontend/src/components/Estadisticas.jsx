@@ -406,7 +406,7 @@ const Estadisticas = ({ user }) => {
             <button
               key={t.valor}
               className={`btn-vista btn-vista--pregunta ${vistaActiva === t.valor ? 'active' : ''}`}
-              onClick={() => setVistaActiva(t.valor)}
+              onClick={(e) => { setVistaActiva(t.valor); e.currentTarget.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' }); }}
             >
               <span>{t.titulo}</span>
               <small>{t.ayuda}</small>
