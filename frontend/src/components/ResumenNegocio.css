@@ -1,0 +1,447 @@
+.rn {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-width: 920px;
+  margin: 0 auto;
+}
+
+/* ---------- Introducción e índice ---------- */
+.rn-intro h2 {
+  margin: 0 0 4px;
+  font-size: 22px;
+  color: var(--text-strong);
+}
+
+.rn-intro p {
+  margin: 0 0 12px;
+  font-size: 14px;
+  color: var(--text-muted);
+}
+
+.rn-indice {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.rn-indice button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  padding: 7px 12px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-default);
+  cursor: pointer;
+}
+
+.rn-indice button:hover {
+  border-color: var(--brand);
+  color: var(--brand-700);
+}
+
+.rn-indice button > span {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--surface-muted, var(--surface-subtle));
+  font-size: 11px;
+}
+
+.rn-indice em {
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--danger);
+  color: #fff;
+  font-size: 11px;
+  font-style: normal;
+}
+
+/* ---------- Capítulos ---------- */
+.rn-capitulo {
+  margin: 0;
+  scroll-margin-top: 80px;
+}
+
+.rn-capitulo__cabecera {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.rn-capitulo__numero {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--brand);
+  color: #fff;
+  font-weight: 700;
+}
+
+.rn-capitulo__cabecera small {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.rn-capitulo .rn-capitulo__cabecera h3 {
+  margin: 2px 0 0;
+  text-align: left;
+  font-size: 18px;
+  line-height: 1.35;
+  color: var(--text-strong);
+}
+
+.rn-texto {
+  margin: 12px 0 0;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--text-default);
+}
+
+.rn-nota {
+  margin: 10px 0 0;
+  font-size: 12.5px;
+  color: var(--text-muted);
+}
+
+.rn-link {
+  margin-top: 10px;
+  padding: 0;
+  border: none;
+  background: none;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--brand-700);
+  cursor: pointer;
+}
+
+.rn-link:hover {
+  text-decoration: underline;
+}
+
+/* ---------- Métricas ---------- */
+.rn-metricas {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+}
+
+.rn-metrica {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md, 10px);
+  background: var(--surface-subtle);
+}
+
+.rn-metrica small {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.rn-metrica strong {
+  font-size: 20px;
+  color: var(--text-strong);
+}
+
+.rn-metrica span {
+  font-size: 12.5px;
+  color: var(--text-default);
+}
+
+.rn-metrica--destacada {
+  border-color: var(--success);
+  background: var(--success-50, #f0fdf4);
+}
+
+.rn-metrica--alerta {
+  border-color: var(--danger);
+  background: var(--danger-50);
+}
+
+.rn-cambio {
+  display: inline-block;
+  margin-left: 4px;
+  padding: 0 6px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 700;
+}
+
+.rn-cambio.bueno { background: var(--success-50, #f0fdf4); color: var(--success); }
+.rn-cambio.malo { background: var(--danger-50); color: var(--danger); }
+.rn-cambio.neutro { background: var(--surface-subtle); color: var(--text-muted); }
+
+/* ---------- Alertas ---------- */
+.rn-alertas {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 10px;
+}
+
+.rn-alerta {
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--border-strong);
+  border-radius: var(--radius-md, 10px);
+  background: var(--surface);
+}
+
+.rn-alerta--urgente { border-left-color: var(--danger); }
+.rn-alerta--media { border-left-color: #ed8936; }
+.rn-alerta--suelta { margin-top: 14px; }
+
+.rn-alerta h4 {
+  margin: 0 0 4px;
+  font-size: 14.5px;
+  color: var(--text-strong);
+}
+
+.rn-alerta p {
+  margin: 0 0 6px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-default);
+}
+
+.rn-alerta ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.rn-alerta li {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 5px 0;
+  border-bottom: 1px dashed var(--border);
+  font-size: 13px;
+  color: var(--text-default);
+}
+
+.rn-alerta li:last-child {
+  border-bottom: none;
+}
+
+.rn-alerta li b {
+  flex-shrink: 0;
+  color: var(--text-strong);
+}
+
+/* ---------- Barras ---------- */
+.rn-barra {
+  height: 8px;
+  margin: 6px 0;
+  border-radius: 999px;
+  background: var(--surface-subtle);
+  overflow: hidden;
+}
+
+.rn-barra > div {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--brand);
+}
+
+.rn-barra--verde > div {
+  background: var(--success);
+}
+
+/* ---------- Proveedores ---------- */
+.rn-proveedores {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.rn-proveedor {
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md, 10px);
+}
+
+.rn-proveedor__fila {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 14.5px;
+  color: var(--text-strong);
+}
+
+.rn-proveedor__fila small {
+  margin-left: 2px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.rn-proveedor__detalle {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  font-size: 12.5px;
+  color: var(--text-muted);
+}
+
+.rn-proveedor__detalle b {
+  color: var(--text-strong);
+}
+
+/* ---------- Ranking de ganancia ---------- */
+.rn-ranking {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.rn-ranking__item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.rn-ranking__pos {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--surface-subtle);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-default);
+}
+
+.rn-ranking__info {
+  flex: 1;
+  min-width: 0;
+}
+
+.rn-ranking__info small {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+/* ---------- Días de la semana ---------- */
+.rn-dias {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 6px;
+  align-items: end;
+}
+
+.rn-dia {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.rn-dia__barra {
+  display: flex;
+  align-items: flex-end;
+  width: 100%;
+  max-width: 48px;
+  height: 120px;
+  border-radius: 8px;
+  background: var(--surface-subtle);
+  overflow: hidden;
+}
+
+.rn-dia__barra > div {
+  width: 100%;
+  border-radius: 8px 8px 0 0;
+  background: var(--brand-100, #c7d2fe);
+}
+
+.rn-dia.mejor .rn-dia__barra > div { background: var(--success); }
+.rn-dia.peor .rn-dia__barra > div { background: #ed8936; }
+
+.rn-dia small {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-default);
+}
+
+.rn-dia span {
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
+
+/* ---------- Decisiones ---------- */
+.rn-decisiones {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: decision;
+}
+
+.rn-decisiones li {
+  position: relative;
+  padding: 12px 14px 12px 48px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md, 10px);
+  background: var(--surface-subtle);
+  counter-increment: decision;
+}
+
+.rn-decisiones li::before {
+  content: counter(decision);
+  position: absolute;
+  top: 12px;
+  left: 14px;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--success);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.rn-decisiones p {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--text-strong);
+}
+
+.rn-decisiones .rn-link {
+  margin-top: 6px;
+}
+
+@media (max-width: 640px) {
+  .rn-capitulo .rn-capitulo__cabecera h3 {
+    font-size: 16px;
+  }
+
+  .rn-dia__barra {
+    height: 90px;
+  }
+}

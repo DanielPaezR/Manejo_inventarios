@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import api from '../services/api';
 import { useModulo } from '../hooks/useModulo';
 import GraficoLineas from './GraficoLineas';
+import ResumenNegocio from './ResumenNegocio';
 import './Estadisticas.css';
 
 // Aritmética de calendario pura en UTC (año/mes/día, sin horas): evita que
@@ -34,7 +35,7 @@ const Estadisticas = ({ user }) => {
   const [loading, setLoading] = useState(false);
   const [periodo, setPeriodo] = useState('hoy');
   const [fechas, setFechas] = useState({ inicio: '', fin: '' });
-  const [vistaActiva, setVistaActiva] = useState('general'); // 'general', 'productos', 'ventas', 'finanzas', 'cruzadas', 'evolucion'
+  const [vistaActiva, setVistaActiva] = useState('resumen'); // 'resumen', 'general', 'productos', 'ventas', 'finanzas', 'cruzadas', 'evolucion'
   const [hoveredProducto, setHoveredProducto] = useState(null);
   const [finanzasResumen, setFinanzasResumen] = useState(null);
   const [loadingFinanzas, setLoadingFinanzas] = useState(false);
@@ -396,6 +397,12 @@ const Estadisticas = ({ user }) => {
       {/* Header */}
       <div className="estadisticas-header">
         <div className="header-right">
+          <button
+            className={`btn-vista ${vistaActiva === 'resumen' ? 'active' : ''}`}
+            onClick={() => setVistaActiva('resumen')}
+          >
+            📖 Resumen
+          </button>
           <button 
             className={`btn-vista ${vistaActiva === 'general' ? 'active' : ''}`}
             onClick={() => setVistaActiva('general')}
@@ -437,7 +444,7 @@ const Estadisticas = ({ user }) => {
 
       {/* Filtros de período: no aplican a la pestaña "Evolución", que tiene
           su propio selector de granularidad/rango más abajo. */}
-      {vistaActiva !== 'evolucion' && (
+      {vistaActiva !== 'evolucion' && vistaActiva !== 'resumen' && (
       <div className="filtros-periodo">
         <div className="periodo-selector">
           <button
@@ -527,7 +534,9 @@ const Estadisticas = ({ user }) => {
       </div>
       )}
 
-      {loading ? (
+      {vistaActiva === 'resumen' ? (
+        <ResumenNegocio onIrAVista={setVistaActiva} />
+      ) : loading ? (
         <div className="loading-container">
           <div className="spinner"></div>
           <p>Cargando estadísticas...</p>

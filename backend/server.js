@@ -31,6 +31,7 @@ const { generarNumeroCliente } = require('./src/helpers/generarNumeroCliente');
 const { geocodificar } = require('./src/helpers/geocodificar');
 const OpenAI = require('openai');
 const { botDisponible, responder: responderBot, limpiarEstilo } = require('./src/helpers/asistenteBot');
+const { construirResumen } = require('./src/helpers/resumenNegocio');
 
 // Divide el ingreso de una venta entre los módulos dueños reales de cada
 // línea vendida (duenoPorProducto), no todo al módulo que hizo la venta —
@@ -2123,6 +2124,20 @@ app.get('/api/alertas/stock-bajo', authenticateToken, checkAccess, requireAdmin,
 });
 
 // ==================== RUTAS DE ESTADÍSTICAS ====================
+
+// Resumen "contado" del negocio (pestaña Resumen de Estadísticas): cómo va,
+// qué requiere atención, proveedores, productos y horarios.
+app.get('/api/estadisticas/resumen', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+  try {
+    if (!req.moduloId) {
+      return res.status(400).json({ error: 'Se requiere un módulo' });
+    }
+    res.json(await construirResumen(pool, req.moduloId));
+  } catch (error) {
+    console.error('Error armando el resumen del negocio:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
 
 app.get('/api/estadisticas', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
   try {
