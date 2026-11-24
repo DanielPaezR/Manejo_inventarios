@@ -32,7 +32,7 @@ const { geocodificar } = require('./src/helpers/geocodificar');
 const OpenAI = require('openai');
 const { botDisponible, responder: responderBot, limpiarEstilo } = require('./src/helpers/asistenteBot');
 const { construirResumen, construirAntesYAhora, metricasPeriodo } = require('./src/helpers/resumenNegocio');
-const { productosParaSimulador, mermas, ventasPorEquipo, clientesEnLinea, hoyRapido } = require('./src/helpers/analisisExtra');
+const { productosParaSimulador, mermas, ventasPorEquipo, clientesEnLinea, hoyRapido, miDia } = require('./src/helpers/analisisExtra');
 const { enviarResumenModulo, programarResumenSemanal } = require('./src/helpers/resumenSemanal');
 const { canalesDisponibles, normalizarTelefono } = require('./src/helpers/notificador');
 
@@ -2246,6 +2246,19 @@ rutaAnalisis('/api/estadisticas/mermas', (req) => mermas(pool, req.moduloId));
 rutaAnalisis('/api/estadisticas/equipo', (req) => ventasPorEquipo(pool, req.moduloId));
 rutaAnalisis('/api/estadisticas/clientes-en-linea', (req) => clientesEnLinea(pool, req.moduloId));
 rutaAnalisis('/api/estadisticas/hoy', (req) => hoyRapido(pool, req.moduloId));
+
+// Para todos (también trabajadores): mis ventas, podio y avance del equipo.
+app.get('/api/ventas/mi-dia', authenticateToken, checkAccess, async (req, res) => {
+  try {
+    if (!req.moduloId) {
+      return res.status(400).json({ error: 'Se requiere un módulo' });
+    }
+    res.json(await miDia(pool, req.moduloId, req.user.id));
+  } catch (error) {
+    console.error('Error en mi día de ventas:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
 
 // Informe de un mes (para imprimir o guardar en PDF) comparado con el anterior.
 rutaAnalisis('/api/estadisticas/informe-mes', async (req) => {

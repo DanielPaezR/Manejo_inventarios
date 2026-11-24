@@ -5,6 +5,7 @@ import { useModulo } from '../hooks/useModulo';
 import { Html5Qrcode } from 'html5-qrcode';
 import { Search, ScanBarcode, RotateCw, Trash2, Plus, Minus, X, ShoppingCart, Link2 } from 'lucide-react';
 import Burbuja from './Burbuja';
+import MiDiaVentas from './MiDiaVentas';
 import './Ventas.css';
 
 // Los precios llegan como numeric de Postgres (string "9000.00"):
@@ -843,6 +844,7 @@ const Ventas = ({ user }) => {
   return (
     <div className="ventas-container">
       {(user?.rol === 'admin' || user?.rol === 'super_admin') && <BarraDelDia />}
+      <MiDiaVentas esAdmin={user?.rol === 'admin' || user?.rol === 'super_admin'} />
       {/* Scanner y búsqueda */}
       <div className={`busqueda-section ${vistaMobileActiva === 'productos' && !modoScanner ? 'busqueda-fija-movil' : ''}`}>
         <div className="busqueda-fila">

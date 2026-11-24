@@ -1,0 +1,87 @@
+.mdv {
+  margin-bottom: 8px;
+}
+
+.mdv__burbuja {
+  margin: 0;
+}
+
+.mdv__burbuja .burbuja__texto {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px 12px;
+  width: 100%;
+}
+
+.mdv__burbuja .burbuja__texto > span {
+  flex: 1;
+  min-width: 200px;
+}
+
+.mdv__podio-btn {
+  flex-shrink: 0;
+  padding: 4px 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  background: var(--surface);
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-strong);
+  cursor: pointer;
+}
+
+.mdv__podio {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 6px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+}
+
+.mdv__podio > small {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.mdv__puesto {
+  display: grid;
+  grid-template-columns: 30px 1fr auto auto;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 6px;
+  border-radius: 8px;
+  font-size: 13.5px;
+  color: var(--text-default);
+}
+
+.mdv__puesto--yo {
+  background: var(--brand-50, #fdf5f2);
+  font-weight: 600;
+}
+
+.mdv__medalla {
+  font-size: 18px;
+  text-align: center;
+}
+
+.mdv__nombre {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mdv__dato {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.mdv__nota {
+  margin: 4px 0 0;
+  font-size: 12.5px;
+  color: var(--text-default);
+}

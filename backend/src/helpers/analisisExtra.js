@@ -192,4 +192,56 @@ async function hoyRapido(pool, moduloId) {
   };
 }
 
-module.exports = { productosParaSimulador, mermas, ventasPorEquipo, clientesEnLinea, hoyRapido };
+// Lo que ve cada persona en Ventas (también los trabajadores): sus ventas
+// de hoy y de la semana, su día normal, el podio de la semana y el avance
+// del equipo en la meta (solo en porcentaje, sin montos del negocio).
+async function miDia(pool, moduloId, usuarioId) {
+  const filtro = `v.modulo_id = $1 AND v.es_ajuste_manual = false AND v.metodo_pago <> 'consumo_propio'`;
+  const [{ rows: [mio] }, { rows: podio }, { rows: [equipo] }, metasRes] = await Promise.all([
+    pool.query(
+      `SELECT
+         COUNT(*) FILTER (WHERE ${FECHA_VENTA} = ${HOY})::int AS ventas_hoy,
+         COALESCE(SUM(v.total) FILTER (WHERE ${FECHA_VENTA} = ${HOY}), 0) AS total_hoy,
+         COUNT(*) FILTER (WHERE ${FECHA_VENTA} >= date_trunc('week', ${HOY})::date)::int AS ventas_semana,
+         COALESCE(SUM(v.total) FILTER (WHERE ${FECHA_VENTA} >= date_trunc('week', ${HOY})::date), 0) AS total_semana,
+         -- Su día normal: el mismo día de la semana de las 4 semanas
+         -- anteriores, contando solo los días en que vendió.
+         COALESCE(SUM(v.total) FILTER (
+           WHERE ${FECHA_VENTA} IN (${HOY} - 7, ${HOY} - 14, ${HOY} - 21, ${HOY} - 28)
+             AND (v.fecha_venta AT TIME ZONE 'UTC' AT TIME ZONE 'America/Bogota')::time <= (now() AT TIME ZONE 'America/Bogota')::time
+         ), 0) AS normal_suma,
+         COUNT(DISTINCT ${FECHA_VENTA}) FILTER (WHERE ${FECHA_VENTA} IN (${HOY} - 7, ${HOY} - 14, ${HOY} - 21, ${HOY} - 28))::int AS normal_dias,
+         EXTRACT(ISODOW FROM ${HOY})::int AS dia_semana
+       FROM ventas v
+       WHERE ${filtro} AND v.usuario_id = $2 AND ${FECHA_VENTA} >= LEAST(${HOY} - 28, date_trunc('week', ${HOY})::date)`,
+      [moduloId, usuarioId]),
+    pool.query(
+      `SELECT u.id, u.nombre, COUNT(*)::int AS ventas, SUM(v.total) AS total
+       FROM ventas v JOIN usuarios u ON u.id = v.usuario_id
+       WHERE ${filtro} AND ${FECHA_VENTA} >= date_trunc('week', ${HOY})::date
+       GROUP BY u.id, u.nombre
+       ORDER BY total DESC`,
+      [moduloId]),
+    pool.query(
+      `SELECT COALESCE(SUM(dv.subtotal), 0) AS semana
+       FROM detalle_venta dv JOIN ventas v ON v.id = dv.venta_id
+       WHERE dv.modulo_dueno_id = $1 AND v.es_ajuste_manual = false AND v.metodo_pago <> 'consumo_propio'
+         AND ${FECHA_VENTA} >= date_trunc('week', ${HOY})::date`,
+      [moduloId]),
+    pool.query('SELECT metas FROM modulos WHERE id = $1', [moduloId]).catch(() => ({ rows: [] }))
+  ]);
+  const metaSemana = num(metasRes.rows[0]?.metas?.ventas_semana);
+  const posicion = podio.findIndex(p => p.id === usuarioId);
+  return {
+    hoy: { ventas: mio.ventas_hoy, total: Math.round(num(mio.total_hoy)) },
+    semana: { ventas: mio.ventas_semana, total: Math.round(num(mio.total_semana)) },
+    normal_a_esta_hora: mio.normal_dias > 0 ? Math.round(num(mio.normal_suma) / mio.normal_dias) : null,
+    dia_semana: mio.dia_semana,
+    podio: podio.slice(0, 5).map((p, i) => ({ posicion: i + 1, nombre: p.nombre, ventas: p.ventas, total: Math.round(num(p.total)), soy_yo: p.id === usuarioId })),
+    mi_posicion: posicion >= 0 ? posicion + 1 : null,
+    vendedores: podio.length,
+    meta_equipo_pct: metaSemana > 0 ? Math.round((num(equipo.semana) / metaSemana) * 100) : null
+  };
+}
+
+module.exports = { productosParaSimulador, mermas, ventasPorEquipo, clientesEnLinea, hoyRapido, miDia };
