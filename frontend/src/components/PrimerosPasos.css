@@ -1,0 +1,104 @@
+.pp {
+  margin-bottom: 16px;
+  border-radius: 18px;
+  border: 1px solid var(--border);
+  background:
+    radial-gradient(circle at 100% 0%, rgba(245, 158, 11, 0.12), transparent 45%),
+    var(--surface, #fff);
+  overflow: hidden;
+}
+
+.pp__cabecera {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: 14px 16px;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.pp__anillo {
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  background: conic-gradient(#f59e0b var(--pp-avance), var(--border) 0);
+}
+.pp__anillo span {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--surface, #fff);
+  font-size: 0.78rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.pp__textos { flex: 1; min-width: 0; }
+.pp__textos strong { display: block; font-size: 1rem; }
+.pp__textos small { display: block; font-size: 0.84rem; opacity: 0.75; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pp__flecha { font-size: 1.4rem; line-height: 1; opacity: 0.6; padding: 0 4px; }
+
+.pp__cuerpo { padding: 0 16px 14px; }
+.pp__grupo h4 {
+  margin: 8px 0 6px;
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.6;
+}
+.pp__grupo ol { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+
+.pp__paso {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 10px;
+  border-radius: 12px;
+}
+.pp__paso.siguiente { background: rgba(245, 158, 11, 0.1); }
+.pp__check {
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 2px solid var(--border);
+  font-size: 0.8rem;
+  font-weight: 800;
+  color: #fff;
+}
+.pp__paso.hecho .pp__check { border-color: #16a34a; background: #16a34a; }
+.pp__paso.hecho .pp__info strong { opacity: 0.55; text-decoration: line-through; font-weight: 500; }
+.pp__info { flex: 1; min-width: 0; }
+.pp__info strong { display: block; font-size: 0.92rem; }
+.pp__info small { display: block; font-size: 0.8rem; opacity: 0.7; line-height: 1.35; margin-top: 2px; }
+
+.pp__acciones { display: flex; gap: 6px; flex-shrink: 0; }
+.pp__ir, .pp__marcar, .pp__ocultar {
+  border-radius: 999px;
+  padding: 6px 12px;
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.pp__ir { border: none; background: #f59e0b; color: #fff; }
+.pp__marcar, .pp__ocultar { border: 1px solid var(--border); background: transparent; color: inherit; }
+.pp__ocultar { margin-top: 12px; }
+.pp__nota { margin: 6px 0 0; font-size: 0.75rem; opacity: 0.55; }
+
+@media (max-width: 480px) {
+  .pp__acciones { flex-direction: column; align-items: stretch; }
+}

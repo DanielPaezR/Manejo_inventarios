@@ -9,6 +9,7 @@ import EquipoPermisos from './EquipoPermisos';
 import AdminJuegos from './AdminJuegos';
 import ConfigRecordatorios from './ConfigRecordatorios';
 import ConfigSellos from './ConfigSellos';
+import { VolverPrimerosPasos } from './PrimerosPasos';
 import ConfigResumenSemanal from './ConfigResumenSemanal';
 import { IconoHoja, obtenerColorPlaceholder } from '../utils/menuVisual';
 import { textosNegocio, tipoNegocioUsuario } from '../utils/tipoNegocio';
@@ -218,6 +219,8 @@ const ConfiguracionNegocio = ({ user }) => {
       <ConfigRecordatorios key={`recordatorios-${moduloActivo.id}`} moduloId={moduloActivo.id} avisar={avisar} />
 
       <EquipoPermisos avisar={avisar} />
+
+      <VolverPrimerosPasos key={`pasos-${moduloActivo.id}`} avisar={avisar} />
 
       <ConfigAsistente key={moduloActivo.id} moduloId={moduloActivo.id} textos={textos} avisar={avisar} />
 

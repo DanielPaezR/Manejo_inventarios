@@ -38,6 +38,7 @@ const { aplicarMigraciones } = require('./src/helpers/migraciones');
 const { productosParaSimulador, mermas, ventasPorEquipo, clientesEnLinea, hoyRapido, miDia } = require('./src/helpers/analisisExtra');
 const { enviarResumenModulo, programarResumenSemanal } = require('./src/helpers/resumenSemanal');
 const sellos = require('./src/helpers/sellos');
+const { estadoBienvenida, guardarBienvenida } = require('./src/helpers/bienvenida');
 const { TIPOS: TIPOS_RECORDATORIO, leerConfig: leerConfigRecordatorios, construirAviso, enviarRecordatorio, programarRecordatorios } = require('./src/helpers/recordatorios');
 const { canalesDisponibles, normalizarTelefono } = require('./src/helpers/notificador');
 
@@ -2327,6 +2328,28 @@ app.post('/api/modulos/:id/resumen-semanal/probar', authenticateToken, checkAcce
 
 // Metas de ventas/ganancia del módulo (las muestra el Resumen). Un valor
 // vacío o 0 quita esa meta.
+// ---- Asistente de bienvenida (primeros pasos de un negocio nuevo) ----
+app.get('/api/bienvenida', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+  try {
+    const estado = await estadoBienvenida(pool, req.moduloId);
+    if (!estado) return res.status(404).json({ error: 'Módulo no encontrado' });
+    res.json(estado);
+  } catch (error) {
+    console.error('Error leyendo primeros pasos:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+app.put('/api/bienvenida', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+  try {
+    await guardarBienvenida(pool, req.moduloId, req.body || {});
+    res.json(await estadoBienvenida(pool, req.moduloId));
+  } catch (error) {
+    console.error('Error guardando primeros pasos:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
 // ---- Recordatorios (cierre de caja, pedidos a proveedores, pagos fijos) ----
 app.get('/api/modulos/:id/recordatorios', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
   try {
