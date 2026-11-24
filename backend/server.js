@@ -37,6 +37,7 @@ const { guardarPuntaje, podio: podioJuego, campeones: campeonesJuegos, leerPremi
 const { aplicarMigraciones } = require('./src/helpers/migraciones');
 const { productosParaSimulador, mermas, ventasPorEquipo, clientesEnLinea, hoyRapido, miDia } = require('./src/helpers/analisisExtra');
 const { enviarResumenModulo, programarResumenSemanal } = require('./src/helpers/resumenSemanal');
+const { TIPOS: TIPOS_RECORDATORIO, leerConfig: leerConfigRecordatorios, construirAviso, enviarRecordatorio, programarRecordatorios } = require('./src/helpers/recordatorios');
 const { canalesDisponibles, normalizarTelefono } = require('./src/helpers/notificador');
 
 // Divide el ingreso de una venta entre los módulos dueños reales de cada
@@ -2325,6 +2326,59 @@ app.post('/api/modulos/:id/resumen-semanal/probar', authenticateToken, checkAcce
 
 // Metas de ventas/ganancia del módulo (las muestra el Resumen). Un valor
 // vacío o 0 quita esa meta.
+// ---- Recordatorios (cierre de caja, pedidos a proveedores, pagos fijos) ----
+app.get('/api/modulos/:id/recordatorios', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+  try {
+    if (!verificarModuloPropio(req, res)) return;
+    const [{ rows: [modulo] }, { rows: [push] }, { rows: envios }] = await Promise.all([
+      pool.query('SELECT recordatorios FROM modulos WHERE id = $1', [req.moduloId]),
+      pool.query(
+        `SELECT COUNT(*)::int AS total FROM push_suscripciones ps
+         JOIN usuarios u ON u.id = ps.usuario_id AND u.rol = 'admin' AND u.activo = true
+         JOIN usuario_modulos um ON um.usuario_id = u.id AND um.modulo_id = $1`, [req.moduloId]),
+      pool.query(
+        `SELECT canal, ok, fecha FROM resumen_envios
+         WHERE modulo_id = $1 AND canal LIKE 'recordatorio_%' ORDER BY fecha DESC LIMIT 5`, [req.moduloId])
+    ]);
+    res.json({
+      ...leerConfigRecordatorios(modulo?.recordatorios),
+      push_disponible: canalesDisponibles().push,
+      dispositivos_push: push.total,
+      envios
+    });
+  } catch (error) {
+    console.error('Error leyendo recordatorios:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+app.put('/api/modulos/:id/recordatorios', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+  try {
+    if (!verificarModuloPropio(req, res)) return;
+    const config = leerConfigRecordatorios(req.body);
+    await pool.query('UPDATE modulos SET recordatorios = $1 WHERE id = $2', [JSON.stringify(config), req.moduloId]);
+    res.json(config);
+  } catch (error) {
+    console.error('Error guardando recordatorios:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// Vista previa / prueba: dice qué llegaría hoy y lo manda a los dispositivos.
+app.post('/api/modulos/:id/recordatorios/probar', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+  try {
+    if (!verificarModuloPropio(req, res)) return;
+    const tipo = req.body?.tipo;
+    if (!TIPOS_RECORDATORIO.includes(tipo)) return res.status(400).json({ error: 'Tipo de recordatorio no válido' });
+    const aviso = await construirAviso(pool, req.moduloId, tipo, calendarioDelModulo);
+    if (!aviso.titulo) return res.json({ enviado: false, motivo: aviso.motivo });
+    res.json(await enviarRecordatorio(pool, req.moduloId, tipo, calendarioDelModulo, { forzar: true }));
+  } catch (error) {
+    console.error('Error probando recordatorio:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
 app.put('/api/modulos/:id/metas', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
   try {
     if (!verificarModuloPropio(req, res)) return;
@@ -3454,6 +3508,16 @@ const calendarioDeProveedor = async (db, moduloId, proveedorId) => {
   if (result.rows.length === 0) return null;
   const fechas = await fechasPedidosPorProveedor(db, moduloId, Number(proveedorId));
   return calcularCalendarioProveedor(result.rows[0], ahoraColombia().format('YYYY-MM-DD'), fechas.get(Number(proveedorId)) || []);
+};
+
+// Calendario de todos los proveedores activos de un módulo (lo usan los recordatorios).
+const calendarioDelModulo = async (moduloId) => {
+  const hoy = ahoraColombia().format('YYYY-MM-DD');
+  const [proveedores, fechas] = await Promise.all([
+    pool.query(`SELECT p.id, p.nombre, ${COLUMNAS_CALENDARIO} FROM proveedores p WHERE p.modulo_id = $1 AND p.activo = true`, [moduloId]),
+    fechasPedidosPorProveedor(pool, moduloId)
+  ]);
+  return proveedores.rows.map(p => ({ ...p, ...calcularCalendarioProveedor(p, hoy, fechas.get(p.id) || []) }));
 };
 
 const ORDEN_ESTADO_CALENDARIO = { atrasado: 0, hoy: 1, manana: 2, proximo: 3, esperando_aviso: 4, hecho: 5, sin_configurar: 6, pausado: 7 };
@@ -5032,6 +5096,11 @@ app.post('/api/finanzas/bolsillos/cierre', authenticateToken, checkAccess, requi
         [negocioId, moduloId, excedente, `Cierre: billetes contados ${billetes}, base ${base}`, hoy, req.user.id]
       );
     }
+
+    await client.query(
+      'INSERT INTO cierres_caja_dia (modulo_id, fecha) VALUES ($1, $2) ON CONFLICT (modulo_id, fecha) DO UPDATE SET hecho_en = now()',
+      [moduloId, hoy]
+    );
 
     const saldos = await calcularSaldosBolsillos(client, moduloId);
     await client.query('COMMIT');
@@ -9236,3 +9305,4 @@ app.listen(PORT, () => {
 aplicarMigraciones(pool).catch(error => console.error('Error aplicando migraciones:', error.message));
 
 programarResumenSemanal(pool);
+programarRecordatorios(pool, calendarioDelModulo);

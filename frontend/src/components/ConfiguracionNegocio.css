@@ -545,3 +545,25 @@
   margin-top: 12px;
   white-space: pre-line;
 }
+
+/* Recordatorios */
+.conf-recordatorio {
+  padding: 4px 0 12px;
+  border-top: 1px solid var(--border);
+}
+.conf-recordatorio:first-of-type { border-top: none; }
+.conf-recordatorio .conf-acciones { margin-top: 6px; align-items: center; flex-wrap: wrap; }
+.conf-hora {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.88rem;
+}
+.conf-hora select {
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-input, #fff);
+  color: inherit;
+  font-size: 0.9rem;
+}
