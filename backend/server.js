@@ -39,6 +39,7 @@ const { productosParaSimulador, mermas, ventasPorEquipo, clientesEnLinea, hoyRap
 const { enviarResumenModulo, programarResumenSemanal } = require('./src/helpers/resumenSemanal');
 const sellos = require('./src/helpers/sellos');
 const planes = require('./src/helpers/planes');
+const salas = require('./src/helpers/salas');
 const { estadoBienvenida, guardarBienvenida } = require('./src/helpers/bienvenida');
 const { TIPOS: TIPOS_RECORDATORIO, leerConfig: leerConfigRecordatorios, construirAviso, enviarRecordatorio, programarRecordatorios } = require('./src/helpers/recordatorios');
 const { canalesDisponibles, normalizarTelefono } = require('./src/helpers/notificador');
@@ -8497,6 +8498,25 @@ app.post('/api/menu/:moduloId/juegos/mis-premios', async (req, res) => {
     res.json({ premio: { activo: false }, ganados: [] });
   }
 });
+
+// ---- Jugar entre clientes (salas con código) ----
+const rutaSala = (accion) => async (req, res) => {
+  try {
+    if (!/^\d+$/.test(req.params.moduloId)) return res.status(404).json({ error: 'Juegos no disponibles' });
+    if (!(await juegosActivos(req.params.moduloId))) return res.status(404).json({ error: 'Los juegos no están disponibles en este negocio' });
+    const r = await accion(req);
+    if (r.error) return res.status(r.status).json({ error: r.error });
+    res.status(r.status).json(r.datos);
+  } catch (error) {
+    console.error('Error en sala de juego:', error.message);
+    res.status(503).json({ error: 'El juego en línea no está disponible en este momento' });
+  }
+};
+app.post('/api/menu/:moduloId/salas', rutaSala(req => salas.crearSala(pool, req.params.moduloId, ipCliente(req), req.body || {})));
+app.post('/api/menu/:moduloId/salas/:codigo/unirse', rutaSala(req => salas.unirse(pool, req.params.moduloId, req.params.codigo, req.body || {})));
+app.get('/api/menu/:moduloId/salas/:codigo', rutaSala(req => salas.consultar(pool, req.params.moduloId, req.params.codigo, String(req.query.token || ''))));
+app.post('/api/menu/:moduloId/salas/:codigo/jugar', rutaSala(req => salas.jugar(pool, req.params.moduloId, req.params.codigo, req.body?.token, req.body?.casilla)));
+app.post('/api/menu/:moduloId/salas/:codigo/revancha', rutaSala(req => salas.revancha(pool, req.params.moduloId, req.params.codigo, req.body?.token)));
 
 // ---- Tarjeta de sellos ----
 // El cliente consulta su tarjeta con su celular. Límite por IP para que no

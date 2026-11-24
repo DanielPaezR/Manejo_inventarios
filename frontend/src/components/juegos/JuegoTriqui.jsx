@@ -1,8 +1,11 @@
 import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { vibrar } from './comunes';
+import TriquiEnLinea from './TriquiEnLinea';
 
 // Tres en raya: contra el celular (fácil o difícil) o dos personas en el
-// mismo teléfono. Sin podio: es para pasar el rato.
+// mismo teléfono, o en línea con alguien de otra mesa (código de sala).
+// Sin podio: es para pasar el rato.
 const LINEAS = [[0, 1, 2], [3, 4, 5], [6, 7, 8], [0, 3, 6], [1, 4, 7], [2, 5, 8], [0, 4, 8], [2, 4, 6]];
 const ganador = (t) => {
   for (const [a, b, c] of LINEAS) if (t[a] && t[a] === t[b] && t[a] === t[c]) return { quien: t[a], linea: [a, b, c] };
@@ -25,7 +28,9 @@ const minimax = (t, turno) => {
 };
 
 const JuegoTriqui = ({ onFin, activo }) => {
-  const [modo, setModo] = useState(null); // facil | dificil | dos
+  const [params] = useSearchParams();
+  const salaEnlace = params.get('sala') || '';
+  const [modo, setModo] = useState(salaEnlace ? 'linea' : null); // facil | dificil | dos | linea
   const [tablero, setTablero] = useState(Array(9).fill(null));
   const [turno, setTurno] = useState('X');
   const resultado = ganador(tablero);
@@ -67,6 +72,10 @@ const JuegoTriqui = ({ onFin, activo }) => {
     setTurno(turno === 'X' ? 'O' : 'X');
   };
 
+  if (modo === 'linea') {
+    return <TriquiEnLinea codigoInicial={salaEnlace} onSalir={() => setModo(null)} />;
+  }
+
   if (!modo) {
     return (
       <div className="jtr-modos">
@@ -74,6 +83,7 @@ const JuegoTriqui = ({ onFin, activo }) => {
         <button type="button" className="jg-btn" onClick={() => setModo('facil')}>🤖 Contra el celular · Fácil</button>
         <button type="button" className="jg-btn" onClick={() => setModo('dificil')}>🧠 Contra el celular · Difícil</button>
         <button type="button" className="jg-btn jg-btn--suave" onClick={() => setModo('dos')}>👥 Dos personas en este celular</button>
+        <button type="button" className="jg-btn jtr-modos__linea" onClick={() => setModo('linea')}>📲 Con alguien de otra mesa</button>
       </div>
     );
   }

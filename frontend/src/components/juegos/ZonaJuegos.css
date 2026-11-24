@@ -995,3 +995,92 @@
 .jz-ganaste small { display: block; margin-top: 6px; font-size: 0.78rem; color: rgba(255, 255, 255, 0.85); }
 @keyframes jz-latido { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.015); } }
 @media (prefers-reduced-motion: reduce) { .jz-ganaste { animation: none; } }
+
+/* Tres en raya en línea */
+.jtr-modos__linea { background: linear-gradient(135deg, #0ea5e9, #6366f1); color: #fff; }
+
+.jtl { display: flex; flex-direction: column; gap: 12px; margin-top: 16px; }
+.jtl__intro { margin: 0; text-align: center; font-weight: 700; color: var(--jg-texto); }
+.jtl__campo { display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 700; color: var(--jg-texto); }
+.jtl__campo input, .jtl__unirse input {
+  padding: 12px 14px;
+  border: 2px solid var(--jg-superficie);
+  border-radius: 14px;
+  background: var(--jg-superficie);
+  color: var(--jg-texto);
+  font: inherit;
+  font-size: 16px;
+}
+.jtl__avatares { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; }
+.jtl__avatares button {
+  aspect-ratio: 1;
+  border: 2px solid transparent;
+  border-radius: 12px;
+  background: var(--jg-superficie);
+  font-size: 22px;
+  cursor: pointer;
+}
+.jtl__avatares button.activo { border-color: var(--jg-c1, #6366f1); transform: scale(1.06); }
+.jtl__o { display: flex; align-items: center; gap: 10px; font-size: 12px; opacity: 0.6; color: var(--jg-texto); }
+.jtl__o::before, .jtl__o::after { content: ''; flex: 1; height: 1px; background: currentColor; opacity: 0.4; }
+.jtl__unirse { display: flex; gap: 8px; }
+.jtl__unirse input { flex: 1; min-width: 0; text-align: center; letter-spacing: 0.4em; font-weight: 900; text-transform: uppercase; }
+.jtl__error { margin: 0; padding: 10px 12px; border-radius: 12px; background: rgba(239, 68, 68, 0.15); color: #f87171; font-size: 14px; text-align: center; }
+
+.jtl--espera { align-items: center; text-align: center; color: var(--jg-texto); }
+.jtl--espera > p { margin: 8px 0 0; font-weight: 700; }
+.jtl__codigo { display: flex; gap: 8px; margin: 8px 0; }
+.jtl__codigo span {
+  display: grid;
+  place-items: center;
+  width: 58px;
+  height: 70px;
+  border-radius: 16px;
+  background: linear-gradient(150deg, var(--jg-c1, #e11d48), var(--jg-c2, #db2777));
+  color: #fff;
+  font-size: 36px;
+  font-weight: 900;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.25);
+  animation: jg-rebote 0.4s ease both;
+}
+.jtl__codigo span:nth-child(2) { animation-delay: 0.08s; }
+.jtl__codigo span:nth-child(3) { animation-delay: 0.16s; }
+.jtl__codigo span:nth-child(4) { animation-delay: 0.24s; }
+.jtl__esperando { display: flex; align-items: center; gap: 10px; opacity: 0.8; }
+.jtl__puntos { display: inline-flex; gap: 4px; }
+.jtl__puntos i { width: 7px; height: 7px; border-radius: 50%; background: currentColor; animation: jtl-punto 1.2s ease-in-out infinite; }
+.jtl__puntos i:nth-child(2) { animation-delay: 0.15s; }
+.jtl__puntos i:nth-child(3) { animation-delay: 0.3s; }
+@keyframes jtl-punto { 0%, 80%, 100% { opacity: 0.25; transform: translateY(0); } 40% { opacity: 1; transform: translateY(-4px); } }
+
+.jtl__marcador { display: flex; align-items: center; gap: 8px; margin-top: 14px; }
+.jtl__jugador {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-rows: auto auto;
+  column-gap: 8px;
+  align-items: center;
+  padding: 8px 10px;
+  border-radius: 14px;
+  border: 2px solid transparent;
+  background: var(--jg-superficie);
+  color: var(--jg-texto);
+  transition: border-color 0.2s, transform 0.2s;
+}
+.jtl__jugador span { grid-row: span 2; font-size: 26px; }
+.jtl__jugador b { font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.jtl__jugador small { font-size: 12px; opacity: 0.7; font-variant-numeric: tabular-nums; }
+.jtl__jugador.turno { border-color: #facc15; transform: translateY(-2px); }
+.jtl__jugador.yo b::after { content: ' (tú)'; font-weight: 500; opacity: 0.6; }
+.jtl__vs { font-size: 12px; font-weight: 800; opacity: 0.6; color: var(--jg-texto); white-space: nowrap; }
+.jtl__estado { margin: 12px 0 0; text-align: center; font-size: 18px; font-weight: 900; color: var(--jg-texto); }
+.jtl__estado.mio { color: #facc15; }
+.jtl--partida .jg-btn--full { margin-top: 14px; }
+.jtl__sala { margin: 10px 0 0; text-align: center; font-size: 12px; opacity: 0.5; color: var(--jg-texto); }
+.jtl--partida .jtr-celda:disabled { cursor: default; }
+
+@media (prefers-reduced-motion: reduce) {
+  .jtl__codigo span, .jtl__puntos i { animation: none; }
+}

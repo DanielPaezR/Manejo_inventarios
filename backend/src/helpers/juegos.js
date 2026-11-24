@@ -185,4 +185,4 @@ async function puntajesRecientes(pool, moduloId) {
   return rows.map(r => ({ ...r, juego_nombre: JUEGOS[r.juego]?.nombre || r.juego }));
 }
 
-module.exports = { JUEGOS, AVATARES, guardarPuntaje, podio, campeones, leerPremio, ganadores, misPremios, canjear, puntajesRecientes };
+module.exports = { limpiarNombre, JUEGOS, AVATARES, guardarPuntaje, podio, campeones, leerPremio, ganadores, misPremios, canjear, puntajesRecientes };
