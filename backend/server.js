@@ -31,7 +31,10 @@ const { generarNumeroCliente } = require('./src/helpers/generarNumeroCliente');
 const { geocodificar } = require('./src/helpers/geocodificar');
 const OpenAI = require('openai');
 const { botDisponible, responder: responderBot, limpiarEstilo } = require('./src/helpers/asistenteBot');
-const { construirResumen, construirAntesYAhora } = require('./src/helpers/resumenNegocio');
+const { construirResumen, construirAntesYAhora, metricasPeriodo } = require('./src/helpers/resumenNegocio');
+const { productosParaSimulador, mermas, ventasPorEquipo, clientesEnLinea } = require('./src/helpers/analisisExtra');
+const { enviarResumenModulo, programarResumenSemanal } = require('./src/helpers/resumenSemanal');
+const { canalesDisponibles, normalizarTelefono } = require('./src/helpers/notificador');
 
 // Divide el ingreso de una venta entre los módulos dueños reales de cada
 // línea vendida (duenoPorProducto), no todo al módulo que hizo la venta —
@@ -2137,6 +2140,140 @@ app.get('/api/estadisticas/resumen', authenticateToken, checkAccess, requireAdmi
     console.error('Error armando el resumen del negocio:', error);
     res.status(500).json({ error: 'Error interno del servidor' });
   }
+});
+
+// ---- Resumen semanal (lunes en la mañana, por push y luego WhatsApp) ----
+const verificarModuloPropio = (req, res) => {
+  if (String(req.params.id) !== String(req.moduloId)) {
+    res.status(403).json({ error: 'No tienes acceso a este módulo' });
+    return false;
+  }
+  return true;
+};
+
+app.get('/api/modulos/:id/resumen-semanal', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+  try {
+    if (!verificarModuloPropio(req, res)) return;
+    const [{ rows: [modulo] }, { rows: [push] }, { rows: envios }] = await Promise.all([
+      pool.query('SELECT resumen_semanal FROM modulos WHERE id = $1', [req.moduloId]),
+      pool.query(
+        `SELECT COUNT(*)::int AS total FROM push_suscripciones ps
+         JOIN usuarios u ON u.id = ps.usuario_id AND u.rol = 'admin' AND u.activo = true
+         JOIN usuario_modulos um ON um.usuario_id = u.id AND um.modulo_id = $1`, [req.moduloId]),
+      pool.query(
+        'SELECT canal, ok, detalle, fecha FROM resumen_envios WHERE modulo_id = $1 ORDER BY fecha DESC LIMIT 5', [req.moduloId])
+    ]);
+    const config = modulo?.resumen_semanal || {};
+    res.json({
+      activo: config.activo !== false,
+      push: config.push !== false,
+      whatsapp: config.whatsapp || '',
+      canales: canalesDisponibles(),
+      dispositivos_push: push.total,
+      envios
+    });
+  } catch (error) {
+    console.error('Error leyendo el resumen semanal:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+app.put('/api/modulos/:id/resumen-semanal', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+  try {
+    if (!verificarModuloPropio(req, res)) return;
+    const config = { activo: req.body.activo !== false, push: req.body.push !== false };
+    if (req.body.whatsapp) {
+      const telefono = normalizarTelefono(req.body.whatsapp);
+      if (!telefono) {
+        return res.status(400).json({ error: 'Escribe un celular colombiano válido, por ejemplo 3001234567' });
+      }
+      config.whatsapp = telefono;
+    }
+    await pool.query('UPDATE modulos SET resumen_semanal = $1::jsonb WHERE id = $2', [JSON.stringify(config), req.moduloId]);
+    res.json(config);
+  } catch (error) {
+    console.error('Error guardando el resumen semanal:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// Manda el resumen ya, para probar (aunque esta semana ya se haya enviado).
+app.post('/api/modulos/:id/resumen-semanal/probar', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+  try {
+    if (!verificarModuloPropio(req, res)) return;
+    res.json(await enviarResumenModulo(pool, req.moduloId, { forzar: true }));
+  } catch (error) {
+    console.error('Error enviando resumen de prueba:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// Metas de ventas/ganancia del módulo (las muestra el Resumen). Un valor
+// vacío o 0 quita esa meta.
+app.put('/api/modulos/:id/metas', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+  try {
+    if (!verificarModuloPropio(req, res)) return;
+    const metas = {};
+    for (const clave of ['ventas_semana', 'ventas_mes', 'ganancia_mes']) {
+      const valor = Math.round(Number(req.body[clave]));
+      if (Number.isFinite(valor) && valor > 0 && valor < 1e12) metas[clave] = valor;
+    }
+    await pool.query('UPDATE modulos SET metas = $1::jsonb WHERE id = $2', [JSON.stringify(metas), req.moduloId]);
+    res.json(metas);
+  } catch (error) {
+    console.error('Error guardando metas:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// ---- Análisis adicionales de Estadísticas ----
+const rutaAnalisis = (ruta, construir) => {
+  app.get(ruta, authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+    try {
+      if (!req.moduloId) {
+        return res.status(400).json({ error: 'Se requiere un módulo' });
+      }
+      res.json(await construir(req));
+    } catch (error) {
+      console.error(`Error en ${ruta}:`, error);
+      res.status(500).json({ error: 'Error interno del servidor' });
+    }
+  });
+};
+
+rutaAnalisis('/api/estadisticas/productos-simulador', (req) => productosParaSimulador(pool, req.moduloId));
+rutaAnalisis('/api/estadisticas/mermas', (req) => mermas(pool, req.moduloId));
+rutaAnalisis('/api/estadisticas/equipo', (req) => ventasPorEquipo(pool, req.moduloId));
+rutaAnalisis('/api/estadisticas/clientes-en-linea', (req) => clientesEnLinea(pool, req.moduloId));
+
+// Informe de un mes (para imprimir o guardar en PDF) comparado con el anterior.
+rutaAnalisis('/api/estadisticas/informe-mes', async (req) => {
+  const hoy = ahoraColombia().format('YYYY-MM-DD');
+  const mes = /^\d{4}-\d{2}$/.test(req.query.mes || '') ? req.query.mes : hoy.slice(0, 7);
+  const inicio = moment(`${mes}-01`, 'YYYY-MM-DD');
+  const finMes = inicio.clone().endOf('month').format('YYYY-MM-DD');
+  const fin = finMes < hoy ? finMes : hoy;
+  const anteriorInicio = inicio.clone().subtract(1, 'month');
+  const [actual, anterior, { rows: proveedores }] = await Promise.all([
+    metricasPeriodo(pool, req.moduloId, inicio.format('YYYY-MM-DD'), fin),
+    // Si el mes va en curso, se compara con los mismos días del mes anterior.
+    metricasPeriodo(pool, req.moduloId, anteriorInicio.format('YYYY-MM-DD'),
+      moment.min(anteriorInicio.clone().endOf('month'), anteriorInicio.clone().add(moment(fin).date() - 1, 'days')).format('YYYY-MM-DD')),
+    pool.query(
+      `SELECT pr.nombre, COUNT(*)::int AS pedidos, SUM(p.total) AS total
+       FROM pedidos_proveedor p JOIN proveedores pr ON pr.id = p.proveedor_id
+       WHERE p.modulo_id = $1 AND p.estado = 'recibido'
+         AND (p.fecha_pedido AT TIME ZONE 'UTC' AT TIME ZONE 'America/Bogota')::date BETWEEN $2::date AND $3::date
+       GROUP BY pr.nombre ORDER BY total DESC`,
+      [req.moduloId, inicio.format('YYYY-MM-DD'), fin])
+  ]);
+  return {
+    mes,
+    completo: finMes < hoy,
+    actual,
+    anterior,
+    proveedores: proveedores.map(p => ({ nombre: p.nombre, pedidos: p.pedidos, total: Math.round(Number(p.total)) }))
+  };
 });
 
 // Primeros 30 días con ventas contra los últimos 30 (pestaña "Antes y ahora").
@@ -8643,3 +8780,5 @@ app.listen(PORT, () => {
   console.log(`📊 Sistema de Inventario con Módulos`);
   console.log(`💾 Base de datos: ${process.env.DB_NAME || 'inventario_negocio'}`);
 });
+
+programarResumenSemanal(pool);

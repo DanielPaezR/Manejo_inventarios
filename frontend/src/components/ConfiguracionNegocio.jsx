@@ -5,6 +5,7 @@ import { useModulo } from '../hooks/useModulo';
 import SubidaImagen from './SubidaImagen';
 import ConfigAsistente from './ConfigAsistente';
 import EquipoPermisos from './EquipoPermisos';
+import ConfigResumenSemanal from './ConfigResumenSemanal';
 import { IconoHoja, obtenerColorPlaceholder } from '../utils/menuVisual';
 import { textosNegocio, tipoNegocioUsuario } from '../utils/tipoNegocio';
 import './PedidosCliente.css';
@@ -177,6 +178,8 @@ const ConfiguracionNegocio = ({ user }) => {
           </button>
         </div>
       </div>
+
+      <ConfigResumenSemanal key={`resumen-${moduloActivo.id}`} moduloId={moduloActivo.id} avisar={avisar} />
 
       <EquipoPermisos avisar={avisar} />
 

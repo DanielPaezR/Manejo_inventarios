@@ -2,6 +2,8 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
 import { useModulo } from '../hooks/useModulo';
+import { HoyVsNormal, Metas } from './MetasNegocio';
+import InformeMes from './InformeMes';
 import './ResumenNegocio.css';
 
 // Pestaña "Resumen" de Estadísticas: el negocio contado como una historia
@@ -52,15 +54,16 @@ const ResumenNegocio = ({ onIrAVista }) => {
   const navigate = useNavigate();
   const [datos, setDatos] = useState(null);
   const [error, setError] = useState('');
+  const [recarga, setRecarga] = useState(0);
+  const [verInforme, setVerInforme] = useState(false);
 
   useEffect(() => {
     if (!moduloActivo) return;
-    setDatos(null);
     setError('');
     api.get('/estadisticas/resumen')
       .then(res => setDatos(res.data))
       .catch(err => setError(err.response?.data?.error || 'No se pudo cargar el resumen'));
-  }, [moduloActivo]);
+  }, [moduloActivo, recarga]);
 
   const historia = useMemo(() => {
     if (!datos) return null;
@@ -179,6 +182,8 @@ const ResumenNegocio = ({ onIrAVista }) => {
       <div className="rn-intro">
         <h2>Así va {moduloActivo?.nombre || 'tu negocio'}</h2>
         <p>Un recorrido corto por tu negocio, de lo general a lo que puedes decidir hoy. Toca un capítulo para ir directo.</p>
+        <button type="button" className="mn-btn rn-informe-btn" onClick={() => setVerInforme(true)}>🖨️ Tu mes en una página</button>
+        {verInforme && <InformeMes negocio={moduloActivo?.nombre || 'Tu negocio'} onCerrar={() => setVerInforme(false)} />}
         <nav className="rn-indice">
           {capitulos.map((c, i) => (
             <button key={c.id} type="button" onClick={() => ir(c.id)}>
@@ -195,6 +200,7 @@ const ResumenNegocio = ({ onIrAVista }) => {
           ? `En los últimos 7 días vendiste ${pesos(ventas.ultimos_7)}.`
           : `En los últimos 7 días vendiste ${pesos(ventas.ultimos_7)}, ${Math.abs(h.cambioVentas) < 3 ? 'igual que' : h.cambioVentas > 0 ? `un ${h.cambioVentas}% más que` : `un ${Math.abs(h.cambioVentas)}% menos que`} una semana normal.`
       }>
+        <HoyVsNormal hoy={datos.hoy} />
         <div className="rn-metricas">
           <div className="rn-metrica">
             <small>Vendido (7 días)</small>
@@ -221,6 +227,7 @@ const ResumenNegocio = ({ onIrAVista }) => {
           "Semana normal" es el promedio de las 4 semanas anteriores. La ganancia es lo vendido menos lo que te costó cada producto
           {ventas.porcentaje_sin_costo > 0 && ` (el ${ventas.porcentaje_sin_costo}% de lo vendido no tiene costo registrado y no entra en la cuenta)`}.
         </p>
+        <Metas metas={datos.metas} moduloId={moduloActivo.id} sugerenciaSemana={ventas.semana_promedio} onGuardado={() => setRecarga(r => r + 1)} />
         <button type="button" className="rn-link" onClick={() => onIrAVista('historia')}>Ver cómo ha evolucionado →</button>
       </Capitulo>
 

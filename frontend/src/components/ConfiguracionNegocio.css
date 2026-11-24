@@ -540,3 +540,8 @@
   cursor: default;
   opacity: 0.7;
 }
+
+.conf-resumen-previa {
+  margin-top: 12px;
+  white-space: pre-line;
+}

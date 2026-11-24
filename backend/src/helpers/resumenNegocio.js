@@ -37,7 +37,9 @@ async function construirResumen(pool, moduloId) {
     proveedores,
     [comprasVentas],
     dias,
-    horas
+    horas,
+    [hoy],
+    [avance]
   ] = await Promise.all([
     // 1. Cómo te fue: últimos 7 días contra el promedio semanal de las 4
     //    semanas anteriores; ganancia y margen de los últimos 28 días.
@@ -156,8 +158,46 @@ async function construirResumen(pool, moduloId) {
        FROM ventas v
        WHERE v.modulo_id = $1 AND v.es_ajuste_manual = false AND v.metodo_pago <> 'consumo_propio'
          AND ${FECHA_VENTA} > ${HOY} - 56
-       GROUP BY 1 ORDER BY 1`)
+       GROUP BY 1 ORDER BY 1`),
+
+    // 9. Hoy contra un día normal: lo que va del día comparado con el mismo
+    //    día de la semana de las 4 semanas anteriores, hasta la misma hora.
+    q(`SELECT
+         COALESCE(SUM(dv.subtotal) FILTER (WHERE ${FECHA_VENTA} = ${HOY}), 0) AS hoy,
+         COALESCE(SUM(dv.subtotal) FILTER (
+           WHERE ${FECHA_VENTA} IN (${HOY} - 7, ${HOY} - 14, ${HOY} - 21, ${HOY} - 28)
+             AND (v.fecha_venta AT TIME ZONE 'UTC' AT TIME ZONE 'America/Bogota')::time <= (now() AT TIME ZONE 'America/Bogota')::time
+         ), 0) / 4.0 AS normal_a_esta_hora,
+         COALESCE(SUM(dv.subtotal) FILTER (
+           WHERE ${FECHA_VENTA} IN (${HOY} - 7, ${HOY} - 14, ${HOY} - 21, ${HOY} - 28)
+         ), 0) / 4.0 AS normal_dia_completo,
+         EXTRACT(ISODOW FROM ${HOY})::int AS dia_semana,
+         to_char(now() AT TIME ZONE 'America/Bogota', 'HH24:MI') AS hora_actual
+       ${LINEAS_PROPIAS}
+         AND ${FECHA_VENTA} >= ${HOY} - 28`),
+
+    // 10. Lo que va de la semana (desde el lunes) y del mes, para las metas.
+    q(`SELECT
+         COALESCE(SUM(dv.subtotal) FILTER (WHERE ${FECHA_VENTA} >= date_trunc('week', ${HOY})::date), 0) AS ventas_semana,
+         COALESCE(SUM(dv.subtotal) FILTER (WHERE ${FECHA_VENTA} >= date_trunc('month', ${HOY})::date), 0) AS ventas_mes,
+         COALESCE(SUM(dv.subtotal - dv.cantidad * dv.costo_unitario) FILTER (
+           WHERE ${FECHA_VENTA} >= date_trunc('month', ${HOY})::date AND dv.costo_unitario > 0
+         ), 0) AS ganancia_mes,
+         (7 - EXTRACT(ISODOW FROM ${HOY}))::int AS dias_restantes_semana,
+         ((date_trunc('month', ${HOY}) + interval '1 month')::date - ${HOY} - 1)::int AS dias_restantes_mes
+       ${LINEAS_PROPIAS}
+         AND ${FECHA_VENTA} >= LEAST(date_trunc('week', ${HOY})::date, date_trunc('month', ${HOY})::date)`)
   ]);
+
+  // Metas configuradas por el dueño (modulos.metas). Si la columna todavía
+  // no existe en la base, el resumen sigue funcionando sin metas.
+  let metasConfig = {};
+  try {
+    const r = await pool.query('SELECT metas FROM modulos WHERE id = $1', [moduloId]);
+    metasConfig = r.rows[0]?.metas || {};
+  } catch {
+    metasConfig = {};
+  }
 
   // ---- Proveedores: promedios semanales y frecuencia ----
   const gastoTotal56 = proveedores.reduce((s, p) => s + num(p.total), 0);
@@ -231,6 +271,25 @@ async function construirResumen(pool, moduloId) {
       gasto_semanal: Math.round(gastoTotal56 / 8),
       ventas_semanal: Math.round(num(comprasVentas.ventas_56) / 8),
       lista: listaProveedores
+    },
+    hoy: {
+      ventas: Math.round(num(hoy.ventas_hoy ?? hoy.hoy)),
+      normal_a_esta_hora: Math.round(num(hoy.normal_a_esta_hora)),
+      normal_dia_completo: Math.round(num(hoy.normal_dia_completo)),
+      dia_semana: hoy.dia_semana,
+      hora: hoy.hora_actual
+    },
+    metas: {
+      ventas_semana: num(metasConfig.ventas_semana) || null,
+      ventas_mes: num(metasConfig.ventas_mes) || null,
+      ganancia_mes: num(metasConfig.ganancia_mes) || null,
+      avance: {
+        ventas_semana: Math.round(num(avance.ventas_semana)),
+        ventas_mes: Math.round(num(avance.ventas_mes)),
+        ganancia_mes: Math.round(num(avance.ganancia_mes)),
+        dias_restantes_semana: avance.dias_restantes_semana,
+        dias_restantes_mes: avance.dias_restantes_mes
+      }
     },
     tiempo: {
       dias: dias.map(d => ({ dia: d.dia, ventas: d.ventas, promedio: Math.round(num(d.promedio)) })),
@@ -369,4 +428,4 @@ async function construirAntesYAhora(pool, moduloId) {
   };
 }
 
-module.exports = { construirResumen, construirAntesYAhora };
+module.exports = { construirResumen, construirAntesYAhora, metricasPeriodo };

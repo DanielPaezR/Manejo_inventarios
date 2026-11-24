@@ -4,6 +4,9 @@ import { useModulo } from '../hooks/useModulo';
 import GraficoLineas from './GraficoLineas';
 import ResumenNegocio from './ResumenNegocio';
 import AntesYAhora from './AntesYAhora';
+import AnalisisProductos from './AnalisisProductos';
+import AnalisisEquipo from './AnalisisEquipo';
+import ClientesEnLinea from './ClientesEnLinea';
 import './Estadisticas.css';
 
 // Aritmética de calendario pura en UTC (año/mes/día, sin horas): evita que
@@ -397,7 +400,8 @@ const Estadisticas = ({ user }) => {
             { valor: 'ventas', titulo: '💵 Ventas', ayuda: '¿Cuánto y cuándo vendo?' },
             { valor: 'productos', titulo: '📦 Productos', ayuda: '¿Qué se vende y qué me deja?' },
             { valor: 'dinero', titulo: '💰 Dinero', ayuda: '¿Entra más de lo que sale?' },
-            { valor: 'historia', titulo: '🔭 Antes y ahora', ayuda: '¿He mejorado?' }
+            { valor: 'historia', titulo: '🔭 Antes y ahora', ayuda: '¿He mejorado?' },
+            { valor: 'clientes', titulo: '🛵 Clientes', ayuda: '¿Quién me pide?' }
           ].map(t => (
             <button
               key={t.valor}
@@ -413,7 +417,7 @@ const Estadisticas = ({ user }) => {
 
       {/* Filtros de período: no aplican a la pestaña "Evolución", que tiene
           su propio selector de granularidad/rango más abajo. */}
-      {vistaActiva !== 'historia' && vistaActiva !== 'resumen' && (
+      {!['historia', 'resumen', 'clientes'].includes(vistaActiva) && (
       <div className="filtros-periodo">
         <div className="periodo-selector">
           <button
@@ -505,6 +509,8 @@ const Estadisticas = ({ user }) => {
 
       {vistaActiva === 'resumen' ? (
         <ResumenNegocio onIrAVista={setVistaActiva} />
+      ) : vistaActiva === 'clientes' ? (
+        <ClientesEnLinea />
       ) : loading ? (
         <div className="loading-container">
           <div className="spinner"></div>
@@ -634,6 +640,10 @@ const Estadisticas = ({ user }) => {
           {/* ============================================================
               VISTA DE PRODUCTOS
               ============================================================ */}
+          {vistaActiva === 'productos' && <AnalisisProductos />}
+          {vistaActiva === 'productos' && (
+            <h3 className="est-seccion">📦 Productos en el período</h3>
+          )}
           {vistaActiva === 'productos' && (
             <div className="estadisticas-grid productos-view">
               {/* Valor en mercancía */}
@@ -911,6 +921,7 @@ const Estadisticas = ({ user }) => {
           {/* ============================================================
               VISTA DE FINANZAS (ingresos y egresos)
               ============================================================ */}
+          {vistaActiva === 'ventas' && <AnalisisEquipo />}
           {vistaActiva === 'dinero' && (
             <div className="estadisticas-grid">
               {loadingFinanzas && !finanzasResumen ? (
