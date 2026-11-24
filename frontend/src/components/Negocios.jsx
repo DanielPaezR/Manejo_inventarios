@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import api from '../services/api';
 import GestionModulos from './GestionModulos';
+import RespaldosPanel from './RespaldosPanel';
 import './Negocios.css';
 
 const Negocios = ({ user }) => {
@@ -582,6 +583,8 @@ const Negocios = ({ user }) => {
           </div>
         </div>
       )}
+
+      <RespaldosPanel />
 
       {/* Lista de Negocios */}
       <div className="negocios-grid">

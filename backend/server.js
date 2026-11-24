@@ -40,6 +40,7 @@ const { enviarResumenModulo, programarResumenSemanal } = require('./src/helpers/
 const sellos = require('./src/helpers/sellos');
 const planes = require('./src/helpers/planes');
 const salas = require('./src/helpers/salas');
+const respaldos = require('./src/helpers/respaldos');
 const { estadoBienvenida, guardarBienvenida } = require('./src/helpers/bienvenida');
 const { TIPOS: TIPOS_RECORDATORIO, leerConfig: leerConfigRecordatorios, construirAviso, enviarRecordatorio, programarRecordatorios } = require('./src/helpers/recordatorios');
 const { canalesDisponibles, normalizarTelefono } = require('./src/helpers/notificador');
@@ -2342,6 +2343,39 @@ app.post('/api/modulos/:id/resumen-semanal/probar', authenticateToken, checkAcce
 
 // Metas de ventas/ganancia del módulo (las muestra el Resumen). Un valor
 // vacío o 0 quita esa meta.
+// ---- Copias de seguridad (solo super admin) ----
+app.get('/api/respaldos', authenticateToken, requireSuperAdmin, async (req, res) => {
+  try {
+    res.json(await respaldos.listarRespaldos(pool));
+  } catch (error) {
+    console.error('Error listando copias:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+app.post('/api/respaldos', authenticateToken, requireSuperAdmin, async (req, res) => {
+  try {
+    res.status(201).json(await respaldos.guardarRespaldo(pool, 'manual'));
+  } catch (error) {
+    console.error('Error creando copia:', error);
+    res.status(500).json({ error: 'No se pudo crear la copia' });
+  }
+});
+
+app.get('/api/respaldos/:id/descargar', authenticateToken, requireSuperAdmin, async (req, res) => {
+  try {
+    if (!/^\d+$/.test(req.params.id)) return res.status(404).json({ error: 'Copia no encontrada' });
+    const r = await respaldos.leerRespaldo(pool, req.params.id);
+    if (!r) return res.status(404).json({ error: 'Copia no encontrada' });
+    res.setHeader('Content-Type', 'application/gzip');
+    res.setHeader('Content-Disposition', `attachment; filename="${respaldos.nombreArchivo(r.creado_en)}"`);
+    res.send(r.datos);
+  } catch (error) {
+    console.error('Error descargando copia:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
 // ---- Plan del negocio ----
 app.get('/api/mi-plan', authenticateToken, checkAccess, async (req, res) => {
   try {
@@ -9488,3 +9522,4 @@ aplicarMigraciones(pool).catch(error => console.error('Error aplicando migracion
 
 programarResumenSemanal(pool);
 programarRecordatorios(pool, calendarioDelModulo);
+respaldos.programarRespaldos(pool);
