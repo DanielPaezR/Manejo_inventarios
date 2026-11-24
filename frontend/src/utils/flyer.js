@@ -268,7 +268,7 @@ function editorial(ctx, W, H, d) {
   ctx.fillText(d.negocio.toUpperCase(), M, M);
   ctx.textAlign = 'right';
   ctx.fillStyle = acento;
-  const etiqueta = d.tipo === 'promo' ? 'PROMOCIÓN' : d.tipo === 'menu' ? 'MENÚ' : 'DESTACADO';
+  const etiqueta = d.tipo === 'promo' ? 'PROMOCIÓN' : d.tipo === 'menu' ? d.nombreMenu.toUpperCase() : 'DESTACADO';
   ctx.fillText(etiqueta, W - M, M);
   ctx.letterSpacing = '0px';
   ctx.fillStyle = '#141312';
@@ -526,7 +526,7 @@ function noche(ctx, W, H, d) {
   ctx.fillStyle = dorado;
   ctx.font = '700 26px Archivo';
   ctx.letterSpacing = '8px';
-  const etiqueta = d.tipo === 'promo' ? 'PROMOCIÓN ESPECIAL' : d.tipo === 'menu' ? 'NUESTRA CARTA' : 'RECOMENDADO';
+  const etiqueta = d.tipo === 'promo' ? 'PROMOCIÓN ESPECIAL' : d.tipo === 'menu' ? `NUESTRO ${d.nombreMenu.toUpperCase()}` : 'RECOMENDADO';
   ctx.fillText(etiqueta, W / 2, y);
   ctx.letterSpacing = '0px';
   y += 56;
@@ -746,6 +746,7 @@ export async function dibujarFlyer(canvas, { plantilla, formato, datos }) {
     titulo: datos.titulo || '',
     mensaje: datos.mensaje || '',
     cta: datos.cta || '',
+    nombreMenu: datos.nombreMenu || 'Menú',
     precio: datos.precio,
     precioAntes: datos.precioAntes,
     ahorroPct: datos.ahorroPct || 0,

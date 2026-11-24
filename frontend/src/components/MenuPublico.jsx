@@ -426,7 +426,7 @@ const MenuPublico = () => {
     return (
       <div className="mv mv-error">
         <div className="mv-error__caja">
-          <span className="mv-error__icono" aria-hidden="true">🍽️</span>
+          <span className="mv-error__icono" aria-hidden="true">😕</span>
           <h1>Uy, no pudimos abrir este {textos.menu}</h1>
           <p>{error}</p>
           <button type="button" className="mv-btn" onClick={cargarMenu}>Intentar de nuevo</button>

@@ -205,6 +205,7 @@ const Marketing = ({ user }) => {
       titulo: titulo || base.titulo || '',
       mensaje,
       cta,
+      nombreMenu: textos.Menu,
       color: colorMarca,
       mostrarPrecio: tipoFlyer !== 'menu' && mostrarPrecio,
       mostrarQR,
@@ -300,7 +301,7 @@ const Marketing = ({ user }) => {
       {/* ========== Enlace y QR ========== */}
       <div className="card conf-card">
         <h3 className="conf-titulo"><Link2 size={18} /> Tu {textos.menu} en línea</h3>
-        <p className="conf-ayuda">Compártelo por WhatsApp y redes, o imprime el QR para las mesas, la vitrina o el mostrador. Los pedidos llegan a <strong>Pedidos de Clientes</strong>.</p>
+        <p className="conf-ayuda">Compártelo por WhatsApp y redes, o imprime el QR para ponerlo en tu local, la vitrina o el mostrador. Los pedidos llegan a <strong>Pedidos de Clientes</strong>.</p>
         <div className="mk-enlace">
           <div className="mk-enlace__datos">
             <div className="conf-enlace">

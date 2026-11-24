@@ -108,7 +108,7 @@ const RelojAjedrez = () => {
         <div className="jg-inicio" style={{ '--jg-c1': '#374151', '--jg-c2': '#1f2937' }}>
           <div className="jg-inicio__emoji">♞</div>
           <p>Los juegos no están disponibles en este negocio.</p>
-          <Link to={`/menu/${moduloId}`} className="jg-btn jg-btn--grande">Ver el menú</Link>
+          <Link to={`/menu/${moduloId}`} className="jg-btn jg-btn--grande">Volver</Link>
         </div>
       </div>
     );
