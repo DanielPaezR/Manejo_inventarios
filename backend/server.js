@@ -32,6 +32,7 @@ const { geocodificar } = require('./src/helpers/geocodificar');
 const OpenAI = require('openai');
 const { botDisponible, responder: responderBot, limpiarEstilo } = require('./src/helpers/asistenteBot');
 const { construirResumen, construirAntesYAhora, metricasPeriodo } = require('./src/helpers/resumenNegocio');
+const { cargarPromociones, expandirDetalles, limpiarPromocion } = require('./src/helpers/promociones');
 const { productosParaSimulador, mermas, ventasPorEquipo, clientesEnLinea, hoyRapido, miDia } = require('./src/helpers/analisisExtra');
 const { enviarResumenModulo, programarResumenSemanal } = require('./src/helpers/resumenSemanal');
 const { canalesDisponibles, normalizarTelefono } = require('./src/helpers/notificador');
@@ -62,7 +63,7 @@ const registrarIngresosVenta = async (client, { negocioId, moduloVendedorId, met
   const montoPorDueno = new Map();
   for (const detalle of detalles) {
     const duenoId = duenoPorProducto.get(detalle.producto_id);
-    const subtotal = detalle.cantidad * detalle.precio_unitario;
+    const subtotal = detalle.subtotal !== undefined ? Number(detalle.subtotal) : detalle.cantidad * detalle.precio_unitario;
     montoPorDueno.set(duenoId, (montoPorDueno.get(duenoId) || 0) + subtotal);
   }
 
@@ -1335,6 +1336,99 @@ app.delete('/api/categorias/:id', authenticateToken, checkAccess, requirePermiso
   }
 });
 
+// ==================== PROMOCIONES (COMBOS) ====================
+// Lista para el punto de venta y el administrador (cualquiera que venda).
+app.get('/api/promociones', authenticateToken, checkAccess, async (req, res) => {
+  try {
+    if (!req.moduloId) {
+      return res.status(400).json({ error: 'Se requiere un módulo' });
+    }
+    const todas = await cargarPromociones(pool, req.moduloId);
+    const puedeGestionar = req.user.rol !== 'trabajador' || req.query.todas === '1';
+    res.json(puedeGestionar ? todas : todas.filter(p => p.activo && p.vigente));
+  } catch (error) {
+    console.error('Error listando promociones:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+const guardarPromocion = async (req, res, id) => {
+  const { error, datos } = limpiarPromocion(req.body);
+  if (error) {
+    return res.status(400).json({ error });
+  }
+  let client;
+  try {
+    client = await pool.connect();
+    await client.query('BEGIN');
+    // Todos los productos deben ser de este módulo.
+    const { rows: propios } = await client.query(
+      'SELECT id FROM productos WHERE id = ANY($1::int[]) AND modulo_id = $2',
+      [datos.items.map(i => i.producto_id), req.moduloId]);
+    if (propios.length !== datos.items.length) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'Algún producto de la promoción no pertenece a este módulo' });
+    }
+    let promocionId = id;
+    if (id) {
+      const r = await client.query(
+        `UPDATE promociones SET nombre = $1, descripcion = $2, precio = $3, foto_url = $4, activo = $5,
+                fecha_inicio = $6, fecha_fin = $7
+         WHERE id = $8 AND modulo_id = $9 RETURNING id`,
+        [datos.nombre, datos.descripcion, datos.precio, datos.foto_url, datos.activo, datos.fecha_inicio, datos.fecha_fin, id, req.moduloId]);
+      if (r.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return res.status(404).json({ error: 'Promoción no encontrada' });
+      }
+      await client.query('DELETE FROM promocion_items WHERE promocion_id = $1', [id]);
+    } else {
+      const r = await client.query(
+        `INSERT INTO promociones (modulo_id, nombre, descripcion, precio, foto_url, activo, fecha_inicio, fecha_fin)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`,
+        [req.moduloId, datos.nombre, datos.descripcion, datos.precio, datos.foto_url, datos.activo, datos.fecha_inicio, datos.fecha_fin]);
+      promocionId = r.rows[0].id;
+    }
+    for (const item of datos.items) {
+      await client.query(
+        'INSERT INTO promocion_items (promocion_id, producto_id, cantidad) VALUES ($1, $2, $3)',
+        [promocionId, item.producto_id, item.cantidad]);
+    }
+    await client.query('COMMIT');
+    const todas = await cargarPromociones(pool, req.moduloId);
+    res.status(id ? 200 : 201).json(todas.find(p => p.id === Number(promocionId)));
+  } catch (err) {
+    if (client) await client.query('ROLLBACK').catch(() => {});
+    console.error('Error guardando promoción:', err);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  } finally {
+    if (client) client.release();
+  }
+};
+
+app.post('/api/promociones', authenticateToken, checkAccess, requirePermiso('productos'), (req, res) => guardarPromocion(req, res, null));
+
+app.put('/api/promociones/:id', authenticateToken, checkAccess, requirePermiso('productos'), (req, res) => {
+  if (!/^\d+$/.test(req.params.id)) {
+    return res.status(404).json({ error: 'Promoción no encontrada' });
+  }
+  return guardarPromocion(req, res, Number(req.params.id));
+});
+
+// Borrar una promoción no afecta las ventas ya hechas: sus líneas conservan
+// el nombre de la promoción (promocion_nombre).
+app.delete('/api/promociones/:id', authenticateToken, checkAccess, requirePermiso('productos'), async (req, res) => {
+  try {
+    const r = await pool.query('DELETE FROM promociones WHERE id = $1 AND modulo_id = $2 RETURNING id', [req.params.id, req.moduloId]);
+    if (r.rows.length === 0) {
+      return res.status(404).json({ error: 'Promoción no encontrada' });
+    }
+    res.json({ ok: true });
+  } catch (error) {
+    console.error('Error borrando promoción:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
 // ==================== RUTAS DE VENTAS ====================
 
 app.post('/api/ventas', authenticateToken, checkAccess, async (req, res) => {
@@ -1346,7 +1440,7 @@ app.post('/api/ventas', authenticateToken, checkAccess, async (req, res) => {
     client = await pool.connect();
     await client.query('BEGIN');
 
-    const { detalles, cliente_nombre, cliente_documento, cliente_direccion, cliente_telefono, metodo_pago, cliente_id } = req.body;
+    const { detalles: detallesRecibidos, cliente_nombre, cliente_documento, cliente_direccion, cliente_telefono, metodo_pago, cliente_id } = req.body;
     const usuario_id = req.user.id;
     const moduloId = req.moduloId;
     const negocioId = req.negocioId;
@@ -1382,8 +1476,18 @@ app.post('/api/ventas', authenticateToken, checkAccess, async (req, res) => {
 
     console.log('🛒 Procesando venta - Usuario:', req.user.email, 'Módulo:', moduloId);
 
-    if (!Array.isArray(detalles) || detalles.length === 0) {
+    if (!Array.isArray(detallesRecibidos) || detallesRecibidos.length === 0) {
       throw new Error('La venta debe incluir al menos un producto');
+    }
+
+    // Las promociones ({ promocion_id, cantidad }) se desarman en sus
+    // productos con el precio especial repartido (ver helpers/promociones.js).
+    const detalles = await expandirDetalles(client, moduloId, detallesRecibidos);
+    // Stock pedido por producto sumando todas sus líneas (un producto puede
+    // venir suelto y además dentro de una promoción).
+    const unidadesPorProducto = new Map();
+    for (const d of detalles) {
+      unidadesPorProducto.set(d.producto_id, (unidadesPorProducto.get(d.producto_id) || 0) + Number(d.cantidad));
     }
 
     // Productos con ignora_stock = true (ej. categoría "Preparados": se
@@ -1457,8 +1561,8 @@ app.post('/api/ventas', authenticateToken, checkAccess, async (req, res) => {
 
       if (producto.ignora_stock) {
         productosQueIgnoranStock.add(detalle.producto_id);
-      } else if (producto.stock_actual < detalle.cantidad) {
-        throw new Error(`Stock insuficiente para "${producto.nombre}". Stock actual: ${producto.stock_actual}, solicitado: ${detalle.cantidad}`);
+      } else if (producto.stock_actual < unidadesPorProducto.get(detalle.producto_id)) {
+        throw new Error(`Stock insuficiente para "${producto.nombre}". Stock actual: ${producto.stock_actual}, solicitado: ${unidadesPorProducto.get(detalle.producto_id)}`);
       }
     }
 
@@ -1469,7 +1573,7 @@ app.post('/api/ventas', authenticateToken, checkAccess, async (req, res) => {
     const numero_factura = await generarNumeroFactura(moduloId, pool);
     console.log('🧾 Número de factura generado:', numero_factura);
 
-    const subtotal = detalles.reduce((sum, detalle) => sum + (detalle.cantidad * detalle.precio_unitario), 0);
+    const subtotal = detalles.reduce((sum, detalle) => sum + (detalle.subtotal !== undefined ? Number(detalle.subtotal) : detalle.cantidad * detalle.precio_unitario), 0);
     const total = subtotal;
 
     console.log('💰 Totales - Subtotal:', subtotal, 'Total:', total);
@@ -1490,9 +1594,12 @@ app.post('/api/ventas', authenticateToken, checkAccess, async (req, res) => {
       // producto cambia de dueño después, esta línea histórica sigue
       // atribuida a quien era dueño cuando realmente se vendió.
       await client.query(
-        `INSERT INTO detalle_venta (venta_id, producto_id, cantidad, precio_unitario, subtotal, modulo_dueno_id, costo_unitario)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-        [venta.id, detalle.producto_id, detalle.cantidad, detalle.precio_unitario, detalle.cantidad * detalle.precio_unitario, duenoPorProducto.get(detalle.producto_id), costoPorProducto.get(detalle.producto_id)]
+        `INSERT INTO detalle_venta (venta_id, producto_id, cantidad, precio_unitario, subtotal, modulo_dueno_id, costo_unitario, promocion_id, promocion_nombre)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+        [venta.id, detalle.producto_id, detalle.cantidad, detalle.precio_unitario,
+         detalle.subtotal !== undefined ? detalle.subtotal : detalle.cantidad * detalle.precio_unitario,
+         duenoPorProducto.get(detalle.producto_id), costoPorProducto.get(detalle.producto_id),
+         detalle.promocion_id || null, detalle.promocion_nombre || null]
       );
 
       if (!productosQueIgnoranStock.has(detalle.producto_id)) {
@@ -1543,6 +1650,7 @@ app.post('/api/ventas', authenticateToken, checkAccess, async (req, res) => {
                   'id', dv.id,
                   'producto_id', dv.producto_id,
                   'producto_nombre', p.nombre,
+                  'promocion_nombre', dv.promocion_nombre,
                   'cantidad', dv.cantidad,
                   'precio_unitario', dv.precio_unitario,
                   'subtotal', dv.subtotal
@@ -7774,6 +7882,10 @@ app.put('/api/pedidos-cliente/:id/completar', authenticateToken, checkAccess, as
     const productosQueIgnoranStock = new Set();
     // Snapshot del costo al momento de la venta (ver mismo campo en POST /api/ventas)
     const costoPorProducto = new Map();
+    const unidadesPorProducto = new Map();
+    for (const d of detalles) {
+      unidadesPorProducto.set(d.producto_id, (unidadesPorProducto.get(d.producto_id) || 0) + Number(d.cantidad));
+    }
 
     for (const detalle of detalles) {
       const stockResult = await client.query(
@@ -7790,10 +7902,10 @@ app.put('/api/pedidos-cliente/:id/completar', authenticateToken, checkAccess, as
       costoPorProducto.set(detalle.producto_id, producto.precio_compra);
       if (producto.ignora_stock) {
         productosQueIgnoranStock.add(detalle.producto_id);
-      } else if (producto.stock_actual < detalle.cantidad) {
+      } else if (producto.stock_actual < unidadesPorProducto.get(detalle.producto_id)) {
         await client.query('ROLLBACK');
         return res.status(400).json({
-          error: `Stock insuficiente para "${producto.nombre}". Stock actual: ${producto.stock_actual}, solicitado: ${detalle.cantidad}`
+          error: `Stock insuficiente para "${producto.nombre}". Stock actual: ${producto.stock_actual}, solicitado: ${unidadesPorProducto.get(detalle.producto_id)}`
         });
       }
     }
@@ -7818,9 +7930,10 @@ app.put('/api/pedidos-cliente/:id/completar', authenticateToken, checkAccess, as
     // no pierdan estas ventas.
     for (const detalle of detalles) {
       await client.query(
-        `INSERT INTO detalle_venta (venta_id, producto_id, cantidad, precio_unitario, subtotal, modulo_dueno_id, costo_unitario)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-        [venta.id, detalle.producto_id, detalle.cantidad, detalle.precio_unitario, detalle.subtotal, moduloId, costoPorProducto.get(detalle.producto_id)]
+        `INSERT INTO detalle_venta (venta_id, producto_id, cantidad, precio_unitario, subtotal, modulo_dueno_id, costo_unitario, promocion_id, promocion_nombre)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+        [venta.id, detalle.producto_id, detalle.cantidad, detalle.precio_unitario, detalle.subtotal, moduloId, costoPorProducto.get(detalle.producto_id),
+         detalle.promocion_id || null, detalle.promocion_nombre || null]
       );
 
       if (!productosQueIgnoranStock.has(detalle.producto_id)) {
@@ -8165,7 +8278,9 @@ app.get('/api/menu/:moduloId', async (req, res) => {
         bot_nombre: limpiarEstilo(moduloResult.rows[0].bot_estilo).nombre_asistente || null,
         bot_saludo: limpiarEstilo(moduloResult.rows[0].bot_estilo).saludo || null
       },
-      productos: productosResult.rows
+      productos: productosResult.rows,
+      // Si la tabla de promociones aún no existe, el menú sigue funcionando.
+      promociones: await cargarPromociones(pool, moduloId, { soloDisponibles: true }).catch(() => [])
     });
   } catch (error) {
     console.error('Error obteniendo menú público:', error);
@@ -8539,8 +8654,31 @@ app.post('/api/menu/:moduloId/pedidos', async (req, res) => {
 
     const detallesValidados = [];
     let subtotal = 0;
+    // Unidades pedidas por producto, sumando sueltos y dentro de promociones.
+    const unidadesPedidas = new Map();
 
+    // Promociones: se desarman en sus productos con el precio especial.
+    const itemsSueltos = [];
     for (const item of items) {
+      if (item && item.promocion_id) {
+        let lineas;
+        try {
+          lineas = await expandirDetalles(client, moduloId, [item]);
+        } catch (e) {
+          await client.query('ROLLBACK');
+          return res.status(400).json({ error: e.message });
+        }
+        for (const l of lineas) {
+          detallesValidados.push(l);
+          subtotal += l.subtotal;
+          unidadesPedidas.set(l.producto_id, (unidadesPedidas.get(l.producto_id) || 0) + l.cantidad);
+        }
+      } else {
+        itemsSueltos.push(item);
+      }
+    }
+
+    for (const item of itemsSueltos) {
       const cantidad = Number(item.cantidad);
       if (!Number.isFinite(cantidad) || cantidad <= 0) {
         await client.query('ROLLBACK');
@@ -8570,6 +8708,7 @@ app.post('/api/menu/:moduloId/pedidos', async (req, res) => {
       const precioUnitario = Number(producto.precio_venta);
       const subtotalItem = cantidad * precioUnitario;
       subtotal += subtotalItem;
+      unidadesPedidas.set(producto.id, (unidadesPedidas.get(producto.id) || 0) + cantidad);
 
       detallesValidados.push({
         producto_id: producto.id,
@@ -8578,6 +8717,21 @@ app.post('/api/menu/:moduloId/pedidos', async (req, res) => {
         precio_unitario: precioUnitario,
         subtotal: subtotalItem
       });
+    }
+
+    // Revisa el stock con el total pedido de cada producto (sueltos + promociones).
+    for (const [productoId, unidades] of unidadesPedidas) {
+      const { rows: [p] } = await client.query(
+        'SELECT nombre, stock_actual, ignora_stock FROM productos WHERE id = $1 AND modulo_id = $2 AND activo = true',
+        [productoId, moduloId]);
+      if (!p) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: 'Uno de los productos ya no está disponible' });
+      }
+      if (!p.ignora_stock && unidades > p.stock_actual) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: `No hay suficiente stock de "${p.nombre}". Disponible: ${p.stock_actual}` });
+      }
     }
 
     const total = subtotal;
@@ -8595,9 +8749,10 @@ app.post('/api/menu/:moduloId/pedidos', async (req, res) => {
     for (const detalle of detallesValidados) {
       await client.query(
         `INSERT INTO pedidos_cliente_detalle
-         (pedido_cliente_id, producto_id, nombre_producto, cantidad, precio_unitario, subtotal)
-         VALUES ($1, $2, $3, $4, $5, $6)`,
-        [pedido.id, detalle.producto_id, detalle.nombre_producto, detalle.cantidad, detalle.precio_unitario, detalle.subtotal]
+         (pedido_cliente_id, producto_id, nombre_producto, cantidad, precio_unitario, subtotal, promocion_id, promocion_nombre)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+        [pedido.id, detalle.producto_id, detalle.nombre_producto, detalle.cantidad, detalle.precio_unitario, detalle.subtotal,
+         detalle.promocion_id || null, detalle.promocion_nombre || null]
       );
     }
 

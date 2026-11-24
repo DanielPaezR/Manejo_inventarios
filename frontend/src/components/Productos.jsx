@@ -4,6 +4,7 @@ import { useModulo } from '../hooks/useModulo';
 import { tienePermiso } from '../utils/permisos';
 import SubidaImagen from './SubidaImagen';
 import Burbuja from './Burbuja';
+import GestionPromociones from './GestionPromociones';
 import './Productos.css';
 
 const Productos = ({ user }) => {
@@ -276,6 +277,8 @@ Sus ${cantidad} producto(s) pasarán a "General".`
           </button>
         )}
       </div>
+
+      {puedeEditar && productos.length > 0 && <GestionPromociones productos={productos} />}
 
       {loading ? (
         <div className="loading">Cargando productos...</div>

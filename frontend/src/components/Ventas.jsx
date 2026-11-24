@@ -297,6 +297,26 @@ const Ventas = ({ user }) => {
   // llega DESPUÉS que la de la búsqueda, pisa los resultados filtrados con
   // la lista completa — se ve como si la búsqueda no hiciera nada. Solo se
   // aplica la respuesta de la solicitud más reciente.
+  const [promociones, setPromociones] = useState([]);
+  useEffect(() => {
+    const cargarPromos = () => api.get('/promociones')
+      .then(r => setPromociones(r.data.filter(p => p.activo && p.vigente)))
+      .catch(() => setPromociones([]));
+    cargarPromos();
+    window.addEventListener('ventaRegistrada', cargarPromos);
+    return () => window.removeEventListener('ventaRegistrada', cargarPromos);
+  }, []);
+  const promoComoProducto = (p) => ({
+    id: `promo-${p.id}`,
+    nombre: `🎁 ${p.nombre}`,
+    precio_venta: p.precio,
+    stock_actual: p.disponibles,
+    stock_minimo: 0,
+    ignora_stock: false,
+    es_promocion: true,
+    promocion_id: p.id
+  });
+
   const cargarProductos = useCallback(async () => {
     const requestId = ++productosRequestIdRef.current;
     try {
@@ -547,7 +567,8 @@ const Ventas = ({ user }) => {
           stock_actual: producto.stock_actual,
           stock_minimo: producto.stock_minimo,
           ignora_stock: producto.ignora_stock,
-          codigo_ean: producto.codigo_ean
+          codigo_ean: producto.codigo_ean,
+          ...(producto.es_promocion ? { es_promocion: true, promocion_id: producto.promocion_id } : {})
         }]
       };
     }));
@@ -642,11 +663,13 @@ const Ventas = ({ user }) => {
       setError(null);
       
       const ventaData = {
-        detalles: carrito.map(item => ({
-          producto_id: item.producto_id,
-          cantidad: item.cantidad,
-          precio_unitario: item.precio_unitario
-        })),
+        detalles: carrito.map(item => (item.es_promocion
+          ? { promocion_id: item.promocion_id, cantidad: item.cantidad }
+          : {
+            producto_id: item.producto_id,
+            cantidad: item.cantidad,
+            precio_unitario: item.precio_unitario
+          })),
         cliente_nombre: cliente.nombre || 'Consumidor Final',
         cliente_documento: cliente.documento || '',
         cliente_direccion: cliente.direccion || '',
@@ -953,6 +976,28 @@ const Ventas = ({ user }) => {
             </div>
           ) : (
             <div className="productos-grid">
+              {promociones
+                .filter(p => !busqueda.trim() || p.nombre.toLowerCase().includes(busqueda.trim().toLowerCase()))
+                .map(p => (
+                  <div
+                    key={`promo-${p.id}`}
+                    className={`producto-card producto-card--promo ${p.disponibles <= 0 ? 'agotado' : ''}`}
+                    onClick={() => p.disponibles > 0 && agregarAlCarrito(promoComoProducto(p))}
+                    title={p.items.map(i => `${i.cantidad} × ${i.nombre}`).join(' + ')}
+                  >
+                    <div className="producto-info">
+                      <span className="badge-promo">🎁 Promo{p.ahorro_pct > 0 ? ` -${p.ahorro_pct}%` : ''}</span>
+                      <h4>{p.nombre}</h4>
+                      <p className="producto-precio">{pesos(p.precio)}</p>
+                      <p className={`producto-stock ${p.disponibles <= 0 ? 'agotado' : ''}`}>
+                        {p.disponibles <= 0 ? 'Sin stock' : `${p.items.length} productos · alcanza para ${p.disponibles}`}
+                      </p>
+                    </div>
+                    <button className="btn-agregar-carrito-item" disabled={p.disponibles <= 0} aria-label={`Agregar ${p.nombre}`}>
+                      <Plus size={16} strokeWidth={2.5} />
+                    </button>
+                  </div>
+                ))}
               {productos.map(producto => (
                 <div
                   key={producto.id}

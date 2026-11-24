@@ -1533,3 +1533,20 @@ kbd,
     padding-bottom: calc(70px + var(--teclado-alto, 0px));
   }
 }
+
+/* Promociones en el punto de venta */
+.producto-card--promo {
+  border-color: var(--brand) !important;
+  background: var(--brand-50, #fdf5f2) !important;
+}
+
+.badge-promo {
+  display: inline-block;
+  margin-bottom: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--brand);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+}

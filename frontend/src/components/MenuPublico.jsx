@@ -91,12 +91,47 @@ const TarjetaProducto = ({ producto, cantidad, onAbrir, onCambiar, destacada = f
   );
 };
 
+// Tarjeta de promoción: collage de los productos (o su propia foto), precio
+// especial, precio normal tachado y cuánto se ahorra.
+const TarjetaPromo = ({ promo, cantidad, onCambiar }) => {
+  const fotos = promo.foto_url ? [promo.foto_url] : promo.items.map(i => i.foto_url).filter(Boolean).slice(0, 4);
+  return (
+    <article className={`mv-card mv-promo ${cantidad > 0 ? 'mv-card--en-bolsa' : ''}`} data-revelar>
+      <div className={`mv-promo__fotos mv-promo__fotos--${Math.min(fotos.length, 4)}`}>
+        {fotos.length === 0 ? (
+          <div className="mv-foto mv-foto--placeholder" style={{ '--mv-ph': obtenerColorPlaceholder(promo.nombre) }}><span>🎁</span></div>
+        ) : fotos.map((url, i) => <img key={i} src={url} alt="" loading="lazy" />)}
+        {promo.ahorro_pct > 0 && <span className="mv-promo__ahorro">-{promo.ahorro_pct}%</span>}
+        {cantidad > 0 && <span className="mv-card__cantidad">{cantidad}</span>}
+      </div>
+      <div className="mv-card__body">
+        <span className="mv-promo__etiqueta">Promoción</span>
+        <h3 className="mv-card__nombre">{promo.nombre}</h3>
+        <p className="mv-promo__items">{promo.items.map(i => `${i.cantidad > 1 ? `${i.cantidad} × ` : ''}${i.nombre}`).join(' + ')}</p>
+      </div>
+      <div className="mv-card__pie">
+        <span className="mv-promo__precios">
+          <span className="mv-card__precio">{pesos(promo.precio)}</span>
+          {promo.ahorro > 0 && <s>{pesos(promo.precio_normal)}</s>}
+        </span>
+        {cantidad === 0 ? (
+          <button type="button" className="mv-mas" onClick={() => onCambiar(promo, 1)} aria-label={`Agregar ${promo.nombre}`}>+</button>
+        ) : (
+          <Stepper cantidad={cantidad} onRestar={() => onCambiar(promo, -1)} onSumar={() => onCambiar(promo, 1)} disabledSumar={cantidad >= promo.disponibles} />
+        )}
+      </div>
+    </article>
+  );
+};
+
 const MenuPublico = () => {
   const { moduloId } = useParams();
   const navigate = useNavigate();
 
   const [modulo, setModulo] = useState(null);
   const [productos, setProductos] = useState([]);
+  const [promociones, setPromociones] = useState([]);
+  const [carritoPromos, setCarritoPromos] = useState({}); // { [promocion_id]: cantidad }
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [carrito, setCarrito] = useState({}); // { [producto_id]: cantidad }
@@ -132,6 +167,7 @@ const MenuPublico = () => {
       const response = await apiPublico.get(`/menu/${moduloId}`);
       setModulo(response.data.modulo);
       setProductos(response.data.productos);
+      setPromociones(response.data.promociones || []);
     } catch (err) {
       console.error('Error cargando menú:', err);
       setError(err.response?.data?.error || 'Este catálogo no está disponible en este momento');
@@ -168,8 +204,13 @@ const MenuPublico = () => {
     const producto = productos.find(p => p.id === parseInt(id, 10));
     return producto ? { producto, cantidad } : null;
   }).filter(Boolean);
-  const totalItems = itemsCarrito.reduce((s, i) => s + i.cantidad, 0);
-  const totalCarrito = itemsCarrito.reduce((s, i) => s + i.cantidad * Number(i.producto.precio_venta), 0);
+  const itemsPromos = Object.entries(carritoPromos).map(([id, cantidad]) => {
+    const promo = promociones.find(p => p.id === parseInt(id, 10));
+    return promo ? { promo, cantidad } : null;
+  }).filter(Boolean);
+  const totalItems = itemsCarrito.reduce((s, i) => s + i.cantidad, 0) + itemsPromos.reduce((s, i) => s + i.cantidad, 0);
+  const totalCarrito = itemsCarrito.reduce((s, i) => s + i.cantidad * Number(i.producto.precio_venta), 0)
+    + itemsPromos.reduce((s, i) => s + i.cantidad * i.promo.precio, 0);
 
   // ---------- Carrito ----------
   const cambiarCantidad = (producto, delta) => {
@@ -182,6 +223,17 @@ const MenuPublico = () => {
         return copia;
       }
       return { ...prev, [producto.id]: nueva };
+    });
+    if (delta > 0) setSaltoBolsa(n => n + 1);
+  };
+
+  const cambiarPromo = (promo, delta) => {
+    setCarritoPromos(prev => {
+      const nueva = Math.max(0, Math.min(promo.disponibles, (prev[promo.id] || 0) + delta));
+      const copia = { ...prev };
+      if (nueva === 0) delete copia[promo.id];
+      else copia[promo.id] = nueva;
+      return copia;
     });
     if (delta > 0) setSaltoBolsa(n => n + 1);
   };
@@ -325,7 +377,7 @@ const MenuPublico = () => {
     setErrorEnvio('');
     if (!mesaNombre.trim()) return setErrorEnvio(`⚠️ ${textos.faltaNombrePedido}`);
     if (!telefono.trim()) return setErrorEnvio('⚠️ Ingresa tu número de teléfono');
-    if (itemsCarrito.length === 0) return setErrorEnvio('⚠️ Agrega al menos un producto');
+    if (itemsCarrito.length === 0 && itemsPromos.length === 0) return setErrorEnvio('⚠️ Agrega al menos un producto');
     if (esDomicilio && !direccionEntrega.trim()) return setErrorEnvio('⚠️ Ingresa la dirección de entrega');
     if (esDomicilio && (!ubicacionDomicilio || ubicacionDomicilio.direccion !== direccionEntrega.trim())) {
       return setErrorEnvio('⚠️ Confirma tu ubicación en el mapa antes de enviar el pedido');
@@ -340,7 +392,10 @@ const MenuPublico = () => {
         direccion_entrega: esDomicilio ? direccionEntrega.trim() : undefined,
         lat: esDomicilio ? ubicacionDomicilio.lat : undefined,
         lng: esDomicilio ? ubicacionDomicilio.lng : undefined,
-        items: itemsCarrito.map(item => ({ producto_id: item.producto.id, cantidad: item.cantidad }))
+        items: [
+          ...itemsCarrito.map(item => ({ producto_id: item.producto.id, cantidad: item.cantidad })),
+          ...itemsPromos.map(item => ({ promocion_id: item.promo.id, cantidad: item.cantidad }))
+        ]
       });
       document.body.style.overflow = '';
       navigate(`/menu/${moduloId}/pedido/${response.data.token_publico}`, { replace: true });
@@ -455,6 +510,9 @@ const MenuPublico = () => {
         </div>
         {!buscando && categorias.length > 1 && (
           <div className="mv-chips" ref={chipsRef}>
+            {promociones.length > 0 && (
+              <button type="button" className="mv-chip mv-chip--promo" data-activo={categoriaActiva === 'Promociones'} onClick={() => irASeccion('Promociones')}>🔥 Promociones</button>
+            )}
             {novedades.length > 0 && (
               <button type="button" className="mv-chip" data-activo={categoriaActiva === 'Lo nuevo'} onClick={() => irASeccion('Lo nuevo')}>✨ Lo nuevo</button>
             )}
@@ -483,13 +541,23 @@ const MenuPublico = () => {
               </div>
             ) : renderGrid(resultados)}
           </section>
-        ) : cantidadProductos === 0 ? (
+        ) : cantidadProductos === 0 && promociones.length === 0 ? (
           <div className="mv-vacio">
             <span aria-hidden="true">🧺</span>
             <p>No hay productos disponibles en este momento. Vuelve pronto.</p>
           </div>
         ) : (
           <>
+            {promociones.length > 0 && (
+              <section id={idSeccion('Promociones')} data-seccion="Promociones" className="mv-seccion">
+                <h2 className="mv-seccion__titulo">🔥 Promociones <small>Combos a precio especial</small></h2>
+                <div className="mv-grid mv-grid--promos">
+                  {promociones.map(p => (
+                    <TarjetaPromo key={p.id} promo={p} cantidad={carritoPromos[p.id] || 0} onCambiar={cambiarPromo} />
+                  ))}
+                </div>
+              </section>
+            )}
             {novedades.length > 0 && (
               <section id={idSeccion('Lo nuevo')} data-seccion="Lo nuevo" className="mv-seccion">
                 <h2 className="mv-seccion__titulo">✨ Lo nuevo <small>Recién llegado</small></h2>
@@ -582,13 +650,26 @@ const MenuPublico = () => {
             </div>
 
             <div className="mv-pedido__scroll">
-              {itemsCarrito.length === 0 ? (
+              {itemsCarrito.length === 0 && itemsPromos.length === 0 ? (
                 <div className="mv-vacio">
                   <span aria-hidden="true">🛍️</span>
                   <p>Tu pedido está vacío.</p>
                 </div>
               ) : (
                 <ul className="mv-lista">
+                  {itemsPromos.map(({ promo, cantidad }) => (
+                    <li key={`promo-${promo.id}`} className="mv-lista__item">
+                      <div className="mv-foto mv-foto--placeholder mv-lista__foto" style={{ '--mv-ph': obtenerColorPlaceholder(promo.nombre) }}><span>🎁</span></div>
+                      <div className="mv-lista__info">
+                        <span>{promo.nombre}</span>
+                        <small>{promo.items.map(i => `${i.cantidad > 1 ? `${i.cantidad} × ` : ''}${i.nombre}`).join(' + ')}</small>
+                      </div>
+                      <div className="mv-lista__lado">
+                        <b>{pesos(cantidad * promo.precio)}</b>
+                        <Stepper cantidad={cantidad} onRestar={() => cambiarPromo(promo, -1)} onSumar={() => cambiarPromo(promo, 1)} disabledSumar={cantidad >= promo.disponibles} />
+                      </div>
+                    </li>
+                  ))}
                   {itemsCarrito.map(({ producto, cantidad }) => (
                     <li key={producto.id} className="mv-lista__item">
                       <Foto producto={producto} className="mv-lista__foto" />
@@ -655,7 +736,7 @@ const MenuPublico = () => {
 
             <div className="mv-pedido__pie">
               {errorEnvio && <p className="mv-error-envio" role="alert">{errorEnvio}</p>}
-              <button type="button" className="mv-btn mv-btn--grande mv-btn--full" onClick={handleGenerarPedido} disabled={enviando || itemsCarrito.length === 0}>
+              <button type="button" className="mv-btn mv-btn--grande mv-btn--full" onClick={handleGenerarPedido} disabled={enviando || (itemsCarrito.length === 0 && itemsPromos.length === 0)}>
                 {enviando ? 'Enviando tu pedido...' : `Enviar pedido · ${pesos(totalCarrito)}`}
               </button>
             </div>

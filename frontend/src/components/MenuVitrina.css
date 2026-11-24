@@ -1439,3 +1439,99 @@
   width: 28px;
   height: 32px;
 }
+
+/* ---------------- Promociones ---------------- */
+.mv-chip--promo {
+  border-color: var(--mv-acento);
+  color: var(--mv-acento);
+}
+
+.mv-chip--promo[data-activo="true"] {
+  background: var(--mv-acento);
+  border-color: var(--mv-acento);
+  color: #fff;
+}
+
+.mv-grid--promos {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr));
+}
+
+.mv-promo {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--mv-acento) 30%, transparent), var(--mv-sombra);
+}
+
+.mv-promo__fotos {
+  position: relative;
+  display: grid;
+  gap: 2px;
+  aspect-ratio: 16 / 10;
+  overflow: hidden;
+  background: #f1eee9;
+}
+
+.mv-promo__fotos--2 { grid-template-columns: 1fr 1fr; }
+.mv-promo__fotos--3 { grid-template-columns: 2fr 1fr; grid-template-rows: 1fr 1fr; }
+.mv-promo__fotos--3 img:first-child { grid-row: 1 / 3; }
+.mv-promo__fotos--4 { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; }
+
+.mv-promo__fotos img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  min-height: 0;
+}
+
+.mv-promo__fotos .mv-foto--placeholder span {
+  font-size: 48px;
+}
+
+.mv-promo__ahorro {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  padding: 6px 11px;
+  border-radius: 999px;
+  background: var(--mv-acento);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 900;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  animation: mv-pop 0.5s var(--mv-curva);
+}
+
+.mv-promo__etiqueta {
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--mv-acento);
+}
+
+.mv-promo .mv-card__nombre {
+  margin-top: 2px;
+  font-size: 16px;
+  font-weight: 800;
+}
+
+.mv-promo__items {
+  margin: 4px 0 0;
+  font-size: 12.5px;
+  line-height: 1.4;
+  color: var(--mv-suave);
+}
+
+.mv-promo__precios {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.mv-promo__precios .mv-card__precio {
+  font-size: 19px;
+  color: var(--mv-acento);
+}
+
+.mv-promo__precios s {
+  font-size: 13px;
+  color: var(--mv-suave);
+}
