@@ -61,6 +61,23 @@ export const obtenerCampeones = (moduloId) =>
 export const enviarPuntaje = (moduloId, datos) =>
   apiPublico.post(`/menu/${moduloId}/juegos/puntajes`, datos).then(r => r.data);
 
+// Códigos de los puntajes guardados desde este celular: si alguno queda
+// campeón de la semana, con ese código se reclama el premio en caja.
+const claveCodigos = (moduloId) => `juegos-codigos-${moduloId}`;
+export const guardarCodigo = (moduloId, codigo) => {
+  if (!codigo) return;
+  try {
+    const lista = JSON.parse(localStorage.getItem(claveCodigos(moduloId)) || '[]');
+    localStorage.setItem(claveCodigos(moduloId), JSON.stringify([codigo, ...lista.filter(c => c !== codigo)].slice(0, 150)));
+  } catch { /* modo privado */ }
+};
+const leerCodigos = (moduloId) => {
+  try { return JSON.parse(localStorage.getItem(claveCodigos(moduloId)) || '[]'); } catch { return []; }
+};
+export const obtenerMisPremios = (moduloId) =>
+  apiPublico.post(`/menu/${moduloId}/juegos/mis-premios`, { codigos: leerCodigos(moduloId) })
+    .then(r => r.data).catch(() => ({ premio: { activo: false }, ganados: [] }));
+
 export const vibrar = (ms = 12) => { try { navigator.vibrate?.(ms); } catch { /* sin vibración */ } };
 
 export const aleatorio = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;

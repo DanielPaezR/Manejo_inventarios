@@ -952,3 +952,46 @@
   line-height: 1.4;
   color: var(--jg-suave);
 }
+
+/* Premio semanal */
+.jz-premio {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  margin: 22px 0 0;
+  padding: 14px 16px;
+  border-radius: 16px;
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.16), rgba(236, 72, 153, 0.12));
+  border: 1px solid rgba(245, 158, 11, 0.35);
+}
+.jz-premio > span { font-size: 1.8rem; line-height: 1; }
+.jz-premio p { margin: 0; font-size: 0.9rem; line-height: 1.45; color: var(--jg-texto); }
+
+.jz-ganaste {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  margin: 22px 0 0;
+  padding: 18px;
+  border-radius: 20px;
+  color: #fff;
+  background: linear-gradient(135deg, #f59e0b, #ec4899 60%, #8b5cf6);
+  box-shadow: 0 12px 30px rgba(236, 72, 153, 0.35);
+  animation: jz-latido 2.4s ease-in-out infinite;
+}
+.jz-ganaste__emoji { font-size: 2.6rem; line-height: 1; }
+.jz-ganaste strong { display: block; font-size: 1.05rem; color: #fff; }
+.jz-ganaste p { margin: 4px 0 8px; font-size: 0.88rem; color: rgba(255, 255, 255, 0.92); }
+.jz-ganaste__codigo {
+  display: inline-block;
+  padding: 6px 14px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.95);
+  color: #be185d;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 1.4rem;
+  letter-spacing: 0.18em;
+}
+.jz-ganaste small { display: block; margin-top: 6px; font-size: 0.78rem; color: rgba(255, 255, 255, 0.85); }
+@keyframes jz-latido { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.015); } }
+@media (prefers-reduced-motion: reduce) { .jz-ganaste { animation: none; } }

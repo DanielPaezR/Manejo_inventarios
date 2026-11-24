@@ -6,6 +6,7 @@ import { useModulo } from '../hooks/useModulo';
 import SubidaImagen from './SubidaImagen';
 import ConfigAsistente from './ConfigAsistente';
 import EquipoPermisos from './EquipoPermisos';
+import AdminJuegos from './AdminJuegos';
 import ConfigResumenSemanal from './ConfigResumenSemanal';
 import { IconoHoja, obtenerColorPlaceholder } from '../utils/menuVisual';
 import { textosNegocio, tipoNegocioUsuario } from '../utils/tipoNegocio';
@@ -204,6 +205,7 @@ const ConfiguracionNegocio = ({ user }) => {
             <span />
           </button>
         </div>
+        {juegosActivos && <AdminJuegos key={`juegos-${moduloActivo.id}`} moduloId={moduloActivo.id} avisar={avisar} />}
       </div>
 
       <ConfigResumenSemanal key={`resumen-${moduloActivo.id}`} moduloId={moduloActivo.id} avisar={avisar} />

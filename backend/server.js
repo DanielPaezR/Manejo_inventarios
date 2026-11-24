@@ -33,7 +33,7 @@ const OpenAI = require('openai');
 const { botDisponible, responder: responderBot, limpiarEstilo } = require('./src/helpers/asistenteBot');
 const { construirResumen, construirAntesYAhora, metricasPeriodo } = require('./src/helpers/resumenNegocio');
 const { cargarPromociones, expandirDetalles, limpiarPromocion } = require('./src/helpers/promociones');
-const { guardarPuntaje, podio: podioJuego, campeones: campeonesJuegos } = require('./src/helpers/juegos');
+const { guardarPuntaje, podio: podioJuego, campeones: campeonesJuegos, leerPremio, ganadores: ganadoresJuegos, misPremios, canjear: canjearPremio, puntajesRecientes } = require('./src/helpers/juegos');
 const { aplicarMigraciones } = require('./src/helpers/migraciones');
 const { productosParaSimulador, mermas, ventasPorEquipo, clientesEnLinea, hoyRapido, miDia } = require('./src/helpers/analisisExtra');
 const { enviarResumenModulo, programarResumenSemanal } = require('./src/helpers/resumenSemanal');
@@ -8339,6 +8339,77 @@ app.post('/api/menu/:moduloId/juegos/puntajes', async (req, res) => {
   } catch (error) {
     console.error('Error guardando puntaje:', error.message);
     res.status(503).json({ error: 'El podio todavía no está disponible' });
+  }
+});
+
+// El cliente pregunta si alguno de sus códigos (guardados en su celular)
+// ganó el premio de la semana pasada. También dice cuál es el premio.
+app.post('/api/menu/:moduloId/juegos/mis-premios', async (req, res) => {
+  try {
+    if (!/^\d+$/.test(req.params.moduloId)) return res.json({ premio: { activo: false }, ganados: [] });
+    const codigos = (Array.isArray(req.body?.codigos) ? req.body.codigos : [])
+      .map(c => String(c).toUpperCase().replace(/[^A-Z0-9]/g, '')).filter(c => c.length >= 4).slice(0, 200);
+    res.json(await misPremios(pool, req.params.moduloId, codigos));
+  } catch (error) {
+    console.error('Error leyendo premios:', error.message);
+    res.json({ premio: { activo: false }, ganados: [] });
+  }
+});
+
+// ---- Administración de los juegos (dueño del negocio) ----
+app.get('/api/juegos/admin', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+  try {
+    const [premio, recientes, ganadores] = await Promise.all([
+      leerPremio(pool, req.moduloId),
+      puntajesRecientes(pool, req.moduloId),
+      ganadoresJuegos(pool, req.moduloId)
+    ]);
+    const { rows: [m] } = await pool.query('SELECT premio_juegos FROM modulos WHERE id = $1', [req.moduloId]);
+    res.json({ premio: { ...premio, activo: m?.premio_juegos?.activo === true }, recientes, ganadores });
+  } catch (error) {
+    console.error('Error leyendo administración de juegos:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+app.put('/api/juegos/admin/premio', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+  try {
+    const descripcion = String(req.body?.descripcion || '').trim().slice(0, 120);
+    const activo = req.body?.activo === true;
+    if (activo && !descripcion) return res.status(400).json({ error: 'Escribe cuál es el premio' });
+    await pool.query('UPDATE modulos SET premio_juegos = $1 WHERE id = $2', [JSON.stringify({ activo, descripcion }), req.moduloId]);
+    res.json({ activo, descripcion });
+  } catch (error) {
+    console.error('Error guardando premio de juegos:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// Ocultar (o volver a mostrar) un puntaje del podio: nombres feos o trampas.
+// "todos_del_nombre" oculta todos los puntajes con ese mismo nombre.
+app.put('/api/juegos/admin/puntajes/:id', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+  try {
+    const oculto = req.body?.oculto !== false;
+    const { rows: [fila] } = await pool.query('SELECT id, nombre FROM juego_puntajes WHERE id = $1 AND modulo_id = $2', [req.params.id, req.moduloId]);
+    if (!fila) return res.status(404).json({ error: 'Puntaje no encontrado' });
+    const { rowCount } = req.body?.todos_del_nombre
+      ? await pool.query('UPDATE juego_puntajes SET oculto = $1 WHERE modulo_id = $2 AND lower(nombre) = lower($3)', [oculto, req.moduloId, fila.nombre])
+      : await pool.query('UPDATE juego_puntajes SET oculto = $1 WHERE id = $2', [oculto, fila.id]);
+    res.json({ ok: true, afectados: rowCount });
+  } catch (error) {
+    console.error('Error moderando puntaje:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+app.post('/api/juegos/admin/canjear', authenticateToken, checkAccess, async (req, res) => {
+  try {
+    const r = await canjearPremio(pool, req.moduloId, req.body?.codigo);
+    if (r.error) return res.status(r.status).json({ error: r.error });
+    res.json(r.datos);
+  } catch (error) {
+    console.error('Error canjeando premio:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
   }
 });
 

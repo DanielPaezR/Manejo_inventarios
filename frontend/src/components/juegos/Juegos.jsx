@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import apiPublico from '../../services/apiPublico';
-import { JUEGOS, juegoPorId, leerPerfil, mejorLocal, obtenerCampeones, useJuegosActivos } from './comunes';
+import { JUEGOS, juegoPorId, leerPerfil, mejorLocal, obtenerCampeones, obtenerMisPremios, useJuegosActivos } from './comunes';
 import './Juegos.css';
 import './ZonaJuegos.css';
 
@@ -20,6 +20,7 @@ const Juegos = () => {
   const { moduloId } = useParams();
   const [negocio, setNegocio] = useState('');
   const [campeones, setCampeones] = useState({});
+  const [premios, setPremios] = useState({ premio: { activo: false }, ganados: [] });
   const perfil = leerPerfil();
   const activos = useJuegosActivos(moduloId);
 
@@ -27,6 +28,7 @@ const Juegos = () => {
     document.title = 'Zona de juegos';
     apiPublico.get(`/menu/${moduloId}`).then(r => setNegocio(r.data.modulo?.nombre_publico || '')).catch(() => {});
     obtenerCampeones(moduloId).then(setCampeones);
+    obtenerMisPremios(moduloId).then(setPremios);
   }, [moduloId]);
 
   if (activos === false) {
@@ -55,6 +57,25 @@ const Juegos = () => {
         <p>Juega desde tu celular, rompe récords y sube al podio de la semana.</p>
         {perfil.nombre && <span className="jz-jugador">{perfil.avatar} Hola, {perfil.nombre}</span>}
       </header>
+
+      {premios.ganados.map(g => (
+        <section key={g.codigo} className="jz-ganaste">
+          <span className="jz-ganaste__emoji" aria-hidden="true">🎁</span>
+          <div>
+            <strong>¡{g.avatar} {g.nombre}, fuiste campeón de {g.juego}!</strong>
+            <p>Ganaste: {premios.premio.descripcion}. Muestra este código en caja:</p>
+            <b className="jz-ganaste__codigo">{g.codigo}</b>
+            <small>Válido hasta el {new Date(g.vence).toLocaleDateString('es-CO', { day: 'numeric', month: 'long' })}</small>
+          </div>
+        </section>
+      ))}
+
+      {premios.premio.activo && (
+        <section className="jz-premio">
+          <span aria-hidden="true">🎁</span>
+          <p><strong>Premio de la semana:</strong> {premios.premio.descripcion}. Lo gana quien termine primero en el podio semanal de cada juego (se cierra el domingo a medianoche).</p>
+        </section>
+      )}
 
       {listaCampeones.length > 0 && (
         <section className="jz-seccion">

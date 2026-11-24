@@ -1,0 +1,87 @@
+.aj {
+  margin-top: 6px;
+}
+
+.aj-premio {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 10px 0 4px;
+}
+.aj-premio input {
+  flex: 1 1 220px;
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--border-color, #d1d5db);
+  border-radius: 10px;
+  font-size: 0.95rem;
+  background: var(--bg-input, #fff);
+  color: inherit;
+}
+.aj-codigo {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+}
+
+.aj-estado { margin: 6px 0 0; font-size: 0.85rem; color: #15803d; }
+
+.aj-canjeado {
+  margin: 10px 0 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(22, 163, 74, 0.1);
+  border: 1px solid rgba(22, 163, 74, 0.3);
+  font-size: 0.9rem;
+}
+
+.aj-ganadores, .aj-lista {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.aj-ganador, .aj-fila {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: var(--bg-secondary, #f9fafb);
+}
+.aj-ganador > span, .aj-avatar { font-size: 1.4rem; line-height: 1; }
+.aj-ganador > div, .aj-info { flex: 1; min-width: 0; }
+.aj-ganador strong, .aj-info strong { display: block; font-size: 0.92rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.aj-ganador small, .aj-info small { display: block; font-size: 0.78rem; opacity: 0.7; }
+.aj-ganador em {
+  font-style: normal;
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(245, 158, 11, 0.18);
+  color: #b45309;
+}
+.aj-ganador.entregado em { background: rgba(22, 163, 74, 0.15); color: #15803d; }
+
+.aj-fila.oculto { opacity: 0.55; }
+.aj-fila.oculto strong { text-decoration: line-through; }
+
+.aj-acciones { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.aj-btn {
+  border: 1px solid var(--border-color, #d1d5db);
+  background: transparent;
+  color: inherit;
+  border-radius: 8px;
+  padding: 5px 9px;
+  font-size: 0.78rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.aj-btn--ocultar:hover { border-color: #dc2626; color: #dc2626; }
+
+@media (max-width: 480px) {
+  .aj-fila { flex-wrap: wrap; }
+  .aj-acciones { width: 100%; justify-content: flex-start; padding-left: 34px; }
+}

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import Podio from './Podio';
-import { useJuegosActivos, juegoPorId, AVATARES, leerPerfil, guardarPerfil, mejorLocal, registrarMejorLocal, enviarPuntaje } from './comunes';
+import { useJuegosActivos, juegoPorId, AVATARES, leerPerfil, guardarPerfil, mejorLocal, registrarMejorLocal, enviarPuntaje, guardarCodigo } from './comunes';
 import JuegoMemoria from './JuegoMemoria';
 import JuegoCulebrita from './JuegoCulebrita';
 import JuegoToque from './JuegoToque';
@@ -86,6 +86,7 @@ const MarcoJuego = () => {
         juego: juegoId, nombre: perfil.nombre, avatar: perfil.avatar,
         puntaje: resultado.puntaje, duracion: resultado.duracion
       });
+      guardarCodigo(moduloId, r.codigo);
       setGuardado(r);
       setRecargaPodio(n => n + 1);
     } catch (err) {
