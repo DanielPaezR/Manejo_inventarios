@@ -15,22 +15,24 @@ const MENU = {
   super_admin: [
     { path: '/negocios', icon: Building2, label: 'Negocios' }
   ],
+  // Agrupado por para qué se usa cada cosa: vender, la mercancía, los
+  // clientes, la plata, el análisis y los ajustes.
   admin: [
-    { path: '/ventas', icon: ShoppingCart, label: 'Ventas' },
-    { path: '/productos', icon: Package, label: 'Productos' },
-    { path: '/inventario', icon: ClipboardCheck, label: 'Inventario' },
-    { path: '/estadisticas', icon: ChartColumn, label: 'Estadísticas' },
-    { path: '/reportes', icon: FileText, label: 'Reportes' },
-    { path: '/proveedores', icon: Truck, label: 'Proveedores' },
-    { path: '/pedidos', icon: ClipboardList, label: 'Mis pedidos' },
-    { path: '/pedidos-cliente', icon: ReceiptText, label: 'Pedidos de Clientes' },
-    { path: '/ruta-entregas', icon: Bike, label: 'Ruta de Entregas' },
-    { path: '/clientes', icon: Users, label: 'Clientes' },
-    { path: '/facturas', icon: FileSearch, label: 'Facturas' },
-    { path: '/finanzas', icon: Wallet, label: 'Finanzas' },
-    { path: '/finanzas-negocio', icon: Landmark, label: 'Finanzas del Negocio' },
-    { path: '/marketing', icon: Megaphone, label: 'Marketing' },
-    { path: '/configuracion', icon: Settings, label: 'Configuración' }
+    { path: '/ventas', icon: ShoppingCart, label: 'Ventas', grupo: 'Vender' },
+    { path: '/pedidos-cliente', icon: ReceiptText, label: 'Pedidos de clientes', grupo: 'Vender' },
+    { path: '/ruta-entregas', icon: Bike, label: 'Ruta de entregas', grupo: 'Vender' },
+    { path: '/facturas', icon: FileSearch, label: 'Facturas', grupo: 'Vender' },
+    { path: '/productos', icon: Package, label: 'Productos', grupo: 'Mercancía' },
+    { path: '/inventario', icon: ClipboardCheck, label: 'Inventario', grupo: 'Mercancía' },
+    { path: '/proveedores', icon: Truck, label: 'Proveedores', grupo: 'Mercancía' },
+    { path: '/pedidos', icon: ClipboardList, label: 'Mis pedidos', grupo: 'Mercancía' },
+    { path: '/clientes', icon: Users, label: 'Clientes', grupo: 'Clientes' },
+    { path: '/marketing', icon: Megaphone, label: 'Marketing', grupo: 'Clientes' },
+    { path: '/finanzas', icon: Wallet, label: 'Caja y bolsillos', grupo: 'Dinero' },
+    { path: '/finanzas-negocio', icon: Landmark, label: 'Finanzas del negocio', grupo: 'Dinero' },
+    { path: '/estadisticas', icon: ChartColumn, label: 'Estadísticas', grupo: 'Análisis' },
+    { path: '/reportes', icon: FileText, label: 'Reportes', grupo: 'Análisis' },
+    { path: '/configuracion', icon: Settings, label: 'Configuración', grupo: 'Ajustes' }
   ],
   trabajador: [
     { path: '/ventas', icon: ShoppingCart, label: 'Ventas' },
@@ -143,9 +145,14 @@ const Dashboard = ({ user, onLogout, onRefrescarPermisos }) => {
 
         <nav className="sidebar-nav">
           <ul className="nav-menu">
-            {items.map(({ path, icon: Icon, label }) => (
+            {items.map(({ path, icon: Icon, label, grupo }, i) => (
+              <React.Fragment key={path}>
+              {grupo && grupo !== items[i - 1]?.grupo && (
+                sidebarCollapsed
+                  ? (i > 0 && <li className="nav-separador" aria-hidden="true" />)
+                  : <li className="nav-grupo">{grupo}</li>
+              )}
               <li
-                key={path}
                 className={`nav-item ${location.pathname === path ? 'active' : ''}`}
                 title={sidebarCollapsed ? label : ''}
               >
@@ -157,6 +164,7 @@ const Dashboard = ({ user, onLogout, onRefrescarPermisos }) => {
                   )}
                 </Link>
               </li>
+              </React.Fragment>
             ))}
           </ul>
         </nav>

@@ -21,6 +21,8 @@ const GestionPromociones = ({ productos }) => {
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState('');
   const [mensaje, setMensaje] = useState('');
+  // Cuánto se vende al mes de cada producto (para las burbujas del combo).
+  const [ventasMes, setVentasMes] = useState({});
 
   const cargar = useCallback(() => {
     api.get('/promociones', { params: { todas: '1' } })
@@ -32,6 +34,15 @@ const GestionPromociones = ({ productos }) => {
   }, []);
 
   useEffect(() => { cargar(); }, [cargar]);
+
+  useEffect(() => {
+    if (!form) return;
+    form.items.filter(i => ventasMes[i.producto_id] === undefined).forEach(i => {
+      api.get(`/productos/${i.producto_id}/contexto`)
+        .then(r => setVentasMes(v => ({ ...v, [i.producto_id]: r.data.unidades_28 })))
+        .catch(() => setVentasMes(v => ({ ...v, [i.producto_id]: null })));
+    });
+  }, [form, ventasMes]);
 
   const porId = useMemo(() => new Map(productos.map(p => [p.id, p])), [productos]);
   const sugeridos = useMemo(() => {
@@ -117,16 +128,36 @@ const GestionPromociones = ({ productos }) => {
     let costo = 0;
     let costoCompleto = true;
     let disponibles = Infinity;
+    let limitante = null;
+    const lentos = [];
+    const rapidos = [];
     for (const i of form.items) {
       const p = porId.get(i.producto_id);
       if (!p) continue;
       normal += Number(p.precio_venta) * i.cantidad;
       if (Number(p.precio_compra) > 0) costo += Number(p.precio_compra) * i.cantidad;
       else costoCompleto = false;
-      if (!p.ignora_stock) disponibles = Math.min(disponibles, Math.floor(Number(p.stock_actual) / i.cantidad));
+      if (!p.ignora_stock) {
+        const alcanza = Math.floor(Number(p.stock_actual) / i.cantidad);
+        if (alcanza < disponibles) { disponibles = alcanza; limitante = p.nombre; }
+      }
+      const vendidos = ventasMes[i.producto_id];
+      if (vendidos !== undefined && vendidos !== null) {
+        if (vendidos <= 4) lentos.push({ nombre: p.nombre, vendidos });
+        else if (vendidos >= 40) rapidos.push({ nombre: p.nombre, vendidos });
+      }
     }
     const precio = Number(form.precio) || 0;
+    const gananciaSeparado = costoCompleto && costo > 0 ? normal - costo : null;
+    const gananciaCombo = costoCompleto && costo > 0 ? precio - costo : null;
     return {
+      gananciaSeparado,
+      sacrificio: gananciaSeparado !== null ? gananciaSeparado - gananciaCombo : null,
+      // Cuántas ventas más necesita la promo para ganar lo mismo en total.
+      ventasExtraPct: gananciaSeparado !== null && gananciaCombo > 0 ? Math.round((gananciaSeparado / gananciaCombo - 1) * 100) : null,
+      lentos,
+      rapidos,
+      limitante,
       normal,
       ahorro: normal - precio,
       ahorroPct: normal > 0 ? Math.round(((normal - precio) / normal) * 100) : 0,
@@ -225,15 +256,46 @@ const GestionPromociones = ({ productos }) => {
             </div>
 
             {resumen && Number(form.precio) > 0 && form.items.length > 0 && (
-              <div className="gp-campo gp-campo--ancho">
+              <div className="gp-campo gp-campo--ancho gp-analisis">
                 {resumen.ganancia === null ? (
-                  <Burbuja compacta icono="🏷️">Algún producto no tiene costo registrado, así que no se puede calcular cuánto te deja el combo.</Burbuja>
+                  <Burbuja compacta icono="🏷️">Algún producto no tiene costo registrado, así que no se puede calcular cuánto te deja el combo. Complétalo en Inventario.</Burbuja>
+                ) : resumen.ganancia <= 0 ? (
+                  <Burbuja compacta tono="ojo" icono="⚠️">
+                    Con este precio <b>pierdes {pesos(-resumen.ganancia)}</b> en cada combo: el precio no alcanza a cubrir lo que te cuestan los productos ({pesos(Number(form.precio) - resumen.ganancia)}).
+                  </Burbuja>
                 ) : (
-                  <Burbuja compacta tono={resumen.ganancia <= 0 ? 'ojo' : resumen.margen < 15 ? 'ojo' : 'bien'} icono="💰">
-                    {resumen.ganancia <= 0
-                      ? <>Con este precio pierdes {pesos(-resumen.ganancia)} en cada combo.</>
-                      : <>Cada combo te deja <b>{pesos(resumen.ganancia)}</b> ({resumen.margen}%).</>}
-                    {resumen.disponibles !== null && <> Con el stock actual alcanza para {resumen.disponibles} {resumen.disponibles === 1 ? 'combo' : 'combos'}.</>}
+                  <>
+                    <Burbuja compacta tono={resumen.margen < 15 ? 'ojo' : 'bien'} icono="💰">
+                      Cada combo te deja <b>{pesos(resumen.ganancia)}</b> ({resumen.margen}%). Vendiendo lo mismo por separado ganarías {pesos(resumen.gananciaSeparado)}.
+                    </Burbuja>
+                    {resumen.sacrificio > 0 && (
+                      <Burbuja compacta tono={resumen.sacrificio / resumen.gananciaSeparado > 0.6 ? 'ojo' : 'info'} icono="📉">
+                        Con el descuento dejas de ganar <b>{pesos(resumen.sacrificio)}</b> por combo: le estás regalando al cliente el {Math.round((resumen.sacrificio / resumen.gananciaSeparado) * 100)}% de tu ganancia.
+                        {' '}Por cada 10 combos son {pesos(resumen.sacrificio * 10)} menos.
+                      </Burbuja>
+                    )}
+                    {resumen.ventasExtraPct !== null && resumen.ventasExtraPct > 0 && (
+                      <Burbuja compacta icono="🎯">
+                        Para que la promoción valga la pena tienes que vender <b>{resumen.ventasExtraPct}% más</b> de estos productos que hoy
+                        {resumen.ventasExtraPct > 100 ? ' (más del doble). Es una meta alta: considera un descuento menor.' : '. Si el combo atrae clientes o mueve producto quieto, sales ganando.'}
+                      </Burbuja>
+                    )}
+                  </>
+                )}
+                {resumen.lentos.length > 0 && (
+                  <Burbuja compacta tono="bien" icono="🐢">
+                    Bien pensado: {resumen.lentos.map(l => `${l.nombre} (${l.vendidos} al mes)`).join(', ')} casi no se {resumen.lentos.length === 1 ? 'vende' : 'venden'}. El combo puede ayudar a moverlo{resumen.lentos.length === 1 ? '' : 's'}.
+                  </Burbuja>
+                )}
+                {resumen.rapidos.length > 0 && (
+                  <Burbuja compacta tono="ojo" icono="🔥">
+                    {resumen.rapidos.map(r => `${r.nombre} (~${r.vendidos} al mes)`).join(', ')} ya se {resumen.rapidos.length === 1 ? 'vende' : 'venden'} solo. Bajarle el precio a lo que ya rota puede quitarte plata sin necesidad; úsalo como gancho junto a algo que quieras mover.
+                  </Burbuja>
+                )}
+                {resumen.disponibles !== null && (
+                  <Burbuja compacta tono={resumen.disponibles < 5 ? 'ojo' : 'info'} icono="📦">
+                    Con el stock actual alcanza para <b>{resumen.disponibles} {resumen.disponibles === 1 ? 'combo' : 'combos'}</b>
+                    {resumen.limitante && resumen.disponibles < 20 ? ` (lo limita ${resumen.limitante})` : ''}.
                   </Burbuja>
                 )}
               </div>
