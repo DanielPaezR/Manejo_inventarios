@@ -38,6 +38,7 @@ const { aplicarMigraciones } = require('./src/helpers/migraciones');
 const { productosParaSimulador, mermas, ventasPorEquipo, clientesEnLinea, hoyRapido, miDia } = require('./src/helpers/analisisExtra');
 const { enviarResumenModulo, programarResumenSemanal } = require('./src/helpers/resumenSemanal');
 const sellos = require('./src/helpers/sellos');
+const planes = require('./src/helpers/planes');
 const { estadoBienvenida, guardarBienvenida } = require('./src/helpers/bienvenida');
 const { TIPOS: TIPOS_RECORDATORIO, leerConfig: leerConfigRecordatorios, construirAviso, enviarRecordatorio, programarRecordatorios } = require('./src/helpers/recordatorios');
 const { canalesDisponibles, normalizarTelefono } = require('./src/helpers/notificador');
@@ -592,6 +593,9 @@ app.post('/api/negocios/:id/modulos', authenticateToken, requireSuperAdmin, asyn
     if (!nombre || !nombre.trim()) {
       return res.status(400).json({ error: 'El nombre es requerido' });
     }
+
+    const limiteSedes = await planes.verificarLimite(pool, id, 'sedes');
+    if (limiteSedes.error) return res.status(403).json({ error: limiteSedes.error });
 
     const result = await pool.query(
       `INSERT INTO modulos (negocio_id, nombre, descripcion)
@@ -1415,7 +1419,16 @@ const guardarPromocion = async (req, res, id) => {
   }
 };
 
-app.post('/api/promociones', authenticateToken, checkAccess, requirePermiso('productos'), (req, res) => guardarPromocion(req, res, null));
+// Funciones que dependen del plan del negocio.
+const requiereFuncion = (funcion) => async (req, res, next) => {
+  try {
+    const plan = await planes.planDeModulo(pool, req.moduloId);
+    if (!planes.incluye(plan, funcion)) return res.status(403).json({ error: planes.mensajeBloqueo(plan, funcion), plan_bloqueado: funcion });
+  } catch { /* si no se puede leer el plan, no bloquea */ }
+  next();
+};
+
+app.post('/api/promociones', authenticateToken, checkAccess, requirePermiso('productos'), requiereFuncion('promociones'), (req, res) => guardarPromocion(req, res, null));
 
 app.put('/api/promociones/:id', authenticateToken, checkAccess, requirePermiso('productos'), (req, res) => {
   if (!/^\d+$/.test(req.params.id)) {
@@ -2328,6 +2341,34 @@ app.post('/api/modulos/:id/resumen-semanal/probar', authenticateToken, checkAcce
 
 // Metas de ventas/ganancia del módulo (las muestra el Resumen). Un valor
 // vacío o 0 quita esa meta.
+// ---- Plan del negocio ----
+app.get('/api/mi-plan', authenticateToken, checkAccess, async (req, res) => {
+  try {
+    const { plan, uso } = await planes.usoDelNegocio(pool, req.negocioId);
+    res.json({ plan, uso, funciones: planes.FUNCIONES });
+  } catch (error) {
+    console.error('Error leyendo el plan:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+app.get('/api/planes', authenticateToken, requireSuperAdmin, (req, res) => {
+  res.json({ planes: planes.PLANES, funciones: planes.FUNCIONES });
+});
+
+app.put('/api/negocios/:id/plan', authenticateToken, requireSuperAdmin, async (req, res) => {
+  try {
+    const plan = req.body?.plan || null;
+    if (plan !== null && !planes.PLANES[plan]) return res.status(400).json({ error: 'Plan no válido' });
+    const { rows: [n] } = await pool.query('UPDATE negocios SET plan = $1 WHERE id = $2 RETURNING id, plan', [plan, req.params.id]);
+    if (!n) return res.status(404).json({ error: 'Negocio no encontrado' });
+    res.json(await planes.usoDelNegocio(pool, n.id));
+  } catch (error) {
+    console.error('Error cambiando el plan:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
 // ---- Asistente de bienvenida (primeros pasos de un negocio nuevo) ----
 app.get('/api/bienvenida', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
   try {
@@ -7478,6 +7519,9 @@ app.post('/api/negocios/:id/usuarios', authenticateToken, requireSuperAdmin, asy
       return res.status(400).json({ error: 'Rol inválido' });
     }
 
+    const limiteUsuarios = await planes.verificarLimite(pool, id, 'usuarios');
+    if (limiteUsuarios.error) return res.status(403).json({ error: limiteUsuarios.error });
+
     const usuarioExistente = await pool.query(
       'SELECT id FROM usuarios WHERE email = $1 AND negocio_id = $2',
       [email, id]
@@ -8375,7 +8419,7 @@ app.get('/api/menu/:moduloId', async (req, res) => {
           ? Number(moduloResult.rows[0].bot_envio_costo) : null,
         // El asistente solo aparece si el negocio lo encendió y el servidor
         // tiene la clave de la API configurada.
-        bot_activo: moduloResult.rows[0].bot_activo && botDisponible(),
+        bot_activo: moduloResult.rows[0].bot_activo && botDisponible() && await planes.moduloIncluye(pool, moduloId, 'asistente'),
         // Nombre y saludo que el negocio eligió para su asistente.
         bot_nombre: limpiarEstilo(moduloResult.rows[0].bot_estilo).nombre_asistente || null,
         bot_saludo: limpiarEstilo(moduloResult.rows[0].bot_estilo).saludo || null,
@@ -8384,7 +8428,9 @@ app.get('/api/menu/:moduloId', async (req, res) => {
       },
       productos: productosResult.rows,
       // Si la tabla de promociones aún no existe, el menú sigue funcionando.
-      promociones: await cargarPromociones(pool, moduloId, { soloDisponibles: true }).catch(() => [])
+      promociones: await planes.moduloIncluye(pool, moduloId, 'promociones')
+        ? await cargarPromociones(pool, moduloId, { soloDisponibles: true }).catch(() => [])
+        : []
     });
   } catch (error) {
     console.error('Error obteniendo menú público:', error);
@@ -8397,7 +8443,7 @@ app.get('/api/menu/:moduloId', async (req, res) => {
 const juegosActivos = async (moduloId) => {
   try {
     const { rows: [m] } = await pool.query('SELECT juegos_activos FROM modulos WHERE id = $1', [moduloId]);
-    return m ? m.juegos_activos !== false : false;
+    return m ? m.juegos_activos !== false && await planes.moduloIncluye(pool, moduloId, 'juegos') : false;
   } catch {
     return true;
   }
@@ -8490,7 +8536,7 @@ app.get('/api/sellos', authenticateToken, checkAccess, async (req, res) => {
   }
 });
 
-app.put('/api/sellos/config', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+app.put('/api/sellos/config', authenticateToken, checkAccess, requireAdmin, requiereFuncion('sellos'), async (req, res) => {
   try {
     const premio = String(req.body?.premio || '').trim();
     if (req.body?.activo === true && !premio) return res.status(400).json({ error: 'Escribe cuál es el premio' });
@@ -8504,7 +8550,7 @@ app.put('/api/sellos/config', authenticateToken, checkAccess, requireAdmin, asyn
   }
 });
 
-app.post('/api/sellos/sellar', authenticateToken, checkAccess, async (req, res) => {
+app.post('/api/sellos/sellar', authenticateToken, checkAccess, requiereFuncion('sellos'), async (req, res) => {
   try {
     const r = await sellos.sellarManual(pool, req.moduloId, req.body?.telefono,
       { nombre: req.body?.nombre, usuarioId: req.user.id, cantidad: req.body?.cantidad ?? 1 });
@@ -8543,7 +8589,7 @@ app.get('/api/juegos/admin', authenticateToken, checkAccess, requireAdmin, async
   }
 });
 
-app.put('/api/juegos/admin/premio', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+app.put('/api/juegos/admin/premio', authenticateToken, checkAccess, requireAdmin, requiereFuncion('juegos'), async (req, res) => {
   try {
     const descripcion = String(req.body?.descripcion || '').trim().slice(0, 120);
     const activo = req.body?.activo === true;
@@ -8675,7 +8721,7 @@ app.post('/api/menu/:moduloId/bot', async (req, res) => {
       return res.status(503).json({ error: 'El asistente no está disponible en este momento' });
     }
     const contexto = await cargarContextoBot(moduloId);
-    if (!contexto || !contexto.modulo.bot_activo) {
+    if (!contexto || !contexto.modulo.bot_activo || !(await planes.moduloIncluye(pool, moduloId, 'asistente'))) {
       return res.status(404).json({ error: 'Asistente no disponible' });
     }
     if (!botPermitidoParaIp(ipCliente(req))) {
@@ -8765,6 +8811,10 @@ app.get('/api/modulos/:id/bot', authenticateToken, checkAccess, requireAdmin, as
 
 app.put('/api/modulos/:id/bot', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
   try {
+    if (req.body.bot_activo === true && !(await planes.moduloIncluye(pool, req.params.id, 'asistente'))) {
+      const plan = await planes.planDeModulo(pool, req.params.id);
+      return res.status(403).json({ error: planes.mensajeBloqueo(plan, 'asistente') });
+    }
     const texto = (v, max) => (typeof v === 'string' && v.trim() ? v.trim().slice(0, max) : null);
     let costo = null;
     if (req.body.bot_envio_costo !== null && req.body.bot_envio_costo !== undefined && req.body.bot_envio_costo !== '') {

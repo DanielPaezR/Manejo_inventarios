@@ -50,6 +50,24 @@ const Negocios = ({ user }) => {
     }
   };
 
+  const PLANES = [
+    { id: '', nombre: 'Sin límites' },
+    { id: 'emprende', nombre: 'Emprende' },
+    { id: 'negocio', nombre: 'Negocio' },
+    { id: 'multisede', nombre: 'Multisede' }
+  ];
+  const cambiarPlan = async (negocio, plan) => {
+    try {
+      await api.put(`/negocios/${negocio.id}/plan`, { plan: plan || null });
+      setNegocios(prev => prev.map(n => (n.id === negocio.id ? { ...n, plan: plan || null } : n)));
+      setMensaje(`✅ ${negocio.nombre} ahora tiene el plan ${PLANES.find(p => p.id === plan)?.nombre}`);
+    } catch (error) {
+      setMensaje(`❌ ${error.response?.data?.error || 'No se pudo cambiar el plan'}`);
+    } finally {
+      setTimeout(() => setMensaje(''), 4000);
+    }
+  };
+
   const cargarUsuariosNegocio = async (negocioId) => {
     try {
       const response = await api.get(`/negocios/${negocioId}/usuarios`);
@@ -591,6 +609,12 @@ const Negocios = ({ user }) => {
               )}
               <p><strong>🏷️ Tipo:</strong> {negocio.tipo === 'tienda' ? 'Tienda' : 'Restaurante / estadero'}</p>
               <p><strong>📅 Creado:</strong> {new Date(negocio.fecha_creacion).toLocaleDateString()}</p>
+              <label className="negocio-plan">
+                <strong>📦 Plan:</strong>
+                <select value={negocio.plan || ''} onChange={(e) => cambiarPlan(negocio, e.target.value)}>
+                  {PLANES.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
+                </select>
+              </label>
               {!negocio.activo && negocio.motivo_desactivacion && (
                 <p className="negocio-motivo-desactivacion">
                   <strong>⚠️ Motivo de desactivación:</strong> {negocio.motivo_desactivacion}

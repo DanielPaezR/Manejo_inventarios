@@ -1,0 +1,74 @@
+.pn {
+  background:
+    radial-gradient(circle at 100% 0%, rgba(99, 102, 241, 0.12), transparent 50%),
+    var(--surface);
+}
+.pn__cabecera small {
+  font-size: 0.72rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  opacity: 0.6;
+}
+.pn__cabecera h3 {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  margin: 2px 0 4px;
+  font-size: 1.3rem;
+}
+.pn__cabecera h3 svg { color: #6366f1; }
+
+.pn__limites {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin: 12px 0;
+}
+.pn__limite {
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--surface-subtle);
+}
+.pn__limite span { display: block; font-size: 0.78rem; opacity: 0.7; }
+.pn__limite b { display: block; font-size: 1.05rem; font-variant-numeric: tabular-nums; }
+.pn__limite small { font-size: 0.75rem; opacity: 0.6; }
+.pn__barra { height: 6px; margin-top: 6px; border-radius: 999px; background: var(--border); overflow: hidden; }
+.pn__barra span { display: block; height: 100%; border-radius: inherit; background: #6366f1; }
+.pn__barra.lleno span { background: #f59e0b; }
+
+.pn__funciones {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 6px 14px;
+  font-size: 0.88rem;
+}
+.pn__funciones li { display: flex; align-items: center; gap: 8px; }
+.pn__funciones li > span {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+.pn__funciones li.si > span { background: #16a34a; color: #fff; }
+.pn__funciones li.no { opacity: 0.55; }
+.pn__funciones li.no > span { background: var(--border); }
+
+.pn-bloqueo { display: flex; gap: 12px; align-items: flex-start; opacity: 0.85; }
+.pn-bloqueo .conf-titulo { margin-bottom: 2px; }
+.pn-bloqueo__icono {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  border-radius: 10px;
+  background: var(--surface-subtle);
+}

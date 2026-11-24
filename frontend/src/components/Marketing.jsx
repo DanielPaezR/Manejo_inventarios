@@ -10,6 +10,7 @@ import { dibujarFlyer, PLANTILLAS, FORMATOS, cargarFuentes } from '../utils/flye
 import './PedidosCliente.css';
 import './ConfiguracionNegocio.css';
 import './Marketing.css';
+import { BloqueoPlan } from './PlanNegocio';
 
 // Marketing: todo lo que ve el cliente y cómo llegarle. El enlace del menú
 // (copiar, compartir, QR para imprimir), cómo se ve el menú, y el creador
@@ -323,6 +324,7 @@ const Marketing = ({ user }) => {
       </div>
 
       {/* ========== Creador de flyers ========== */}
+      <BloqueoPlan titulo="Flyers para redes" funcion="marketing">
       <div className="card conf-card">
         <h3 className="conf-titulo"><Sparkles size={18} /> Crea un flyer para redes</h3>
         <p className="conf-ayuda">Elige qué quieres promocionar, una plantilla y el formato. Puedes cambiar los textos; el flyer se actualiza al instante y lo descargas o lo compartes directo.</p>
@@ -436,6 +438,7 @@ const Marketing = ({ user }) => {
           </div>
         </div>
       </div>
+      </BloqueoPlan>
 
       {/* ========== Apariencia del menú ========== */}
       <div className="card conf-card">

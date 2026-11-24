@@ -5,6 +5,7 @@ import { tienePermiso } from '../utils/permisos';
 import SubidaImagen from './SubidaImagen';
 import Burbuja from './Burbuja';
 import GestionPromociones from './GestionPromociones';
+import { BloqueoPlan } from './PlanNegocio';
 import './Productos.css';
 
 const Productos = ({ user }) => {
@@ -278,7 +279,9 @@ Sus ${cantidad} producto(s) pasarán a "General".`
         )}
       </div>
 
-      {puedeEditar && productos.length > 0 && <GestionPromociones productos={productos} />}
+      {puedeEditar && productos.length > 0 && (
+        <BloqueoPlan titulo="Promociones y combos" funcion="promociones"><GestionPromociones productos={productos} /></BloqueoPlan>
+      )}
 
       {loading ? (
         <div className="loading">Cargando productos...</div>

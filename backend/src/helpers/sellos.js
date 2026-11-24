@@ -4,6 +4,7 @@
 // local). Al llegar a la meta, el negocio entrega el premio y se descuentan
 // los sellos. La configuración vive en modulos.sellos y los movimientos en
 // sellos_movimientos (saldo = suma de cantidad).
+const { moduloIncluye } = require('./planes');
 
 // El teléfono se guarda como los últimos 10 dígitos (celular colombiano
 // sin indicativo), así "300 123 4567" y "+57 3001234567" son el mismo.
@@ -27,7 +28,10 @@ function leerConfig(valor) {
 
 async function configDe(db, moduloId) {
   const { rows: [m] } = await db.query('SELECT sellos FROM modulos WHERE id = $1', [moduloId]);
-  return leerConfig(m?.sellos);
+  const config = leerConfig(m?.sellos);
+  // Si el plan del negocio no incluye sellos, la tarjeta queda apagada.
+  if (config.activo && !(await moduloIncluye(db, moduloId, 'sellos'))) config.activo = false;
+  return config;
 }
 
 async function saldoDe(db, moduloId, telefono) {

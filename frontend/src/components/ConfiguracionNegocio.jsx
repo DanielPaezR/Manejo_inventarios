@@ -10,6 +10,7 @@ import AdminJuegos from './AdminJuegos';
 import ConfigRecordatorios from './ConfigRecordatorios';
 import ConfigSellos from './ConfigSellos';
 import { VolverPrimerosPasos } from './PrimerosPasos';
+import { TarjetaPlan, BloqueoPlan } from './PlanNegocio';
 import ConfigResumenSemanal from './ConfigResumenSemanal';
 import { IconoHoja, obtenerColorPlaceholder } from '../utils/menuVisual';
 import { textosNegocio, tipoNegocioUsuario } from '../utils/tipoNegocio';
@@ -153,6 +154,8 @@ const ConfiguracionNegocio = ({ user }) => {
         <div className={`mensaje-flotante ${mensaje.includes('✅') ? 'exito' : 'error'}`}>{mensaje}</div>
       )}
 
+      <TarjetaPlan />
+
       <div className="card conf-card conf-aviso-marketing">
         <p className="conf-ayuda">
           📣 El enlace de tu {textos.menu}, el código QR, la foto de portada y los flyers para redes ahora están en{' '}
@@ -185,7 +188,7 @@ const ConfiguracionNegocio = ({ user }) => {
         </div>
       </div>
 
-      {/* Zona de juegos */}
+      <BloqueoPlan titulo="Zona de juegos" funcion="juegos">
       <div className="card conf-card">
         <div className="conf-switch-fila">
           <div>
@@ -210,9 +213,12 @@ const ConfiguracionNegocio = ({ user }) => {
         </div>
         {juegosActivos && <AdminJuegos key={`juegos-${moduloActivo.id}`} moduloId={moduloActivo.id} avisar={avisar} />}
       </div>
+      </BloqueoPlan>
 
+      <BloqueoPlan titulo="Tarjeta de sellos" funcion="sellos">
       <ConfigSellos key={`sellos-${moduloActivo.id}`} moduloId={moduloActivo.id}
         negocio={moduloActivo.nombre_publico || moduloActivo.nombre} avisar={avisar} />
+      </BloqueoPlan>
 
       <ConfigResumenSemanal key={`resumen-${moduloActivo.id}`} moduloId={moduloActivo.id} avisar={avisar} />
 
@@ -222,7 +228,9 @@ const ConfiguracionNegocio = ({ user }) => {
 
       <VolverPrimerosPasos key={`pasos-${moduloActivo.id}`} avisar={avisar} />
 
-      <ConfigAsistente key={moduloActivo.id} moduloId={moduloActivo.id} textos={textos} avisar={avisar} />
+      <BloqueoPlan titulo="Asistente automático" funcion="asistente">
+        <ConfigAsistente key={moduloActivo.id} moduloId={moduloActivo.id} textos={textos} avisar={avisar} />
+      </BloqueoPlan>
 
     </div>
   );
