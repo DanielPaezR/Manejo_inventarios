@@ -23,6 +23,7 @@ import MenuPublico from './components/MenuPublico';
 import MenuPedidoConfirmacion from './components/MenuPedidoConfirmacion';
 import Juegos from './components/juegos/Juegos';
 import JuegoDomino from './components/juegos/JuegoDomino';
+import MarcoJuego from './components/juegos/MarcoJuego';
 import api from './services/api';
 import './App.css';
 
@@ -107,6 +108,7 @@ function App() {
             <Route path="/menu/:moduloId/pedido/:token" element={<MenuPedidoConfirmacion />} />
             <Route path="/menu/:moduloId/juegos" element={<Juegos />} />
             <Route path="/menu/:moduloId/juegos/domino" element={<JuegoDomino />} />
+            <Route path="/menu/:moduloId/juegos/:juegoId" element={<MarcoJuego />} />
             <Route
               path="/"
               element={

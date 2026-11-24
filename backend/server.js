@@ -33,6 +33,7 @@ const OpenAI = require('openai');
 const { botDisponible, responder: responderBot, limpiarEstilo } = require('./src/helpers/asistenteBot');
 const { construirResumen, construirAntesYAhora, metricasPeriodo } = require('./src/helpers/resumenNegocio');
 const { cargarPromociones, expandirDetalles, limpiarPromocion } = require('./src/helpers/promociones');
+const { guardarPuntaje, podio: podioJuego, campeones: campeonesJuegos } = require('./src/helpers/juegos');
 const { productosParaSimulador, mermas, ventasPorEquipo, clientesEnLinea, hoyRapido, miDia } = require('./src/helpers/analisisExtra');
 const { enviarResumenModulo, programarResumenSemanal } = require('./src/helpers/resumenSemanal');
 const { canalesDisponibles, normalizarTelefono } = require('./src/helpers/notificador');
@@ -8285,6 +8286,41 @@ app.get('/api/menu/:moduloId', async (req, res) => {
   } catch (error) {
     console.error('Error obteniendo menú público:', error);
     res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// ==================== ZONA DE JUEGOS DEL MENÚ ====================
+// Puntajes y podio por negocio. Públicas (sin sesión); si la tabla aún no
+// existe, el podio sale vacío y guardar avisa que todavía no está activo.
+app.get('/api/menu/:moduloId/juegos/podio', async (req, res) => {
+  try {
+    if (!/^\d+$/.test(req.params.moduloId)) return res.json([]);
+    res.json(await podioJuego(pool, req.params.moduloId, String(req.query.juego || ''), req.query.periodo === 'semana' ? 'semana' : 'siempre'));
+  } catch (error) {
+    console.error('Error leyendo el podio:', error.message);
+    res.json([]);
+  }
+});
+
+app.get('/api/menu/:moduloId/juegos/campeones', async (req, res) => {
+  try {
+    if (!/^\d+$/.test(req.params.moduloId)) return res.json({});
+    res.json(await campeonesJuegos(pool, req.params.moduloId));
+  } catch (error) {
+    console.error('Error leyendo campeones:', error.message);
+    res.json({});
+  }
+});
+
+app.post('/api/menu/:moduloId/juegos/puntajes', async (req, res) => {
+  try {
+    if (!/^\d+$/.test(req.params.moduloId)) return res.status(404).json({ error: 'Juegos no disponibles' });
+    const r = await guardarPuntaje(pool, req.params.moduloId, ipCliente(req), req.body || {});
+    if (r.error) return res.status(r.status).json({ error: r.error });
+    res.status(201).json(r.datos);
+  } catch (error) {
+    console.error('Error guardando puntaje:', error.message);
+    res.status(503).json({ error: 'El podio todavía no está disponible' });
   }
 });
 
