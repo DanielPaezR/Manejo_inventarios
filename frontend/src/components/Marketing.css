@@ -1,0 +1,348 @@
+.mk {
+  max-width: 1120px;
+}
+
+/* ---------- Enlace y QR ---------- */
+.mk-enlace {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.mk-enlace__datos {
+  flex: 1;
+  min-width: 0;
+}
+
+.mk-enlace__qr {
+  width: 132px;
+  height: 132px;
+  flex-shrink: 0;
+  padding: 6px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: #fff;
+}
+
+/* ---------- Creador de flyers ---------- */
+.mk-flyer {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 420px);
+  gap: 24px;
+  margin-top: 8px;
+}
+
+.mk-controles {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-width: 0;
+}
+
+.mk-paso {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.mk-paso__titulo {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--text-strong);
+}
+
+.mk-segmento {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 12px;
+  background: var(--surface-subtle);
+}
+
+.mk-segmento button {
+  flex: 1 1 auto;
+  padding: 9px 12px;
+  border: none;
+  border-radius: 9px;
+  background: none;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text-muted);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.mk-segmento button.activo {
+  background: var(--surface);
+  color: var(--text-strong);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.mk-segmento button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.mk-nota {
+  font-size: 12.5px;
+  color: var(--text-muted);
+}
+
+.mk-input,
+.mk-campo input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm, 8px);
+  background: var(--surface);
+  font-size: 14px;
+  font-family: inherit;
+}
+
+.mk-opciones {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 8px;
+  max-height: 290px;
+  overflow-y: auto;
+  padding: 2px;
+}
+
+.mk-opciones button {
+  display: grid;
+  grid-template-columns: 40px 1fr;
+  grid-template-rows: auto auto;
+  align-items: center;
+  gap: 2px 10px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  text-align: left;
+  cursor: pointer;
+}
+
+.mk-opciones button.activa {
+  border-color: var(--brand);
+  box-shadow: 0 0 0 2px var(--brand);
+}
+
+.mk-opciones img,
+.mk-opciones__sin {
+  grid-row: 1 / 3;
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  object-fit: cover;
+}
+
+.mk-opciones__sin {
+  display: grid;
+  place-items: center;
+  background: var(--surface-subtle);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.mk-opciones button > span:not(.mk-opciones__sin) {
+  overflow: hidden;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.mk-opciones button small {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.mk-plantillas {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.mk-plantilla {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.mk-plantilla:hover {
+  transform: translateY(-2px);
+}
+
+.mk-plantilla.activa {
+  border-color: var(--brand);
+  box-shadow: 0 0 0 2px var(--brand);
+}
+
+.mk-plantilla__canvas {
+  width: 100%;
+  border-radius: 8px;
+  background: var(--surface-subtle);
+}
+
+.mk-plantilla__canvas--post {
+  aspect-ratio: 4 / 5;
+}
+
+.mk-plantilla__canvas--historia {
+  aspect-ratio: 9 / 16;
+}
+
+.mk-plantilla strong {
+  font-size: 13px;
+}
+
+.mk-plantilla small {
+  font-size: 11.5px;
+  color: var(--text-muted);
+  line-height: 1.3;
+}
+
+.mk-colores {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.mk-colores button {
+  width: 32px;
+  height: 32px;
+  border: 3px solid var(--surface);
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px var(--border);
+  cursor: pointer;
+}
+
+.mk-colores button.activo {
+  box-shadow: 0 0 0 2px var(--text-strong);
+}
+
+.mk-campo {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.mk-campo > span {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-default);
+}
+
+.mk-checks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  font-size: 13.5px;
+}
+
+.mk-checks label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.mk-vista {
+  position: sticky;
+  top: 16px;
+  align-self: start;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.mk-vista__marco {
+  overflow: hidden;
+  border-radius: 16px;
+  background: var(--surface-subtle);
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.18);
+  transition: opacity 0.2s ease;
+}
+
+.mk-vista__marco--post {
+  aspect-ratio: 4 / 5;
+}
+
+.mk-vista__marco--historia {
+  aspect-ratio: 9 / 16;
+  max-height: 70vh;
+  margin: 0 auto;
+}
+
+.mk-vista__marco.dibujando {
+  opacity: 0.85;
+}
+
+.mk-vista__marco canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.mk-vista__acciones {
+  display: flex;
+  gap: 8px;
+}
+
+.mk-vista__acciones .conf-btn {
+  flex: 1;
+}
+
+.mk-vista__vacia {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  aspect-ratio: 4 / 5;
+  border: 2px dashed var(--border);
+  border-radius: 16px;
+  color: var(--text-muted);
+  text-align: center;
+  padding: 20px;
+}
+
+@media (max-width: 900px) {
+  .mk-flyer {
+    grid-template-columns: 1fr;
+  }
+
+  .mk-vista {
+    position: static;
+    order: -1;
+  }
+
+  .mk-vista__marco--post {
+    max-width: 420px;
+    width: 100%;
+    margin: 0 auto;
+  }
+
+  .mk-plantillas {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .mk-enlace {
+    flex-direction: column-reverse;
+    align-items: stretch;
+  }
+
+  .mk-enlace__qr {
+    align-self: center;
+  }
+}

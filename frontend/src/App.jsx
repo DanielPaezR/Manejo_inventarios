@@ -18,6 +18,7 @@ import FinanzasNegocio from './components/FinanzasNegocio';
 import PedidosCliente from './components/PedidosCliente';
 import RutaEntregas from './components/RutaEntregas';
 import ConfiguracionNegocio from './components/ConfiguracionNegocio';
+import Marketing from './components/Marketing';
 import MenuPublico from './components/MenuPublico';
 import MenuPedidoConfirmacion from './components/MenuPedidoConfirmacion';
 import api from './services/api';
@@ -124,6 +125,7 @@ function App() {
               <Route path="pedidos-cliente" element={<PedidosCliente user={user} />} />
               <Route path="ruta-entregas" element={<RutaEntregas user={user} />} />
               <Route path="configuracion" element={<ConfiguracionNegocio user={user} />} />
+              <Route path="marketing" element={<Marketing user={user} />} />
             </Route>
           </Routes>
         </div>

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link2, Copy, Check, ExternalLink, Bike, Store, MessageCircle } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import api from '../services/api';
 import { useModulo } from '../hooks/useModulo';
 import SubidaImagen from './SubidaImagen';
@@ -131,27 +132,11 @@ const ConfiguracionNegocio = ({ user }) => {
         <div className={`mensaje-flotante ${mensaje.includes('✅') ? 'exito' : 'error'}`}>{mensaje}</div>
       )}
 
-      {/* Enlace del menú/catálogo */}
-      <div className="card conf-card">
-        <h3 className="conf-titulo"><Link2 size={18} /> Enlace de tu {textos.menu}</h3>
+      <div className="card conf-card conf-aviso-marketing">
         <p className="conf-ayuda">
-          Compártelo con tus clientes (WhatsApp, redes, un código QR en el local) para que vean
-          tus productos y te hagan pedidos. Los pedidos llegan a <strong>Pedidos de Clientes</strong>.
+          📣 El enlace de tu {textos.menu}, el código QR, la foto de portada y los flyers para redes ahora están en{' '}
+          <Link to="/marketing"><strong>Marketing</strong></Link>.
         </p>
-        <div className="conf-enlace">
-          <input type="text" readOnly value={urlMenu} onFocus={(e) => e.target.select()} aria-label={`Enlace del ${textos.menu}`} />
-          <button type="button" className={`conf-btn conf-btn-primario ${copiado ? 'copiado' : ''}`} onClick={copiarEnlace}>
-            {copiado ? <><Check size={16} /> Copiado</> : <><Copy size={16} /> Copiar</>}
-          </button>
-        </div>
-        <div className="conf-acciones">
-          <a className="conf-btn" href={urlMenu} target="_blank" rel="noreferrer">
-            <ExternalLink size={16} /> Abrir {textos.menu}
-          </a>
-          <button type="button" className="conf-btn" onClick={compartirWhatsApp}>
-            <MessageCircle size={16} /> Compartir por WhatsApp
-          </button>
-        </div>
       </div>
 
       {/* Domicilios */}
@@ -185,49 +170,6 @@ const ConfiguracionNegocio = ({ user }) => {
 
       <ConfigAsistente key={moduloActivo.id} moduloId={moduloActivo.id} textos={textos} avisar={avisar} />
 
-      {/* Apariencia del menú/catálogo */}
-      <div className="card conf-card">
-        <h3 className="conf-titulo"><Store size={18} /> Cómo se ve tu {textos.menu}</h3>
-        <p className="conf-ayuda">Así lo ve tu cliente. Toca el nombre o la foto para cambiarlos.</p>
-
-        <div
-          className="mp-hero config-menu-preview"
-          style={!fotoPortadaUrl ? { background: obtenerColorPlaceholder(nombrePublico || moduloActivo.nombre) } : undefined}
-        >
-          {fotoPortadaUrl && <img src={fotoPortadaUrl} alt="" className="mp-hero__foto" />}
-          <div className="mp-hero__overlay" />
-          <div className="config-menu-foto-control">
-            <SubidaImagen valor={fotoPortadaUrl} onCambiar={setFotoPortadaUrl} botonTexto="📷 Cambiar foto" ocultarPreview />
-          </div>
-          <div className="mp-hero__contenido">
-            <span className="mp-hero__icono-wrap"><IconoHoja className="mp-hero__icono" /></span>
-            <div className="config-menu-nombre-wrap">
-              {editandoNombre ? (
-                <input
-                  type="text"
-                  className="mp-hero__nombre config-menu-nombre-input"
-                  value={nombrePublico}
-                  onChange={(e) => setNombrePublico(e.target.value)}
-                  onBlur={() => setEditandoNombre(false)}
-                  placeholder={moduloActivo.nombre}
-                  autoFocus
-                />
-              ) : (
-                <h1 className="mp-hero__nombre config-menu-nombre-editable" onClick={() => setEditandoNombre(true)} title="Clic para cambiar el nombre">
-                  {nombrePublico || moduloActivo.nombre} <span className="config-menu-lapiz">✏️</span>
-                </h1>
-              )}
-              <p className="mp-hero__tagline">{negocioNombre}</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="conf-acciones conf-acciones-fin">
-          <button type="button" onClick={guardarApariencia} disabled={guardando || !cargado} className="btn-guardar conf-btn-guardar">
-            {guardando ? 'Guardando...' : '💾 Guardar cambios'}
-          </button>
-        </div>
-      </div>
     </div>
   );
 };
