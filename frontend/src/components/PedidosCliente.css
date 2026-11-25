@@ -390,3 +390,13 @@
     width: 100%;
   }
 }
+
+/* Etapas: empacado / en camino */
+.btn-etapa-pedido-cliente {
+  background: #e9d8fd;
+  color: #553c9a;
+}
+
+.btn-etapa-pedido-cliente:hover:not(:disabled) {
+  background: #d6bcfa;
+}

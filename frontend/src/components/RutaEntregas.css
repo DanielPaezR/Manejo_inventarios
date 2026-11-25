@@ -380,3 +380,28 @@
   font-size: 12.5px;
   color: var(--text-muted);
 }
+
+/* Etapa del pedido y salida a repartir */
+.ruta-entregas-btn-salir {
+  width: 100%;
+  margin: 4px 0 12px;
+  padding: 10px 14px;
+  border: none;
+  border-radius: 10px;
+  background: #fefcbf;
+  color: #744210;
+  font-weight: 700;
+  cursor: pointer;
+}
+.ruta-entregas-btn-salir:disabled { opacity: 0.6; cursor: not-allowed; }
+.ruta-entregas-etapa {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  vertical-align: middle;
+}
+.ruta-entregas-etapa--empacado { background: #e9d8fd; color: #553c9a; }
+.ruta-entregas-etapa--en_camino { background: #fefcbf; color: #744210; }

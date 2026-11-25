@@ -21,6 +21,7 @@ import ConfiguracionNegocio from './components/ConfiguracionNegocio';
 import Marketing from './components/Marketing';
 import MenuPublico from './components/MenuPublico';
 import MenuPedidoConfirmacion from './components/MenuPedidoConfirmacion';
+import MisPedidosMenu from './components/MisPedidosMenu';
 import Juegos from './components/juegos/Juegos';
 import JuegoDomino from './components/juegos/JuegoDomino';
 import MarcoJuego from './components/juegos/MarcoJuego';
@@ -109,6 +110,7 @@ function App() {
             {/* Menú QR: páginas públicas standalone, sin login ni sidebar */}
             <Route path="/menu/:moduloId" element={<MenuPublico />} />
             <Route path="/menu/:moduloId/pedido/:token" element={<MenuPedidoConfirmacion />} />
+            <Route path="/menu/:moduloId/mis-pedidos" element={<MisPedidosMenu />} />
             <Route path="/menu/:moduloId/juegos" element={<Juegos />} />
             <Route path="/menu/:moduloId/juegos/domino" element={<JuegoDomino />} />
             <Route path="/menu/:moduloId/juegos/ajedrez" element={<RelojAjedrez />} />

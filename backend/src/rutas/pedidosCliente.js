@@ -633,6 +633,62 @@ module.exports = function registrarRutas(ctx) {
     }
   });
 
+  // Etapa de preparación de un pedido activo: 'empacado' (para recoger:
+  // listo para recoger) y 'en_camino' (solo domicilios); null lo devuelve a
+  // "recibido". Empacar un pedido pendiente lo da por confirmado. El cliente
+  // la ve en su pantalla del pedido y en "Mis pedidos" del menú. Entregarlo
+  // sigue siendo "Completar" (registra la venta).
+  app.put('/api/pedidos-cliente/:id/etapa', authenticateToken, checkAccess, async (req, res) => {
+    try {
+      const moduloId = req.moduloId;
+      if (!moduloId) {
+        return res.status(400).json({ error: 'Se requiere un módulo' });
+      }
+      const etapa = req.body?.etapa || null;
+      if (etapa !== null && !['empacado', 'en_camino'].includes(etapa)) {
+        return res.status(400).json({ error: 'Etapa no válida' });
+      }
+
+      const { rows: [pedido] } = await pool.query(
+        'SELECT id, estado, es_domicilio FROM pedidos_cliente WHERE id = $1 AND modulo_id = $2',
+        [req.params.id, moduloId]
+      );
+      if (!pedido) {
+        return res.status(404).json({ error: 'Pedido no encontrado' });
+      }
+      if (!['pendiente', 'confirmado'].includes(pedido.estado)) {
+        return res.status(400).json({ error: 'Este pedido ya fue entregado o cancelado' });
+      }
+      if (etapa === 'en_camino') {
+        if (!pedido.es_domicilio) {
+          return res.status(400).json({ error: 'Solo los pedidos a domicilio se envían' });
+        }
+        if (!(await planes.moduloIncluye(pool, moduloId, 'domicilios'))) {
+          const plan = await planes.planDeModulo(pool, moduloId);
+          return res.status(403).json({ error: planes.mensajeBloqueo(plan, 'domicilios'), plan_bloqueado: 'domicilios' });
+        }
+      }
+
+      // Las fechas guardan cuándo pasó por cada etapa; al devolverla se
+      // borran las de las etapas siguientes.
+      const { rows: [actualizado] } = await pool.query(
+        `UPDATE pedidos_cliente
+         SET etapa = $1::text,
+             estado = CASE WHEN $1::text IS NULL THEN estado ELSE 'confirmado' END,
+             fecha_empacado = CASE WHEN $1::text IS NULL THEN NULL ELSE COALESCE(fecha_empacado, NOW()) END,
+             fecha_en_camino = CASE WHEN $1::text = 'en_camino' THEN COALESCE(fecha_en_camino, NOW()) ELSE NULL END,
+             fecha_actualizacion = NOW()
+         WHERE id = $2
+         RETURNING *`,
+        [etapa, pedido.id]
+      );
+      res.json(actualizado);
+    } catch (error) {
+      console.error('Error cambiando la etapa del pedido:', error);
+      res.status(500).json({ error: 'Error interno del servidor' });
+    }
+  });
+
   // Borra de una sola vez todos los pedidos 'cancelado' del módulo activo,
   // para limpiar de golpe en vez de uno por uno. Registrada ANTES de
   // DELETE /:id para que Express no confunda "cancelados" con un :id.

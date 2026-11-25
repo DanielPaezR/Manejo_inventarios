@@ -13,6 +13,12 @@ const ESTADO_INFO = {
   cancelado: { color: '#e2e8f0', textColor: '#4a5568', label: '❌ Cancelado' }
 };
 
+// Etapa de preparación (pedido activo): se muestra en vez de "Confirmado".
+const ETAPA_INFO = {
+  empacado: { color: '#e9d8fd', textColor: '#553c9a', label: '📦 Empacado', labelRecoger: '🛍️ Listo para recoger' },
+  en_camino: { color: '#fefcbf', textColor: '#744210', label: '🛵 En camino' }
+};
+
 const formatearMoneda = (valor) => `$${Number(valor || 0).toLocaleString('es-CO')}`;
 
 // Conversión estándar de la llave pública VAPID (base64 URL-safe) al
@@ -212,6 +218,24 @@ const PedidosCliente = ({ user }) => {
     } catch (error) {
       console.error('Error confirmando pedido:', error);
       setMensaje(`❌ ${error.response?.data?.error || 'Error al confirmar el pedido'}`);
+    } finally {
+      setAccionEnCurso(null);
+      setTimeout(() => setMensaje(''), 4000);
+    }
+  };
+
+  // Empacado → en camino (domicilios). etapa null lo devuelve a recibido.
+  const cambiarEtapa = async (pedido, etapa) => {
+    try {
+      setAccionEnCurso(`${pedido.id}-etapa`);
+      await api.put(`/pedidos-cliente/${pedido.id}/etapa`, { etapa });
+      setMensaje(etapa === 'en_camino' ? '🛵 Pedido marcado en camino'
+        : etapa === 'empacado' ? (pedido.es_domicilio ? '📦 Pedido empacado' : '🛍️ Pedido listo para recoger')
+          : '↩️ Etapa deshecha');
+      cargarPedidos();
+    } catch (error) {
+      console.error('Error cambiando etapa:', error);
+      setMensaje(`❌ ${error.response?.data?.error || 'No se pudo cambiar la etapa del pedido'}`);
     } finally {
       setAccionEnCurso(null);
       setTimeout(() => setMensaje(''), 4000);
@@ -442,7 +466,10 @@ const PedidosCliente = ({ user }) => {
       ) : (
         <div className="pedidos-cliente-lista">
           {pedidos.map(pedido => {
-            const estado = ESTADO_INFO[pedido.estado] || ESTADO_INFO.pendiente;
+            const etapaInfo = ['pendiente', 'confirmado'].includes(pedido.estado) && ETAPA_INFO[pedido.etapa];
+            const estado = etapaInfo
+              ? { ...etapaInfo, label: !pedido.es_domicilio && etapaInfo.labelRecoger ? etapaInfo.labelRecoger : etapaInfo.label }
+              : (ESTADO_INFO[pedido.estado] || ESTADO_INFO.pendiente);
             const expandido = expandidoId === pedido.id;
             const editando = editandoId === pedido.id;
             const enAccion = accionEnCurso?.startsWith(`${pedido.id}-`);
@@ -606,6 +633,34 @@ const PedidosCliente = ({ user }) => {
                                 {accionEnCurso === `${pedido.id}-confirmar` ? 'Confirmando...' : '👀 Confirmar'}
                               </button>
                             )}
+                            {pedido.estado !== 'cancelado' && !pedido.etapa && (
+                              <button
+                                onClick={() => cambiarEtapa(pedido, 'empacado')}
+                                disabled={enAccion}
+                                className="btn-etapa-pedido-cliente"
+                              >
+                                {pedido.es_domicilio ? '📦 Empacado' : '🛍️ Listo para recoger'}
+                              </button>
+                            )}
+                            {pedido.estado !== 'cancelado' && pedido.etapa === 'empacado' && pedido.es_domicilio && (
+                              <button
+                                onClick={() => cambiarEtapa(pedido, 'en_camino')}
+                                disabled={enAccion}
+                                className="btn-etapa-pedido-cliente"
+                              >
+                                🛵 Enviar (en camino)
+                              </button>
+                            )}
+                            {pedido.estado !== 'cancelado' && pedido.etapa && (
+                              <button
+                                onClick={() => cambiarEtapa(pedido, pedido.etapa === 'en_camino' ? 'empacado' : null)}
+                                disabled={enAccion}
+                                className="btn-editar-pedido-cliente"
+                                title="Volver a la etapa anterior"
+                              >
+                                ↩️ Deshacer etapa
+                              </button>
+                            )}
                             {pedido.estado !== 'cancelado' && (
                               <button
                                 onClick={() => iniciarEdicion(pedido)}
@@ -621,7 +676,7 @@ const PedidosCliente = ({ user }) => {
                                 disabled={enAccion}
                                 className="btn-completar-pedido-cliente"
                               >
-                                ✅ Completar
+                                ✅ {pedido.es_domicilio ? 'Entregado' : 'Completar'}
                               </button>
                             )}
                             {pedido.estado !== 'cancelado' && (

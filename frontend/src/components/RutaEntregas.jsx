@@ -180,6 +180,26 @@ const RutaEntregas = ({ user }) => {
     window.open(url, '_blank');
   };
 
+  // Al salir a repartir, todas las paradas quedan "en camino" y cada
+  // cliente lo ve en su pedido.
+  const salirARepartir = async () => {
+    const porSalir = paradas.filter(p => p.etapa !== 'en_camino');
+    if (porSalir.length === 0) return;
+    try {
+      setAccionEnCurso('saliendo');
+      for (const p of porSalir) {
+        await api.put(`/pedidos-cliente/${p.id}/etapa`, { etapa: 'en_camino' });
+      }
+      setMensaje(`🛵 ${porSalir.length === 1 ? '1 pedido quedó' : `${porSalir.length} pedidos quedaron`} en camino: los clientes ya lo ven`);
+    } catch (error) {
+      setMensaje(`❌ ${error.response?.data?.error || 'No se pudieron marcar los pedidos en camino'}`);
+    } finally {
+      setAccionEnCurso(null);
+      cargarPedidos();
+      setTimeout(() => setMensaje(''), 5000);
+    }
+  };
+
   const cancelarParada = async (id) => {
     if (!confirm('¿Cancelar este pedido? Esta acción no se puede deshacer.')) return;
     try {
@@ -370,6 +390,11 @@ const RutaEntregas = ({ user }) => {
 
           <div className="card ruta-entregas-paradas-card">
             <h3>📍 Paradas pendientes ({paradas.length})</h3>
+            {paradas.some(p => p.etapa !== 'en_camino') && (
+              <button onClick={salirARepartir} disabled={!!accionEnCurso} className="ruta-entregas-btn-salir">
+                {accionEnCurso === 'saliendo' ? 'Marcando...' : '🛵 Salir a repartir (marcar todo en camino)'}
+              </button>
+            )}
             {paradas.length === 0 ? (
               <p className="sin-datos">No hay domicilios pendientes ahora mismo</p>
             ) : (
@@ -399,7 +424,14 @@ const RutaEntregas = ({ user }) => {
                       </div>
 
                       <div className="ruta-entregas-parada-info">
-                        <div className="ruta-entregas-parada-nombre">{parada.mesa_nombre}</div>
+                        <div className="ruta-entregas-parada-nombre">
+                          {parada.mesa_nombre}
+                          {parada.etapa && (
+                            <span className={`ruta-entregas-etapa ruta-entregas-etapa--${parada.etapa}`}>
+                              {parada.etapa === 'en_camino' ? '🛵 En camino' : '📦 Empacado'}
+                            </span>
+                          )}
+                        </div>
                         <div className="ruta-entregas-parada-direccion">{parada.direccion_entrega}</div>
                         <div className="ruta-entregas-parada-datos">
                           <span>{parada.detalles?.length || 0} producto(s)</span>

@@ -6,6 +6,7 @@ import { obtenerColorPlaceholder } from '../utils/menuVisual';
 import SelectorDireccionMapa from './SelectorDireccionMapa';
 import AsistenteMenu from './AsistenteMenu';
 import MenuSellos, { guardarTelefonoSellos } from './MenuSellos';
+import { leerMisPedidos, recordarPedido } from '../utils/etapaPedido';
 import './MenuPublico.css';
 import './MenuVitrina.css';
 
@@ -402,6 +403,7 @@ const MenuPublico = () => {
       });
       document.body.style.overflow = '';
       if (modulo?.sellos) guardarTelefonoSellos(telefono.replace(/\D/g, ''));
+      recordarPedido(moduloId, response.data.token_publico);
       navigate(`/menu/${moduloId}/pedido/${response.data.token_publico}`, { replace: true });
     } catch (err) {
       console.error('Error generando pedido:', err);
@@ -494,6 +496,9 @@ const MenuPublico = () => {
             )}
             {modulo?.sellos && (
               <button type="button" className="mv-chip-hero mv-chip-hero--boton" onClick={() => abrirCapa(() => setVerSellos(true))}>🎟️ Mis sellos</button>
+            )}
+            {leerMisPedidos(moduloId).length > 0 && (
+              <button type="button" className="mv-chip-hero mv-chip-hero--boton" onClick={() => navigate(`/menu/${moduloId}/mis-pedidos`)}>📦 Mis pedidos</button>
             )}
           </div>
           <button type="button" className="mv-hero__cta" onClick={irAlMenu}>
@@ -591,6 +596,11 @@ const MenuPublico = () => {
           <strong>{nombre}</strong>
           {modulo?.horario && <span>🕐 {modulo.horario}</span>}
           <small>Haz tu pedido aquí y te avisamos cuando esté listo.</small>
+          {leerMisPedidos(moduloId).length > 0 && (
+            <button type="button" className="mv-btn mv-btn--suave mv-pie__juegos" onClick={() => navigate(`/menu/${moduloId}/mis-pedidos`)}>
+              📦 Ver mis pedidos y en qué van
+            </button>
+          )}
           {modulo?.sellos && (
             <button type="button" className="mv-btn mv-btn--suave mv-pie__juegos" onClick={() => abrirCapa(() => setVerSellos(true))}>
               🎟️ Junta {modulo.sellos.meta} sellos y gana {modulo.sellos.premio}

@@ -784,6 +784,34 @@ module.exports = function registrarRutas(ctx) {
     }
   });
 
+  // "Mis pedidos" del menú: el cliente no tiene cuenta, así que su
+  // navegador guarda los enlaces (tokens) de los pedidos que hizo y aquí se
+  // consulta el estado de esos pedidos. Solo devuelve los de este módulo.
+  app.post('/api/menu/:moduloId/mis-pedidos', async (req, res) => {
+    try {
+      const { moduloId } = req.params;
+      const tokens = Array.isArray(req.body?.tokens)
+        ? req.body.tokens.filter(t => typeof t === 'string' && /^[\w-]{8,100}$/.test(t)).slice(0, 50)
+        : [];
+      if (!/^\d+$/.test(moduloId) || tokens.length === 0) return res.json([]);
+
+      const { rows } = await pool.query(
+        `SELECT pc.token_publico, pc.estado, pc.etapa, pc.es_domicilio, pc.total, pc.pagado,
+                pc.fecha_creacion, pc.fecha_empacado, pc.fecha_en_camino, pc.fecha_actualizacion,
+                (SELECT COALESCE(SUM(d.cantidad), 0) FROM pedidos_cliente_detalle d WHERE d.pedido_cliente_id = pc.id)::int AS unidades,
+                (SELECT string_agg(d.nombre_producto, ', ' ORDER BY d.id) FROM pedidos_cliente_detalle d WHERE d.pedido_cliente_id = pc.id) AS productos
+         FROM pedidos_cliente pc
+         WHERE pc.modulo_id = $1 AND pc.token_publico = ANY($2::text[])
+         ORDER BY pc.fecha_creacion DESC`,
+        [moduloId, tokens]
+      );
+      res.json(rows);
+    } catch (error) {
+      console.error('Error listando mis pedidos:', error);
+      res.status(500).json({ error: 'Error interno del servidor' });
+    }
+  });
+
   app.put('/api/menu/pedido/:token/cancelar', async (req, res) => {
     try {
       const { token } = req.params;
@@ -801,6 +829,13 @@ module.exports = function registrarRutas(ctx) {
 
       if (!['pendiente', 'confirmado'].includes(pedido.estado)) {
         return res.status(400).json({ error: 'Este pedido ya no se puede cancelar' });
+      }
+      if (pedido.etapa) {
+        return res.status(400).json({
+          error: pedido.etapa === 'en_camino'
+            ? 'Tu pedido ya va en camino: escríbele al negocio si necesitas cancelarlo.'
+            : 'Tu pedido ya está empacado: escríbele al negocio si necesitas cancelarlo.'
+        });
       }
 
       const actualizado = await pool.query(

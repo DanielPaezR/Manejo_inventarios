@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import apiPublico from '../services/apiPublico';
 import { subirImagenCloudinary } from '../utils/cloudinaryUpload';
 import { textosNegocio } from '../utils/tipoNegocio';
 import SelectorDireccionMapa from './SelectorDireccionMapa';
 import TarjetaSellos from './TarjetaSellos';
+import SeguimientoPedido from './SeguimientoPedido';
+import { recordarPedido, pasoActual } from '../utils/etapaPedido';
 import './MenuPedidoConfirmacion.css';
 
 // ============================================================
@@ -105,6 +107,7 @@ const ComprobantePago = ({ pedido, token, onSubido }) => {
 
 const MenuPedidoConfirmacion = () => {
   const { moduloId, token } = useParams();
+  const navigate = useNavigate();
 
   const [pedido, setPedido] = useState(null);
   const [productos, setProductos] = useState([]);
@@ -141,6 +144,25 @@ const MenuPedidoConfirmacion = () => {
   useEffect(() => {
     cargarPedido();
   }, [cargarPedido]);
+
+  // Este celular recuerda el pedido para la lista de "Mis pedidos".
+  useEffect(() => {
+    if (pedido?.token_publico) recordarPedido(moduloId, pedido.token_publico);
+  }, [moduloId, pedido?.token_publico]);
+
+  // Mientras el negocio lo prepara o lo lleva, se actualiza solo (sin
+  // "Cargando..." ni tocar lo que el cliente esté editando).
+  const enCurso = pedido && ['recibido', 'empacado', 'en_camino'].includes(pasoActual(pedido));
+  useEffect(() => {
+    if (!enCurso || editando) return undefined;
+    const id = setInterval(async () => {
+      try {
+        const response = await apiPublico.get(`/menu/pedido/${token}`);
+        setPedido(response.data);
+      } catch { /* se reintenta en la siguiente vuelta */ }
+    }, 30000);
+    return () => clearInterval(id);
+  }, [enCurso, editando, token]);
 
   // Edición in-place (no navega a /menu/:moduloId): mismo PUT
   // /menu/pedido/:token de siempre, mismo token, mismo pedido. Ver
@@ -371,8 +393,10 @@ const MenuPedidoConfirmacion = () => {
     <div className="menu-confirmacion-container">
       {!editando ? (
         <div className="mp-checkout">
-          <h1 className="mp-checkout__titulo">Pedido enviado</h1>
-          <span className={`mp-pill ${estadoInfo.pill}`}>{estadoInfo.label}</span>
+          <h1 className="mp-checkout__titulo">{pedido.estado === 'pendiente' ? 'Pedido enviado' : 'Tu pedido'}</h1>
+          {pedido.estado === 'pendiente'
+            ? <span className={`mp-pill ${estadoInfo.pill}`}>{estadoInfo.label}</span>
+            : <SeguimientoPedido pedido={pedido} />}
 
           <div className="mp-card mp-resumen">
             {pedido.detalles.map(detalle => (
@@ -438,6 +462,9 @@ const MenuPedidoConfirmacion = () => {
                 sellos={pedido.sellos.sellos} premios={pedido.sellos.premios} nuevo={pedido.estado === 'completado' && pedido.sellos.aplica} />
             </div>
           )}
+          <button type="button" className="mis-pedidos__enlace" onClick={() => navigate(`/menu/${moduloId}/mis-pedidos`)}>
+            📦 Ver todos mis pedidos
+          </button>
         </div>
       ) : (
         <div className="mp-checkout">
