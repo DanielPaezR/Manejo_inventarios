@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import QRCode from 'qrcode';
 import { Link2, Copy, Check, ExternalLink, MessageCircle, Store, QrCode, Sparkles, Download, Share2 } from 'lucide-react';
 import api from '../services/api';
+import { tienePermiso } from '../utils/permisos';
 import { useModulo } from '../hooks/useModulo';
 import SubidaImagen from './SubidaImagen';
 import { IconoHoja, obtenerColorPlaceholder } from '../utils/menuVisual';
@@ -71,7 +72,8 @@ const Marketing = ({ user }) => {
   const { moduloActivo } = useModulo();
   const tipoNegocio = tipoNegocioUsuario();
   const textos = textosNegocio(tipoNegocio);
-  const esAdmin = user?.rol === 'admin' || user?.rol === 'super_admin';
+  // Administrador o trabajador con permiso de Marketing (ver "Tu equipo").
+  const esAdmin = tienePermiso(user, 'marketing');
 
   const [modulo, setModulo] = useState(null);
   const [extrasNegocio, setExtrasNegocio] = useState({ horario: null, envio: null });
@@ -292,7 +294,7 @@ const Marketing = ({ user }) => {
     }
   };
 
-  if (!esAdmin) return <div className="alert alert-warning">⚠️ Solo los administradores pueden ver Marketing.</div>;
+  if (!esAdmin) return <div className="alert alert-warning">⚠️ No tienes acceso a Marketing. Pídeselo al administrador.</div>;
   if (!moduloActivo) return <div className="alert alert-warning">⚠️ Selecciona un módulo.</div>;
 
   return (

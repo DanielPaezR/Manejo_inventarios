@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import api from '../services/api';
+import { tienePermiso } from '../utils/permisos';
 import { useModulo } from '../hooks/useModulo';
 import './Reportes.css';
 
@@ -12,7 +13,7 @@ const Reportes = ({ user }) => {
   const [mensaje, setMensaje] = useState('');
 
   // Verificar permisos (solo admin puede ver reportes)
-  const puedeVerReportes = user?.rol === 'admin' || user?.rol === 'super_admin';
+  const puedeVerReportes = tienePermiso(user, 'reportes');
 
   if (!puedeVerReportes) {
     return (

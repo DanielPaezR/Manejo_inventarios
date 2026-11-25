@@ -14,7 +14,10 @@ module.exports = function registrarRutas(ctx) {
   // secciones extra (p. ej. registrar productos al arrancar) y quitárselo
   // después. Se lee de la base en cada petición, así que quitar un permiso
   // aplica de inmediato aunque el trabajador tenga la sesión abierta.
-  const PERMISOS_TRABAJADOR = ['productos', 'inventario', 'proveedores', 'clientes', 'facturas'];
+  const PERMISOS_TRABAJADOR = [
+    'productos', 'inventario', 'proveedores', 'clientes', 'facturas',
+    'marketing', 'finanzas', 'estadisticas', 'reportes', 'finanzas_negocio'
+  ];
 
   const limpiarPermisos = (permisos) => {
     const limpios = {};

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import api from '../services/api';
+import { tienePermiso } from '../utils/permisos';
 import Bolsillos from './Bolsillos';
 import { BloqueoPlan } from './PlanNegocio';
 import './Finanzas.css';
@@ -82,7 +83,7 @@ const Finanzas = ({ user }) => {
   const semanaSolicitadaRef = useRef(null);
 
   // Verificar permisos
-  const puedeGestionar = user?.rol === 'admin' || user?.rol === 'super_admin';
+  const puedeGestionar = tienePermiso(user, 'finanzas');
 
   const cargarDatos = useCallback(async () => {
     try {

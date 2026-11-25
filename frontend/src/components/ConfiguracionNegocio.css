@@ -589,3 +589,7 @@
   color: inherit;
   font: inherit;
 }
+
+.equipo-permiso.delicado.on {
+  border-color: #dd6b20;
+}

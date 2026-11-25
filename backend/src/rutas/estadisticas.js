@@ -8,7 +8,7 @@ module.exports = function registrarRutas(ctx) {
     construirResumen, construirAntesYAhora, metricasPeriodo, productosParaSimulador, mermas,
     ventasPorEquipo, clientesEnLinea, hoyRapido, miDia, enviarResumenModulo, planes, respaldos,
     estadoBienvenida, guardarBienvenida, TIPOS_RECORDATORIO, leerConfigRecordatorios, construirAviso,
-    enviarRecordatorio, canalesDisponibles, normalizarTelefono, BOLSILLOS_MANUALES, app, pool
+    enviarRecordatorio, canalesDisponibles, normalizarTelefono, BOLSILLOS_MANUALES, app, pool, requirePermiso
   } = ctx;
   // Definidos en grupos que se registran después: se buscan al usarlos.
   const bolsillosActivos = (...args) => ctx.bolsillosActivos(...args);
@@ -51,7 +51,7 @@ module.exports = function registrarRutas(ctx) {
 
   // Resumen "contado" del negocio (pestaña Resumen de Estadísticas): cómo va,
   // qué requiere atención, proveedores, productos y horarios.
-  app.get('/api/estadisticas/resumen', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+  app.get('/api/estadisticas/resumen', authenticateToken, checkAccess, requirePermiso('estadisticas'), async (req, res) => {
     try {
       if (!req.moduloId) {
         return res.status(400).json({ error: 'Se requiere un módulo' });
@@ -297,7 +297,7 @@ module.exports = function registrarRutas(ctx) {
   // ---- Análisis adicionales de Estadísticas ----
   const rutaAnalisis = (ruta, construir, funcionPlan = null) => {
     const extra = funcionPlan ? [planes.requierePlan(pool, funcionPlan)] : [];
-    app.get(ruta, authenticateToken, checkAccess, requireAdmin, ...extra, async (req, res) => {
+    app.get(ruta, authenticateToken, checkAccess, requirePermiso('estadisticas'), ...extra, async (req, res) => {
       try {
         if (!req.moduloId) {
           return res.status(400).json({ error: 'Se requiere un módulo' });
@@ -360,7 +360,7 @@ module.exports = function registrarRutas(ctx) {
   });
 
   // Primeros 30 días con ventas contra los últimos 30 (pestaña "Antes y ahora").
-  app.get('/api/estadisticas/antes-y-ahora', authenticateToken, checkAccess, requireAdmin, planes.requierePlan(pool, 'reportes'), async (req, res) => {
+  app.get('/api/estadisticas/antes-y-ahora', authenticateToken, checkAccess, requirePermiso('estadisticas'), planes.requierePlan(pool, 'reportes'), async (req, res) => {
     try {
       if (!req.moduloId) {
         return res.status(400).json({ error: 'Se requiere un módulo' });
@@ -372,7 +372,7 @@ module.exports = function registrarRutas(ctx) {
     }
   });
 
-  app.get('/api/estadisticas', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+  app.get('/api/estadisticas', authenticateToken, checkAccess, requirePermiso('estadisticas'), async (req, res) => {
     try {
       const moduloId = req.moduloId;
       const { periodo, fecha_inicio, fecha_fin } = req.query;
@@ -682,7 +682,7 @@ module.exports = function registrarRutas(ctx) {
       .sort((a, b) => b.monto - a.monto);
   };
 
-  app.get('/api/estadisticas/ventas-cruzadas', authenticateToken, checkAccess, requireAdmin, planes.requierePlan(pool, 'multisede'), async (req, res) => {
+  app.get('/api/estadisticas/ventas-cruzadas', authenticateToken, checkAccess, requirePermiso('estadisticas'), planes.requierePlan(pool, 'multisede'), async (req, res) => {
     try {
       const moduloId = req.moduloId;
       const negocioId = req.negocioId;
@@ -865,7 +865,7 @@ module.exports = function registrarRutas(ctx) {
     return result.rows[0]?.id === Number(moduloId);
   };
 
-  app.put('/api/estadisticas/ventas-cruzadas/pagado', authenticateToken, checkAccess, requireAdmin, planes.requierePlan(pool, 'multisede'), async (req, res) => {
+  app.put('/api/estadisticas/ventas-cruzadas/pagado', authenticateToken, checkAccess, requirePermiso('estadisticas'), planes.requierePlan(pool, 'multisede'), async (req, res) => {
     let client;
     try {
       const moduloId = req.moduloId;
@@ -909,7 +909,7 @@ module.exports = function registrarRutas(ctx) {
   // Estadísticas, ya que ese resto excluye consumo_propio por completo.
   // 'total' es una opción nueva exclusiva de esta ruta: sin filtro de
   // fecha en absoluto, para ver el histórico completo.
-  app.get('/api/estadisticas/consumo-propio', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+  app.get('/api/estadisticas/consumo-propio', authenticateToken, checkAccess, requirePermiso('estadisticas'), async (req, res) => {
     try {
       const moduloId = req.moduloId;
       const { periodo, fecha_inicio, fecha_fin } = req.query;

@@ -519,7 +519,7 @@ const Estadisticas = ({ user }) => {
       {vistaBloqueada ? (
         <BloqueoPlan titulo="Estadísticas completas" funcion="reportes" />
       ) : vistaActiva === 'resumen' ? (
-        <ResumenNegocio onIrAVista={setVistaActiva} />
+        <ResumenNegocio onIrAVista={setVistaActiva} puedeEditarMetas={user?.rol === 'admin' || user?.rol === 'super_admin'} />
       ) : vistaActiva === 'clientes' ? (
         <ClientesEnLinea />
       ) : loading ? (

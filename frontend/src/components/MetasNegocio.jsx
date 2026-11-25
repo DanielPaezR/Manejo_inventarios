@@ -59,7 +59,7 @@ const BarraMeta = ({ titulo, actual, meta, diasRestantes, unidad }) => {
   );
 };
 
-export const Metas = ({ metas, moduloId, sugerenciaSemana, onGuardado }) => {
+export const Metas = ({ metas, moduloId, sugerenciaSemana, onGuardado, puedeEditar = true }) => {
   const [editando, setEditando] = useState(false);
   const [form, setForm] = useState({ ventas_semana: '', ventas_mes: '', ganancia_mes: '' });
   const [guardando, setGuardando] = useState(false);
@@ -121,7 +121,7 @@ export const Metas = ({ metas, moduloId, sugerenciaSemana, onGuardado }) => {
     return (
       <div className="mn-metas mn-metas--vacio">
         <p>🎯 <b>Ponte una meta.</b> Te mostraré cuánto llevas y cuánto necesitas vender cada día para cumplirla.</p>
-        <button type="button" className="mn-btn" onClick={abrir}>Poner metas</button>
+        {puedeEditar && <button type="button" className="mn-btn" onClick={abrir}>Poner metas</button>}
       </div>
     );
   }
@@ -131,7 +131,7 @@ export const Metas = ({ metas, moduloId, sugerenciaSemana, onGuardado }) => {
     <div className="mn-metas">
       <div className="mn-meta__fila">
         <h4>🎯 Tus metas</h4>
-        <button type="button" className="rn-link" onClick={abrir}>Cambiar</button>
+        {puedeEditar && <button type="button" className="rn-link" onClick={abrir}>Cambiar</button>}
       </div>
       {metas.ventas_semana && <BarraMeta titulo="Ventas de esta semana" actual={a.ventas_semana} meta={metas.ventas_semana} diasRestantes={a.dias_restantes_semana} unidad="de la semana" />}
       {metas.ventas_mes && <BarraMeta titulo="Ventas del mes" actual={a.ventas_mes} meta={metas.ventas_mes} diasRestantes={a.dias_restantes_mes} unidad="del mes" />}

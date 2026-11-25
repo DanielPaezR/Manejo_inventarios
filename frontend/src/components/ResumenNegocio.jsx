@@ -49,7 +49,7 @@ const Capitulo = ({ id, numero, titulo, pregunta, children }) => (
   </section>
 );
 
-const ResumenNegocio = ({ onIrAVista }) => {
+const ResumenNegocio = ({ onIrAVista, puedeEditarMetas = true }) => {
   const { moduloActivo } = useModulo();
   const navigate = useNavigate();
   const [datos, setDatos] = useState(null);
@@ -227,7 +227,7 @@ const ResumenNegocio = ({ onIrAVista }) => {
           "Semana normal" es el promedio de las 4 semanas anteriores. La ganancia es lo vendido menos lo que te costó cada producto
           {ventas.porcentaje_sin_costo > 0 && ` (el ${ventas.porcentaje_sin_costo}% de lo vendido no tiene costo registrado y no entra en la cuenta)`}.
         </p>
-        <Metas metas={datos.metas} moduloId={moduloActivo.id} sugerenciaSemana={ventas.semana_promedio} onGuardado={() => setRecarga(r => r + 1)} />
+        <Metas metas={datos.metas} moduloId={moduloActivo.id} sugerenciaSemana={ventas.semana_promedio} onGuardado={() => setRecarga(r => r + 1)} puedeEditar={puedeEditarMetas} />
         <button type="button" className="rn-link" onClick={() => onIrAVista('historia')}>Ver cómo ha evolucionado →</button>
       </Capitulo>
 

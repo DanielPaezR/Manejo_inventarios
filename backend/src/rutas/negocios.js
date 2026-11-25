@@ -4,7 +4,7 @@
 // y lo que exportan los grupos registrados antes; devuelven lo que otros usan.
 module.exports = function registrarRutas(ctx) {
   const {
-    authenticateToken, requireAdmin, requireSuperAdmin, checkAccess, planes, app, pool
+    authenticateToken, requireAdmin, requireSuperAdmin, checkAccess, planes, app, pool, requirePermiso
   } = ctx;
   // Definidos en grupos que se registran después: se buscan al usarlos.
   const juegosActivos = (...args) => ctx.juegosActivos(...args);
@@ -391,7 +391,16 @@ module.exports = function registrarRutas(ctx) {
   // ninguna ruta general de edición de módulo. Los campos son independientes
   // entre sí: cada uno se actualiza SOLO si vino explícito en el body, para
   // que editar uno no borre los demás.
-  app.put('/api/modulos/:id/portada', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+  const CAMPOS_MARKETING = ['nombre_publico', 'foto_portada_url'];
+  const puedeEditarPortada = (req, res, next) => {
+    if (req.user.rol === 'admin' || req.user.rol === 'super_admin') return next();
+    if (Object.keys(req.body || {}).every(k => CAMPOS_MARKETING.includes(k))) {
+      return requirePermiso('marketing')(req, res, next);
+    }
+    return res.status(403).json({ error: 'Solo el administrador puede cambiar esta configuración' });
+  };
+
+  app.put('/api/modulos/:id/portada', authenticateToken, checkAccess, puedeEditarPortada, async (req, res) => {
     try {
       const { id } = req.params;
       const negocioId = req.negocioId;

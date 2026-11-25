@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Users } from 'lucide-react';
 import api from '../services/api';
 import { PERMISOS } from '../utils/permisos';
+import { usePlan } from '../hooks/usePlan';
 
 // "Tu equipo": el administrador enciende o apaga, por trabajador, las
 // secciones extra que puede usar (p. ej. Productos mientras registran el
@@ -9,6 +10,9 @@ import { PERMISOS } from '../utils/permisos';
 const EquipoPermisos = ({ avisar }) => {
   const [trabajadores, setTrabajadores] = useState(null);
   const [guardandoId, setGuardandoId] = useState(null);
+  // Solo se ofrecen las secciones que el plan del negocio incluye.
+  const { incluye } = usePlan();
+  const disponibles = PERMISOS.filter(p => !p.funcion || incluye(p.funcion));
 
   useEffect(() => {
     api.get('/equipo')
@@ -48,8 +52,9 @@ const EquipoPermisos = ({ avisar }) => {
       <h3 className="conf-titulo"><Users size={18} /> Tu equipo</h3>
       <p className="conf-ayuda">
         Todos tus trabajadores pueden vender y atender pedidos. Aquí puedes darle a cada uno acceso a más
-        secciones, por ejemplo <strong>Productos</strong> mientras registran el inventario, y quitárselo cuando terminen.
-        Los cambios aplican de inmediato.
+        secciones, por ejemplo <strong>Productos</strong> mientras registran el inventario, <strong>Marketing</strong> para
+        que hagan las piezas de redes o <strong>Caja y bolsillos</strong> para que hagan el cierre. Los cambios aplican de
+        inmediato. La configuración del negocio sigue siendo solo tuya.
       </p>
 
       {trabajadores.length === 0 ? (
@@ -57,7 +62,7 @@ const EquipoPermisos = ({ avisar }) => {
       ) : (
         <div className="equipo-lista">
           {trabajadores.map(t => {
-            const activos = PERMISOS.filter(p => t.permisos?.[p.clave]).length;
+            const activos = disponibles.filter(p => t.permisos?.[p.clave]).length;
             return (
               <div key={t.id} className={`equipo-item ${t.activo ? '' : 'equipo-item--inactivo'}`}>
                 <div className="equipo-item__cabecera">
@@ -73,7 +78,7 @@ const EquipoPermisos = ({ avisar }) => {
                   )}
                 </div>
                 <div className="equipo-permisos">
-                  {PERMISOS.map(p => {
+                  {disponibles.map(p => {
                     const on = t.permisos?.[p.clave] === true;
                     return (
                       <button
@@ -81,14 +86,14 @@ const EquipoPermisos = ({ avisar }) => {
                         type="button"
                         role="switch"
                         aria-checked={on}
-                        className={`equipo-permiso ${on ? 'on' : ''}`}
+                        className={`equipo-permiso ${on ? 'on' : ''} ${p.delicado ? 'delicado' : ''}`}
                         onClick={() => alternar(t, p.clave)}
                         disabled={guardandoId === t.id}
                         title={p.descripcion}
                       >
                         <span className="equipo-permiso__check" aria-hidden="true">{on ? '✓' : '+'}</span>
                         <span>
-                          <strong>{p.titulo}</strong>
+                          <strong>{p.delicado ? '⚠️ ' : ''}{p.titulo}</strong>
                           <small>{p.descripcion}</small>
                         </span>
                       </button>

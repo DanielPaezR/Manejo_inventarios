@@ -299,7 +299,7 @@ module.exports = function registrarRutas(ctx) {
   // Resumen de ingresos/egresos de un período, para la pestaña "Ingresos y
   // Egresos" de Estadísticas. Misma resolución de fechas que GET
   // /api/estadisticas, ahora filtrado por módulo (antes era todo el negocio).
-  app.get('/api/finanzas/resumen-periodo', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+  app.get('/api/finanzas/resumen-periodo', authenticateToken, checkAccess, requirePermiso('estadisticas'), async (req, res) => {
     try {
       const moduloId = req.moduloId;
       const { periodo, fecha_inicio, fecha_fin } = req.query;
@@ -442,7 +442,7 @@ module.exports = function registrarRutas(ctx) {
   // Registro semanal de Finanzas: ingresos por ventas, los 3 tipos de
   // gasto, utilidad bruta y la meta de reinversión (editable) de una
   // semana puntual (lunes a domingo). Por módulo, como el resto de Finanzas.
-  app.get('/api/finanzas/reporte-semanal', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+  app.get('/api/finanzas/reporte-semanal', authenticateToken, checkAccess, requirePermiso('finanzas'), async (req, res) => {
     try {
       const moduloId = req.moduloId;
       const { semana_inicio } = req.query;
@@ -548,7 +548,7 @@ module.exports = function registrarRutas(ctx) {
     }
   });
 
-  app.post('/api/finanzas/reporte-semanal/reinversion', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+  app.post('/api/finanzas/reporte-semanal/reinversion', authenticateToken, checkAccess, requirePermiso('finanzas'), async (req, res) => {
     try {
       const moduloId = req.moduloId;
       const negocioId = req.negocioId;
@@ -616,7 +616,7 @@ module.exports = function registrarRutas(ctx) {
   // Evolución del balance general acumulado (saldo_inicial + ingresos -
   // egresos, corrido bucket a bucket) desde el movimiento_caja más antiguo
   // del negocio hasta hoy, navegable por día/semana/mes.
-  app.get('/api/finanzas/evolucion-balance', authenticateToken, checkAccess, requireAdmin, planes.requierePlan(pool, 'reportes'), async (req, res) => {
+  app.get('/api/finanzas/evolucion-balance', authenticateToken, checkAccess, requirePermiso('estadisticas'), planes.requierePlan(pool, 'reportes'), async (req, res) => {
     try {
       const moduloId = req.moduloId;
       const { granularidad = 'semana', fecha_inicio, fecha_fin } = req.query;
@@ -692,7 +692,7 @@ module.exports = function registrarRutas(ctx) {
   // propios / otros) período a período, SIN acumular — cada punto es lo
   // gastado en ese bucket. A diferencia de evolución-balance, no necesita
   // traer historia previa al rango mostrado porque no hay acumulación.
-  app.get('/api/finanzas/evolucion-egresos', authenticateToken, checkAccess, requireAdmin, planes.requierePlan(pool, 'reportes'), async (req, res) => {
+  app.get('/api/finanzas/evolucion-egresos', authenticateToken, checkAccess, requirePermiso('estadisticas'), planes.requierePlan(pool, 'reportes'), async (req, res) => {
     try {
       const moduloId = req.moduloId;
       const { granularidad = 'semana', fecha_inicio, fecha_fin } = req.query;

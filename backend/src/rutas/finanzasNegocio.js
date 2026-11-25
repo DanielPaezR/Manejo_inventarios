@@ -5,7 +5,7 @@
 module.exports = function registrarRutas(ctx) {
   const {
     moment, ahoraColombia, authenticateToken, requireAdmin, checkAccess, app, pool,
-    claveBucketColombia, generarClavesBucket, planes
+    claveBucketColombia, generarClavesBucket, planes, requirePermiso
   } = ctx;
 
   // ==================== RUTAS DE FINANZAS DEL NEGOCIO (CONSOLIDADO) ====================
@@ -48,7 +48,7 @@ module.exports = function registrarRutas(ctx) {
 
   // ---- Configuración (valor del bloque, reserva de seguridad, gastos personales mínimos) ----
 
-  app.get('/api/finanzas-negocio/configuracion', authenticateToken, requireAdmin, resolverNegocioAdmin, planes.requierePlan(pool, 'finanzas'), async (req, res) => {
+  app.get('/api/finanzas-negocio/configuracion', authenticateToken, requirePermiso('finanzas_negocio'), resolverNegocioAdmin, planes.requierePlan(pool, 'finanzas'), async (req, res) => {
     try {
       const result = await pool.query(
         'SELECT valor_bloque, reserva_seguridad_pct, gastos_personales_minimos FROM negocios WHERE id = $1',
@@ -64,7 +64,7 @@ module.exports = function registrarRutas(ctx) {
     }
   });
 
-  app.put('/api/finanzas-negocio/configuracion', authenticateToken, requireAdmin, resolverNegocioAdmin, planes.requierePlan(pool, 'finanzas'), async (req, res) => {
+  app.put('/api/finanzas-negocio/configuracion', authenticateToken, requirePermiso('finanzas_negocio'), resolverNegocioAdmin, planes.requierePlan(pool, 'finanzas'), async (req, res) => {
     try {
       const { valor_bloque, reserva_seguridad_pct, gastos_personales_minimos } = req.body;
 
@@ -97,7 +97,7 @@ module.exports = function registrarRutas(ctx) {
 
   // ---- Activos fijos ----
 
-  app.get('/api/finanzas-negocio/activos-fijos', authenticateToken, requireAdmin, resolverNegocioAdmin, planes.requierePlan(pool, 'finanzas'), async (req, res) => {
+  app.get('/api/finanzas-negocio/activos-fijos', authenticateToken, requirePermiso('finanzas_negocio'), resolverNegocioAdmin, planes.requierePlan(pool, 'finanzas'), async (req, res) => {
     try {
       const result = await pool.query(
         'SELECT * FROM activos_fijos WHERE negocio_id = $1 AND activo = true ORDER BY fecha_adquisicion DESC NULLS LAST, id DESC',
@@ -110,7 +110,7 @@ module.exports = function registrarRutas(ctx) {
     }
   });
 
-  app.post('/api/finanzas-negocio/activos-fijos', authenticateToken, requireAdmin, resolverNegocioAdmin, planes.requierePlan(pool, 'finanzas'), async (req, res) => {
+  app.post('/api/finanzas-negocio/activos-fijos', authenticateToken, requirePermiso('finanzas_negocio'), resolverNegocioAdmin, planes.requierePlan(pool, 'finanzas'), async (req, res) => {
     try {
       const { nombre, valor, fecha_adquisicion } = req.body;
 
@@ -134,7 +134,7 @@ module.exports = function registrarRutas(ctx) {
     }
   });
 
-  app.put('/api/finanzas-negocio/activos-fijos/:id', authenticateToken, requireAdmin, resolverNegocioAdmin, planes.requierePlan(pool, 'finanzas'), async (req, res) => {
+  app.put('/api/finanzas-negocio/activos-fijos/:id', authenticateToken, requirePermiso('finanzas_negocio'), resolverNegocioAdmin, planes.requierePlan(pool, 'finanzas'), async (req, res) => {
     try {
       const { id } = req.params;
       const { nombre, valor, fecha_adquisicion } = req.body;
@@ -163,7 +163,7 @@ module.exports = function registrarRutas(ctx) {
     }
   });
 
-  app.delete('/api/finanzas-negocio/activos-fijos/:id', authenticateToken, requireAdmin, resolverNegocioAdmin, planes.requierePlan(pool, 'finanzas'), async (req, res) => {
+  app.delete('/api/finanzas-negocio/activos-fijos/:id', authenticateToken, requirePermiso('finanzas_negocio'), resolverNegocioAdmin, planes.requierePlan(pool, 'finanzas'), async (req, res) => {
     try {
       const { id } = req.params;
       await pool.query('UPDATE activos_fijos SET activo = false WHERE id = $1 AND negocio_id = $2', [id, req.negocioId]);
@@ -176,7 +176,7 @@ module.exports = function registrarRutas(ctx) {
 
   // ---- Deudas ----
 
-  app.get('/api/finanzas-negocio/deudas', authenticateToken, requireAdmin, resolverNegocioAdmin, planes.requierePlan(pool, 'finanzas'), async (req, res) => {
+  app.get('/api/finanzas-negocio/deudas', authenticateToken, requirePermiso('finanzas_negocio'), resolverNegocioAdmin, planes.requierePlan(pool, 'finanzas'), async (req, res) => {
     try {
       const result = await pool.query(
         'SELECT * FROM deudas WHERE negocio_id = $1 AND activo = true ORDER BY id DESC',
@@ -189,7 +189,7 @@ module.exports = function registrarRutas(ctx) {
     }
   });
 
-  app.post('/api/finanzas-negocio/deudas', authenticateToken, requireAdmin, resolverNegocioAdmin, planes.requierePlan(pool, 'finanzas'), async (req, res) => {
+  app.post('/api/finanzas-negocio/deudas', authenticateToken, requirePermiso('finanzas_negocio'), resolverNegocioAdmin, planes.requierePlan(pool, 'finanzas'), async (req, res) => {
     try {
       const { nombre, monto_total, saldo_pendiente, cuota_mensual } = req.body;
 
@@ -221,7 +221,7 @@ module.exports = function registrarRutas(ctx) {
     }
   });
 
-  app.put('/api/finanzas-negocio/deudas/:id', authenticateToken, requireAdmin, resolverNegocioAdmin, planes.requierePlan(pool, 'finanzas'), async (req, res) => {
+  app.put('/api/finanzas-negocio/deudas/:id', authenticateToken, requirePermiso('finanzas_negocio'), resolverNegocioAdmin, planes.requierePlan(pool, 'finanzas'), async (req, res) => {
     try {
       const { id } = req.params;
       const { nombre, monto_total, saldo_pendiente, cuota_mensual } = req.body;
@@ -255,7 +255,7 @@ module.exports = function registrarRutas(ctx) {
     }
   });
 
-  app.delete('/api/finanzas-negocio/deudas/:id', authenticateToken, requireAdmin, resolverNegocioAdmin, planes.requierePlan(pool, 'finanzas'), async (req, res) => {
+  app.delete('/api/finanzas-negocio/deudas/:id', authenticateToken, requirePermiso('finanzas_negocio'), resolverNegocioAdmin, planes.requierePlan(pool, 'finanzas'), async (req, res) => {
     try {
       const { id } = req.params;
       await pool.query('UPDATE deudas SET activo = false WHERE id = $1 AND negocio_id = $2', [id, req.negocioId]);
@@ -271,7 +271,7 @@ module.exports = function registrarRutas(ctx) {
   // movimientos_caja; aquí solo se listan a nivel negocio y se marca cuáles
   // se muestran como columna del ábaco) ----
 
-  app.get('/api/finanzas-negocio/categorias-gasto', authenticateToken, requireAdmin, resolverNegocioAdmin, planes.requierePlan(pool, 'finanzas'), async (req, res) => {
+  app.get('/api/finanzas-negocio/categorias-gasto', authenticateToken, requirePermiso('finanzas_negocio'), resolverNegocioAdmin, planes.requierePlan(pool, 'finanzas'), async (req, res) => {
     try {
       const result = await pool.query(
         `SELECT cg.id, cg.nombre, cg.tipo, cg.mostrar_en_simulador, cg.modulo_id, m.nombre AS modulo_nombre
@@ -288,7 +288,7 @@ module.exports = function registrarRutas(ctx) {
     }
   });
 
-  app.put('/api/finanzas-negocio/categorias-gasto/:id/mostrar-en-simulador', authenticateToken, requireAdmin, resolverNegocioAdmin, planes.requierePlan(pool, 'finanzas'), async (req, res) => {
+  app.put('/api/finanzas-negocio/categorias-gasto/:id/mostrar-en-simulador', authenticateToken, requirePermiso('finanzas_negocio'), resolverNegocioAdmin, planes.requierePlan(pool, 'finanzas'), async (req, res) => {
     try {
       const { id } = req.params;
       const { mostrar_en_simulador } = req.body;
@@ -319,7 +319,7 @@ module.exports = function registrarRutas(ctx) {
   // informativos — son usos de la utilidad, no gastos que la reduzcan (el
   // costo de mercancía vendida ya se calculó del lado de las ventas, no del
   // lado de las compras).
-  app.get('/api/finanzas-negocio/resumen-mensual', authenticateToken, requireAdmin, resolverNegocioAdmin, planes.requierePlan(pool, 'finanzas'), async (req, res) => {
+  app.get('/api/finanzas-negocio/resumen-mensual', authenticateToken, requirePermiso('finanzas_negocio'), resolverNegocioAdmin, planes.requierePlan(pool, 'finanzas'), async (req, res) => {
     try {
       const negocioId = req.negocioId;
       const anio = parseInt(req.query.anio, 10);
@@ -505,7 +505,7 @@ module.exports = function registrarRutas(ctx) {
     return true;
   };
 
-  app.get('/api/finanzas-negocio/simulador', authenticateToken, requireAdmin, resolverNegocioAdmin, planes.requierePlan(pool, 'finanzas'), async (req, res) => {
+  app.get('/api/finanzas-negocio/simulador', authenticateToken, requirePermiso('finanzas_negocio'), resolverNegocioAdmin, planes.requierePlan(pool, 'finanzas'), async (req, res) => {
     try {
       const negocioId = req.negocioId;
       const { granularidad, periodo_inicio } = req.query;
@@ -643,7 +643,7 @@ module.exports = function registrarRutas(ctx) {
     }
   });
 
-  app.put('/api/finanzas-negocio/simulador', authenticateToken, requireAdmin, resolverNegocioAdmin, planes.requierePlan(pool, 'finanzas'), async (req, res) => {
+  app.put('/api/finanzas-negocio/simulador', authenticateToken, requirePermiso('finanzas_negocio'), resolverNegocioAdmin, planes.requierePlan(pool, 'finanzas'), async (req, res) => {
     try {
       const negocioId = req.negocioId;
       const { granularidad, periodo_inicio, asignaciones } = req.body;
@@ -689,7 +689,7 @@ module.exports = function registrarRutas(ctx) {
     }
   });
 
-  app.post('/api/finanzas-negocio/simulador/reset', authenticateToken, requireAdmin, resolverNegocioAdmin, planes.requierePlan(pool, 'finanzas'), async (req, res) => {
+  app.post('/api/finanzas-negocio/simulador/reset', authenticateToken, requirePermiso('finanzas_negocio'), resolverNegocioAdmin, planes.requierePlan(pool, 'finanzas'), async (req, res) => {
     try {
       const negocioId = req.negocioId;
       const { granularidad, periodo_inicio } = req.body;
@@ -722,7 +722,7 @@ module.exports = function registrarRutas(ctx) {
   // Estadisticas.jsx. El stock crítico se informa aparte, sin contar para
   // el puntaje: no hay snapshot histórico de stock_actual, así que no se
   // puede saber si estaba mejor o peor hace 30 días.
-  app.get('/api/estadisticas/tendencia-negocio', authenticateToken, checkAccess, requireAdmin, planes.requierePlan(pool, 'reportes'), async (req, res) => {
+  app.get('/api/estadisticas/tendencia-negocio', authenticateToken, checkAccess, requirePermiso('estadisticas'), planes.requierePlan(pool, 'reportes'), async (req, res) => {
     try {
       const moduloId = req.moduloId;
 
@@ -838,7 +838,7 @@ module.exports = function registrarRutas(ctx) {
   // vendido EN ese bucket. A diferencia de evolucion-balance/egresos (que son
   // de todo el negocio, vía movimientos_caja), esta es del módulo activo
   // (req.moduloId), igual que el resto de las estadísticas de Estadísticas.jsx.
-  app.get('/api/estadisticas/evolucion-ventas', authenticateToken, checkAccess, requireAdmin, planes.requierePlan(pool, 'reportes'), async (req, res) => {
+  app.get('/api/estadisticas/evolucion-ventas', authenticateToken, checkAccess, requirePermiso('estadisticas'), planes.requierePlan(pool, 'reportes'), async (req, res) => {
     try {
       const moduloId = req.moduloId;
       const { granularidad = 'semana', fecha_inicio, fecha_fin } = req.query;

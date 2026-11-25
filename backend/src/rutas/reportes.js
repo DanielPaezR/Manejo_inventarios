@@ -6,13 +6,13 @@ module.exports = function registrarRutas(ctx) {
   const {
     authenticateToken, requireAdmin, checkAccess, generarReporteVentasDiarias,
     generarReporteInventario, generarReporteFinancieroMensual, generarExcelProductos,
-    generarExcelVentas, app, pool
+    generarExcelVentas, app, pool, requirePermiso
   } = ctx;
 
   // ==================== RUTAS DE ALERTAS MEJORADAS ====================
 
   // Obtener productos con stock bajo Y sus proveedores
-  app.get('/api/alertas/stock-bajo-completo', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+  app.get('/api/alertas/stock-bajo-completo', authenticateToken, checkAccess, requirePermiso('reportes'), async (req, res) => {
     try {
       const moduloId = req.moduloId;
 
@@ -61,7 +61,7 @@ module.exports = function registrarRutas(ctx) {
 
   // ==================== RUTAS DE REPORTES ====================
 
-  app.get('/api/reportes', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+  app.get('/api/reportes', authenticateToken, checkAccess, requirePermiso('reportes'), async (req, res) => {
     try {
       const { tipo, fecha_inicio, fecha_fin } = req.query;
       const moduloId = req.moduloId;
