@@ -5,6 +5,7 @@ import 'leaflet/dist/leaflet.css';
 import api from '../services/api';
 import EstadoPagoPedido from './EstadoPagoPedido';
 import { useModulo } from '../hooks/useModulo';
+import { enlaceAvisoCliente } from '../utils/etapaPedido';
 import './RutaEntregas.css';
 
 // react-leaflet + Vite: los íconos por defecto de Leaflet dependen de
@@ -51,6 +52,7 @@ const formatearMoneda = (valor) => `$${Number(valor || 0).toLocaleString('es-CO'
 
 const RutaEntregas = ({ user }) => {
   const { moduloActivo } = useModulo();
+  const nombreNegocio = moduloActivo?.nombre_publico || moduloActivo?.negocio_nombre || moduloActivo?.nombre;
   const esAdmin = user?.rol === 'admin' || user?.rol === 'super_admin';
 
   const [pedidos, setPedidos] = useState([]);
@@ -190,7 +192,7 @@ const RutaEntregas = ({ user }) => {
       for (const p of porSalir) {
         await api.put(`/pedidos-cliente/${p.id}/etapa`, { etapa: 'en_camino' });
       }
-      setMensaje(`🛵 ${porSalir.length === 1 ? '1 pedido quedó' : `${porSalir.length} pedidos quedaron`} en camino: los clientes ya lo ven`);
+      setMensaje(`🛵 ${porSalir.length === 1 ? '1 pedido quedó' : `${porSalir.length} pedidos quedaron`} en camino. Avísale a cada cliente con su botón de WhatsApp.`);
     } catch (error) {
       setMensaje(`❌ ${error.response?.data?.error || 'No se pudieron marcar los pedidos en camino'}`);
     } finally {
@@ -444,6 +446,16 @@ const RutaEntregas = ({ user }) => {
                           <a className="ruta-entregas-parada-telefono" href={`tel:${parada.telefono}`}>📞 {parada.telefono}</a>
                         )}
                         <EstadoPagoPedido pedido={parada} onCambio={cargarPedidos} />
+                        {parada.etapa === 'en_camino' && enlaceAvisoCliente(parada, 'en_camino', nombreNegocio) && (
+                          <a
+                            className="ruta-entregas-aviso"
+                            href={enlaceAvisoCliente(parada, 'en_camino', nombreNegocio)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            📲 Avisar que va en camino
+                          </a>
+                        )}
                       </div>
 
                       <div className="ruta-entregas-parada-acciones">

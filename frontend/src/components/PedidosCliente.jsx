@@ -4,6 +4,7 @@ import api from '../services/api';
 import EstadoPagoPedido from './EstadoPagoPedido';
 import { textosNegocio, tipoNegocioUsuario } from '../utils/tipoNegocio';
 import { useModulo } from '../hooks/useModulo';
+import { enlaceAvisoCliente } from '../utils/etapaPedido';
 import './PedidosCliente.css';
 
 const ESTADO_INFO = {
@@ -40,6 +41,7 @@ const INTERVALO_POLLING_MS = 30000;
 
 const PedidosCliente = ({ user }) => {
   const { moduloActivo } = useModulo();
+  const nombreNegocio = moduloActivo?.nombre_publico || moduloActivo?.negocio_nombre || moduloActivo?.nombre;
   const [pedidos, setPedidos] = useState([]);
   const [loading, setLoading] = useState(false);
   const [mensaje, setMensaje] = useState('');
@@ -229,9 +231,10 @@ const PedidosCliente = ({ user }) => {
     try {
       setAccionEnCurso(`${pedido.id}-etapa`);
       await api.put(`/pedidos-cliente/${pedido.id}/etapa`, { etapa });
-      setMensaje(etapa === 'en_camino' ? '🛵 Pedido marcado en camino'
-        : etapa === 'empacado' ? (pedido.es_domicilio ? '📦 Pedido empacado' : '🛍️ Pedido listo para recoger')
+      setMensaje(etapa === 'en_camino' ? '🛵 Pedido marcado en camino. Avísale al cliente con el botón de WhatsApp.'
+        : etapa === 'empacado' ? `${pedido.es_domicilio ? '📦 Pedido empacado' : '🛍️ Pedido listo para recoger'}. Avísale al cliente con el botón de WhatsApp.`
           : '↩️ Etapa deshecha');
+      setExpandidoId(pedido.id);
       cargarPedidos();
     } catch (error) {
       console.error('Error cambiando etapa:', error);
@@ -650,6 +653,16 @@ const PedidosCliente = ({ user }) => {
                               >
                                 🛵 Enviar (en camino)
                               </button>
+                            )}
+                            {pedido.estado !== 'cancelado' && pedido.etapa && enlaceAvisoCliente(pedido, pedido.etapa, nombreNegocio) && (
+                              <a
+                                href={enlaceAvisoCliente(pedido, pedido.etapa, nombreNegocio)}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="btn-whatsapp-pedido-cliente"
+                              >
+                                📲 Avisar al cliente por WhatsApp
+                              </a>
                             )}
                             {pedido.estado !== 'cancelado' && pedido.etapa && (
                               <button

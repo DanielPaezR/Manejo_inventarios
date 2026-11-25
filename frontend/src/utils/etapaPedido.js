@@ -64,3 +64,41 @@ export const recordarPedido = (moduloId, token) => {
     localStorage.setItem(CLAVE(moduloId), JSON.stringify(lista));
   } catch { /* sin almacenamiento: no pasa nada */ }
 };
+
+// ---------- Aviso al cliente por WhatsApp ----------
+// Celular colombiano de 10 dígitos (3xx...) -> con el 57 adelante.
+export const telefonoWhatsApp = (telefono) => {
+  const d = String(telefono || '').replace(/\D/g, '');
+  if (d.length === 10 && d.startsWith('3')) return `57${d}`;
+  if (d.length === 12 && d.startsWith('57')) return d;
+  return d.length >= 10 ? d : '';
+};
+
+// Mensaje según la etapa. Sin emojis fuera del plano básico: la
+// redirección de wa.me los convierte en "?" (ver MenuPedidoConfirmacion).
+export const mensajeAvisoCliente = (pedido, etapa, negocio) => {
+  const nombre = (pedido.mesa_nombre || '').trim().split(/\s+/)[0];
+  const saludo = `Hola${nombre ? ` ${nombre}` : ''}, te escribimos de ${negocio || 'la tienda'}.`;
+  const cuerpo = {
+    empacado: pedido.es_domicilio
+      ? 'Tu pedido ya está empacado y pronto sale para tu dirección.'
+      : 'Tu pedido ya está listo, puedes pasar a recogerlo.',
+    en_camino: `Tu pedido ya va en camino${pedido.direccion_entrega ? ` a ${pedido.direccion_entrega}` : ''}.`,
+    entregado: 'Tu pedido fue entregado. ¡Gracias por tu compra!'
+  }[etapa];
+  if (!cuerpo) return '';
+  const total = etapa !== 'entregado' && !pedido.pagado && pedido.total
+    ? `\nTotal a pagar: $${Number(pedido.total).toLocaleString('es-CO')}`
+    : '';
+  const enlace = pedido.token_publico && pedido.modulo_id && typeof window !== 'undefined'
+    ? `\n\nMira cómo va tu pedido aquí: ${window.location.origin}/menu/${pedido.modulo_id}/pedido/${pedido.token_publico}`
+    : '';
+  return `${saludo}\n\n${cuerpo}${total}${enlace}`;
+};
+
+// Enlace wa.me listo, o '' si el pedido no tiene un celular válido.
+export const enlaceAvisoCliente = (pedido, etapa, negocio) => {
+  const tel = telefonoWhatsApp(pedido.telefono);
+  const texto = mensajeAvisoCliente(pedido, etapa, negocio);
+  return tel && texto ? `https://wa.me/${tel}?text=${encodeURIComponent(texto)}` : '';
+};

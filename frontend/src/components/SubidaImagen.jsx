@@ -2,6 +2,12 @@ import React, { useRef, useState } from 'react';
 import { subirImagenCloudinary } from '../utils/cloudinaryUpload';
 import './SubidaImagen.css';
 
+// En celulares y tablets se ofrece además "Tomar foto", que abre la cámara
+// directamente (capture). En el computador ese atributo no hace nada, así
+// que ahí solo se muestra el botón de elegir archivo.
+const esPantallaTactil = () =>
+  typeof window !== 'undefined' && window.matchMedia?.('(pointer: coarse)').matches;
+
 // Botón de subida + vista previa + estado de carga/error, reutilizado
 // tal cual (mismo comportamiento) en Productos.jsx (foto de producto) y
 // PedidosCliente.jsx (foto de portada del menú). El componente es
@@ -11,10 +17,13 @@ import './SubidaImagen.css';
 // ocultarPreview: para cuando el padre ya muestra la foto en otro lado
 // (ej. como fondo de un hero) y la miniatura propia de este componente
 // sería redundante — solo se renderiza el botón (y el de quitar foto).
-const SubidaImagen = ({ valor, onCambiar, botonTexto = '📷 Subir foto', ocultarPreview = false }) => {
+// conCamara: false para no ofrecer la cámara (ej. una portada).
+const SubidaImagen = ({ valor, onCambiar, botonTexto = '🖼️ Subir foto', ocultarPreview = false, conCamara = true }) => {
   const inputRef = useRef(null);
+  const camaraRef = useRef(null);
   const [subiendo, setSubiendo] = useState(false);
   const [error, setError] = useState('');
+  const mostrarCamara = conCamara && esPantallaTactil();
 
   const handleSeleccionarArchivo = async (e) => {
     const file = e.target.files?.[0];
@@ -52,13 +61,33 @@ const SubidaImagen = ({ valor, onCambiar, botonTexto = '📷 Subir foto', oculta
             onChange={handleSeleccionarArchivo}
             className="subida-imagen-input-oculto"
           />
+          {mostrarCamara && (
+            <input
+              ref={camaraRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              onChange={handleSeleccionarArchivo}
+              className="subida-imagen-input-oculto"
+            />
+          )}
+          {mostrarCamara && (
+            <button
+              type="button"
+              onClick={() => camaraRef.current?.click()}
+              disabled={subiendo}
+              className="btn-subida-imagen"
+            >
+              {subiendo ? 'Subiendo...' : '📸 Tomar foto'}
+            </button>
+          )}
           <button
             type="button"
             onClick={() => inputRef.current?.click()}
             disabled={subiendo}
             className="btn-subida-imagen"
           >
-            {subiendo ? 'Subiendo...' : botonTexto}
+            {subiendo && !mostrarCamara ? 'Subiendo...' : (mostrarCamara ? '🖼️ Elegir de la galería' : botonTexto)}
           </button>
 
           {valor && (

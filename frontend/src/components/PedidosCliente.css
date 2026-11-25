@@ -400,3 +400,17 @@
 .btn-etapa-pedido-cliente:hover:not(:disabled) {
   background: #d6bcfa;
 }
+
+.btn-whatsapp-pedido-cliente {
+  display: inline-flex;
+  align-items: center;
+  padding: 10px 16px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 700;
+  text-decoration: none;
+  background: #25d366;
+  color: #fff;
+}
+
+.btn-whatsapp-pedido-cliente:hover { background: #1ebe5b; }
