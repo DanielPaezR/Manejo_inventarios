@@ -6,6 +6,8 @@ import api from '../services/api';
 import EstadoPagoPedido from './EstadoPagoPedido';
 import { useModulo } from '../hooks/useModulo';
 import { enlaceAvisoCliente } from '../utils/etapaPedido';
+import { ordenarParadas, largoRuta, enlaceRutaGoogle, MAX_PARADAS_GOOGLE } from '../utils/rutaEntregas';
+import { Link } from 'react-router-dom';
 import './RutaEntregas.css';
 
 // react-leaflet + Vite: los íconos por defecto de Leaflet dependen de
@@ -24,6 +26,15 @@ const crearIconoNumerado = (numero) =>
     iconAnchor: [15, 30],
     popupAnchor: [0, -30]
   });
+
+// La tienda: punto de salida de la ruta (Configuración > Domicilios).
+const iconoTienda = L.divIcon({
+  className: 'ruta-entregas-pin',
+  html: '<div class="ruta-entregas-tienda">🏪</div>',
+  iconSize: [34, 34],
+  iconAnchor: [17, 17],
+  popupAnchor: [0, -18]
+});
 
 // Encaja el mapa para que se vean todos los pines a la vez. Va como
 // subcomponente (no un efecto en el padre) porque fitBounds necesita la
@@ -61,6 +72,7 @@ const RutaEntregas = ({ user }) => {
   const [accionEnCurso, setAccionEnCurso] = useState(null); // `${id}-${accion}` o 'reordenando'
 
   const [frecuenciaEntrega, setFrecuenciaEntrega] = useState(null);
+  const [tienda, setTienda] = useState(null); // { lat, lng } del local
   const [editandoFrecuencia, setEditandoFrecuencia] = useState(false);
   const [frecuenciaInput, setFrecuenciaInput] = useState('');
   const [guardandoFrecuencia, setGuardandoFrecuencia] = useState(false);
@@ -87,6 +99,9 @@ const RutaEntregas = ({ user }) => {
     try {
       const response = await api.get(`/modulos/${moduloActivo.id}`);
       setFrecuenciaEntrega(response.data.frecuencia_entrega_dias);
+      setTienda(response.data.ubicacion_lat !== null && response.data.ubicacion_lat !== undefined
+        ? { lat: Number(response.data.ubicacion_lat), lng: Number(response.data.ubicacion_lng) }
+        : null);
     } catch (error) {
       console.error('Error cargando datos del módulo:', error);
     }
@@ -131,6 +146,19 @@ const RutaEntregas = ({ user }) => {
     [paradasConCoordenadas]
   );
 
+  // La línea de la ruta sale de la tienda (si está marcada) y pasa por las
+  // paradas en orden.
+  const puntosRuta = useMemo(
+    () => (tienda ? [[tienda.lat, tienda.lng], ...posicionesMapa] : posicionesMapa),
+    [tienda, posicionesMapa]
+  );
+  const puntosParadas = useMemo(
+    () => paradasConCoordenadas.map(({ parada }) => ({ id: parada.id, lat: Number(parada.lat), lng: Number(parada.lng) })),
+    [paradasConCoordenadas]
+  );
+  const kmRuta = useMemo(() => largoRuta(tienda, puntosParadas), [tienda, puntosParadas]);
+  const enlaceGoogle = useMemo(() => enlaceRutaGoogle(tienda, puntosParadas), [tienda, puntosParadas]);
+
   // Consolidado de todos los productos de todas las paradas pendientes,
   // para que el repartidor sepa qué empacar antes de salir.
   const resumenProductos = useMemo(() => {
@@ -155,7 +183,25 @@ const RutaEntregas = ({ user }) => {
 
     const reordenadas = [...paradas];
     [reordenadas[index], reordenadas[nuevoIndex]] = [reordenadas[nuevoIndex], reordenadas[index]];
+    await guardarOrden(reordenadas);
+  };
 
+  // Ordena las paradas por el recorrido más corto saliendo de la tienda.
+  // Las que no tienen ubicación en el mapa quedan al final.
+  const ordenarAutomatico = async () => {
+    const porId = new Map(paradas.map(p => [p.id, p]));
+    const ordenadas = ordenarParadas(tienda, puntosParadas).map(p => porId.get(p.id));
+    const sinMapa = paradas.filter(p => !puntosParadas.some(x => x.id === p.id));
+    const antes = largoRuta(tienda, puntosParadas);
+    await guardarOrden([...ordenadas, ...sinMapa]);
+    const despues = largoRuta(tienda, ordenarParadas(tienda, puntosParadas));
+    setMensaje(despues + 0.05 < antes
+      ? `✨ Ruta ordenada: unos ${(antes - despues).toFixed(1)} km menos en línea recta`
+      : '✨ La ruta ya estaba en el orden más corto');
+    setTimeout(() => setMensaje(''), 5000);
+  };
+
+  const guardarOrden = async (reordenadas) => {
     setAccionEnCurso('reordenando');
     try {
       const cambios = reordenadas
@@ -177,8 +223,14 @@ const RutaEntregas = ({ user }) => {
     }
   };
 
-  const abrirComoLlegar = (direccion) => {
-    const url = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(direccion)}`;
+  // Con el punto que el cliente marcó en el mapa si lo hay (más exacto que
+  // la dirección escrita).
+  const destinoParada = (parada) => (parada.lat !== null && parada.lat !== undefined && parada.lng !== null && parada.lng !== undefined
+    ? `${parada.lat},${parada.lng}`
+    : parada.direccion_entrega);
+
+  const abrirComoLlegar = (parada) => {
+    const url = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(destinoParada(parada))}`;
     window.open(url, '_blank');
   };
 
@@ -329,7 +381,7 @@ const RutaEntregas = ({ user }) => {
         )}
       </div>
 
-      {loading ? (
+      {loading && pedidos.length === 0 ? (
         <div className="loading">Cargando paradas...</div>
       ) : (
         <>
@@ -340,14 +392,19 @@ const RutaEntregas = ({ user }) => {
                 <p className="sin-datos">Ninguna dirección se pudo ubicar en el mapa todavía</p>
               ) : (
                 <div className="ruta-entregas-mapa-wrapper">
-                  <MapContainer center={posicionesMapa[0]} zoom={13} scrollWheelZoom={true}>
+                  <MapContainer center={puntosRuta[0]} zoom={13} scrollWheelZoom={true}>
                     <TileLayer
                       attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
                       url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                     />
-                    <AjustarVistaAParadas posiciones={posicionesMapa} />
-                    {posicionesMapa.length > 1 && (
-                      <Polyline positions={posicionesMapa} pathOptions={{ color: '#4299e1', weight: 3, dashArray: '6 8' }} />
+                    <AjustarVistaAParadas posiciones={puntosRuta} />
+                    {tienda && (
+                      <Marker position={[tienda.lat, tienda.lng]} icon={iconoTienda}>
+                        <Popup><strong>🏪 Tienda</strong><br />Punto de salida de la ruta</Popup>
+                      </Marker>
+                    )}
+                    {puntosRuta.length > 1 && (
+                      <Polyline positions={puntosRuta} pathOptions={{ color: '#4299e1', weight: 3, dashArray: '6 8' }} />
                     )}
                     {paradasConCoordenadas.map(({ parada, numero }) => (
                       <Marker
@@ -361,7 +418,7 @@ const RutaEntregas = ({ user }) => {
                           {parada.direccion_entrega}
                           <br />
                           <a
-                            href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(parada.direccion_entrega)}`}
+                            href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(destinoParada(parada))}`}
                             target="_blank"
                             rel="noopener noreferrer"
                           >
@@ -371,6 +428,34 @@ const RutaEntregas = ({ user }) => {
                       </Marker>
                     ))}
                   </MapContainer>
+                </div>
+              )}
+              {puntosParadas.length > 0 && (
+                <div className="ruta-entregas-herramientas">
+                  <span className="ruta-entregas-km">
+                    {tienda ? '🏪 Saliendo de la tienda' : 'Desde la primera parada'}: ≈ {kmRuta.toFixed(1)} km en línea recta
+                  </span>
+                  <div className="ruta-entregas-herramientas-botones">
+                    {puntosParadas.length > 1 && (
+                      <button onClick={ordenarAutomatico} disabled={!!accionEnCurso} className="ruta-entregas-btn-chico ruta-entregas-btn-ordenar">
+                        {accionEnCurso === 'reordenando' ? 'Ordenando...' : '✨ Ordenar la ruta más corta'}
+                      </button>
+                    )}
+                    {enlaceGoogle && (
+                      <a href={enlaceGoogle} target="_blank" rel="noopener noreferrer" className="ruta-entregas-btn-chico ruta-entregas-btn-google">
+                        🧭 Abrir la ruta en Google Maps
+                      </a>
+                    )}
+                  </div>
+                  {puntosParadas.length > MAX_PARADAS_GOOGLE && (
+                    <small>Google Maps abre hasta la parada {MAX_PARADAS_GOOGLE}; las demás, desde su botón "Cómo llegar".</small>
+                  )}
+                  {!tienda && esAdmin && (
+                    <small>
+                      Para que la ruta arranque en la tienda, marca dónde queda tu local en{' '}
+                      <Link to="/configuracion">Configuración → Domicilios</Link>.
+                    </small>
+                  )}
                 </div>
               )}
             </div>
@@ -459,7 +544,7 @@ const RutaEntregas = ({ user }) => {
                       </div>
 
                       <div className="ruta-entregas-parada-acciones">
-                        <button onClick={() => abrirComoLlegar(parada.direccion_entrega)} className="ruta-entregas-btn-como-llegar">
+                        <button onClick={() => abrirComoLlegar(parada)} className="ruta-entregas-btn-como-llegar">
                           📍 Cómo llegar
                         </button>
                         <button onClick={() => abrirModalCompletar(parada)} disabled={enAccion} className="ruta-entregas-btn-completar">

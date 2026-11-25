@@ -417,3 +417,37 @@
   font-size: 0.85rem;
   text-decoration: none;
 }
+
+/* Tienda en el mapa y herramientas de la ruta */
+.ruta-entregas-tienda {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: #fff;
+  border: 3px solid #2b6cb0;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+  font-size: 17px;
+}
+.ruta-entregas-herramientas {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+}
+.ruta-entregas-herramientas small { opacity: 0.75; }
+.ruta-entregas-km { font-size: 0.9rem; font-weight: 600; }
+.ruta-entregas-herramientas-botones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.ruta-entregas-btn-ordenar { background: #e9d8fd; color: #553c9a; }
+.ruta-entregas-btn-google {
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+  background: #2b6cb0;
+  color: #fff;
+}
