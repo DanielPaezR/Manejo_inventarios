@@ -5,7 +5,7 @@
 module.exports = function registrarRutas(ctx) {
   const {
     authenticateToken, checkAccess, generarNumeroFactura, generarNumeroCliente, sellos,
-    registrarIngresosVenta, app, pool
+    registrarIngresosVenta, app, pool, planes
   } = ctx;
 
   // ==================== RUTAS DE PEDIDOS DE CLIENTE (PANEL DEL NEGOCIO) ====================
@@ -590,7 +590,7 @@ module.exports = function registrarRutas(ctx) {
   // domicilio — uno para recoger en el local no tiene "parada" que ordenar.
   // orden_ruta null es válido (vuelve a quedar "sin asignar", al final de
   // la lista en el frontend).
-  app.put('/api/pedidos-cliente/:id/orden-ruta', authenticateToken, checkAccess, async (req, res) => {
+  app.put('/api/pedidos-cliente/:id/orden-ruta', authenticateToken, checkAccess, planes.requierePlan(pool, 'domicilios'), async (req, res) => {
     try {
       const { id } = req.params;
       const moduloId = req.moduloId;

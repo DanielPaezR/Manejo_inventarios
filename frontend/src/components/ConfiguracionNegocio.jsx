@@ -163,7 +163,9 @@ const ConfiguracionNegocio = ({ user }) => {
         </p>
       </div>
 
-      {/* Domicilios */}
+      {/* Domicilios: desde el plan Negocio. Sin ellos el catálogo en línea
+          recibe pedidos solo para recoger. */}
+      <BloqueoPlan titulo="Domicilios" funcion="domicilios">
       <div className="card conf-card">
         <div className="conf-switch-fila">
           <div>
@@ -187,6 +189,7 @@ const ConfiguracionNegocio = ({ user }) => {
           </button>
         </div>
       </div>
+      </BloqueoPlan>
 
       <BloqueoPlan titulo="Zona de juegos" funcion="juegos">
       <div className="card conf-card">

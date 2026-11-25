@@ -7,6 +7,8 @@ import AntesYAhora from './AntesYAhora';
 import AnalisisProductos from './AnalisisProductos';
 import AnalisisEquipo from './AnalisisEquipo';
 import ClientesEnLinea from './ClientesEnLinea';
+import { usePlan } from '../hooks/usePlan';
+import { BloqueoPlan } from './PlanNegocio';
 import './Estadisticas.css';
 
 // Aritmética de calendario pura en UTC (año/mes/día, sin horas): evita que
@@ -40,6 +42,13 @@ const Estadisticas = ({ user }) => {
   const [periodo, setPeriodo] = useState('hoy');
   const [fechas, setFechas] = useState({ inicio: '', fin: '' });
   const [vistaActiva, setVistaActiva] = useState('resumen'); // 'resumen', 'ventas', 'productos', 'dinero', 'historia'
+  // Resumen, ventas y productos son de todos los planes; el resto
+  // (estadísticas completas) desde el plan Negocio, y las ventas entre sedes
+  // solo en Multisede.
+  const { incluye: planIncluye } = usePlan();
+  const VISTAS_COMPLETAS = ['dinero', 'historia', 'clientes'];
+  const vistaBloqueada = VISTAS_COMPLETAS.includes(vistaActiva) && !planIncluye('reportes');
+  const conMultisede = planIncluye('multisede');
   const [hoveredProducto, setHoveredProducto] = useState(null);
   const [finanzasResumen, setFinanzasResumen] = useState(null);
   const [loadingFinanzas, setLoadingFinanzas] = useState(false);
@@ -140,10 +149,10 @@ const Estadisticas = ({ user }) => {
   }, [periodo, fechas, periodoOffset]);
 
   useEffect(() => {
-    if (moduloActivo && vistaActiva === 'dinero') {
+    if (moduloActivo && vistaActiva === 'dinero' && !vistaBloqueada) {
       cargarFinanzasResumen();
     }
-  }, [moduloActivo, vistaActiva, periodo, periodoOffset, cargarFinanzasResumen]);
+  }, [moduloActivo, vistaActiva, vistaBloqueada, periodo, periodoOffset, cargarFinanzasResumen]);
 
   // Ventas cruzadas: cuánto de mis productos compartidos vendieron otros
   // módulos, y cuánto vendí yo de productos ajenos. Se carga solo al entrar
@@ -166,10 +175,10 @@ const Estadisticas = ({ user }) => {
   }, [periodo, fechas, periodoOffset]);
 
   useEffect(() => {
-    if (moduloActivo && vistaActiva === 'dinero') {
+    if (moduloActivo && vistaActiva === 'dinero' && !vistaBloqueada && conMultisede) {
       cargarVentasCruzadas();
     }
-  }, [moduloActivo, vistaActiva, periodo, periodoOffset, cargarVentasCruzadas]);
+  }, [moduloActivo, vistaActiva, vistaBloqueada, conMultisede, periodo, periodoOffset, cargarVentasCruzadas]);
 
   // Marca/desmarca el día actual de ventas cruzadas como pagado — solo
   // disponible cuando el backend confirma puede_marcar_pagado (módulo por
@@ -324,10 +333,10 @@ const Estadisticas = ({ user }) => {
   }, [evolucionGranularidad, evolucionModoRango, evolucionOffset, evolucionFechas, evolucionAnchor]);
 
   useEffect(() => {
-    if (moduloActivo && vistaActiva === 'historia' && evolucionModoRango !== 'personalizado') {
+    if (moduloActivo && vistaActiva === 'historia' && !vistaBloqueada && evolucionModoRango !== 'personalizado') {
       cargarEvolucion();
     }
-  }, [moduloActivo, vistaActiva, evolucionGranularidad, evolucionModoRango, evolucionOffset, cargarEvolucion]);
+  }, [moduloActivo, vistaActiva, vistaBloqueada, evolucionGranularidad, evolucionModoRango, evolucionOffset, cargarEvolucion]);
 
   // Calcular métricas adicionales
   const metricasAvanzadas = useMemo(() => {
@@ -408,7 +417,7 @@ const Estadisticas = ({ user }) => {
               className={`btn-vista btn-vista--pregunta ${vistaActiva === t.valor ? 'active' : ''}`}
               onClick={(e) => { setVistaActiva(t.valor); e.currentTarget.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' }); }}
             >
-              <span>{t.titulo}</span>
+              <span>{t.titulo}{VISTAS_COMPLETAS.includes(t.valor) && !planIncluye('reportes') ? ' 🔒' : ''}</span>
               <small>{t.ayuda}</small>
             </button>
           ))}
@@ -417,7 +426,7 @@ const Estadisticas = ({ user }) => {
 
       {/* Filtros de período: no aplican a la pestaña "Evolución", que tiene
           su propio selector de granularidad/rango más abajo. */}
-      {!['historia', 'resumen', 'clientes'].includes(vistaActiva) && (
+      {!vistaBloqueada && !['historia', 'resumen', 'clientes'].includes(vistaActiva) && (
       <div className="filtros-periodo">
         <div className="periodo-selector">
           <button
@@ -507,7 +516,9 @@ const Estadisticas = ({ user }) => {
       </div>
       )}
 
-      {vistaActiva === 'resumen' ? (
+      {vistaBloqueada ? (
+        <BloqueoPlan titulo="Estadísticas completas" funcion="reportes" />
+      ) : vistaActiva === 'resumen' ? (
         <ResumenNegocio onIrAVista={setVistaActiva} />
       ) : vistaActiva === 'clientes' ? (
         <ClientesEnLinea />
@@ -1001,10 +1012,10 @@ const Estadisticas = ({ user }) => {
           {/* ============================================================
               VISTA DE VENTAS CRUZADAS (productos compartidos entre módulos)
               ============================================================ */}
-          {vistaActiva === 'dinero' && (
+          {vistaActiva === 'dinero' && conMultisede && (
             <h3 className="est-seccion">🔗 Ventas cruzadas con otros módulos</h3>
           )}
-          {vistaActiva === 'dinero' && (
+          {vistaActiva === 'dinero' && conMultisede && (
             <div className="estadisticas-grid">
               {loadingCruzadas && !ventasCruzadas ? (
                 <div className="loading-container">

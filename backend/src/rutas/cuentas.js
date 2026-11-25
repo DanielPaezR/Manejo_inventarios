@@ -4,7 +4,7 @@
 // y lo que exportan los grupos registrados antes; devuelven lo que otros usan.
 module.exports = function registrarRutas(ctx) {
   const {
-    bcrypt, jwt, authenticateToken, requireAdmin, JWT_SECRET, app, pool
+    bcrypt, jwt, authenticateToken, requireAdmin, JWT_SECRET, app, pool, planes
   } = ctx;
 
   // ==================== RUTAS DE AUTENTICACIÓN ====================
@@ -155,7 +155,7 @@ module.exports = function registrarRutas(ctx) {
           // GestionModulos.jsx) — admin ya no ve automáticamente todos los
           // módulos de su negocio, super_admin decide el acceso de cada uno.
           const modulosResult = await pool.query(
-            `SELECT m.id, m.nombre, m.descripcion, m.activo, m.tiene_domicilio
+            `SELECT m.id, m.nombre, m.descripcion, m.activo, ${planes.sqlTieneDomicilio()} AS tiene_domicilio
            FROM modulos m
            JOIN usuario_modulos um ON m.id = um.modulo_id
            WHERE um.usuario_id = $1 AND m.activo = true
@@ -258,7 +258,7 @@ module.exports = function registrarRutas(ctx) {
           // GestionModulos.jsx) — admin ya no ve automáticamente todos los
           // módulos de su negocio, super_admin decide el acceso de cada uno.
           const modulosResult = await pool.query(
-            `SELECT m.id, m.nombre, m.descripcion, m.activo, m.tiene_domicilio
+            `SELECT m.id, m.nombre, m.descripcion, m.activo, ${planes.sqlTieneDomicilio()} AS tiene_domicilio
            FROM modulos m
            JOIN usuario_modulos um ON m.id = um.modulo_id
            WHERE um.usuario_id = $1 AND m.activo = true

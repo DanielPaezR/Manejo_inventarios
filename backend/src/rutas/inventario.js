@@ -4,7 +4,7 @@
 // y lo que exportan los grupos registrados antes; devuelven lo que otros usan.
 module.exports = function registrarRutas(ctx) {
   const {
-    moment, ahoraColombia, authenticateToken, requireAdmin, checkAccess, app, pool, requirePermiso
+    moment, ahoraColombia, authenticateToken, requireAdmin, checkAccess, app, pool, requirePermiso, planes
   } = ctx;
 
   // ==================== INVENTARIO: DATOS DE COMPRA Y CONTEO FÍSICO ====================
@@ -616,7 +616,7 @@ module.exports = function registrarRutas(ctx) {
   // Evolución del balance general acumulado (saldo_inicial + ingresos -
   // egresos, corrido bucket a bucket) desde el movimiento_caja más antiguo
   // del negocio hasta hoy, navegable por día/semana/mes.
-  app.get('/api/finanzas/evolucion-balance', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+  app.get('/api/finanzas/evolucion-balance', authenticateToken, checkAccess, requireAdmin, planes.requierePlan(pool, 'reportes'), async (req, res) => {
     try {
       const moduloId = req.moduloId;
       const { granularidad = 'semana', fecha_inicio, fecha_fin } = req.query;
@@ -692,7 +692,7 @@ module.exports = function registrarRutas(ctx) {
   // propios / otros) período a período, SIN acumular — cada punto es lo
   // gastado en ese bucket. A diferencia de evolución-balance, no necesita
   // traer historia previa al rango mostrado porque no hay acumulación.
-  app.get('/api/finanzas/evolucion-egresos', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+  app.get('/api/finanzas/evolucion-egresos', authenticateToken, checkAccess, requireAdmin, planes.requierePlan(pool, 'reportes'), async (req, res) => {
     try {
       const moduloId = req.moduloId;
       const { granularidad = 'semana', fecha_inicio, fecha_fin } = req.query;

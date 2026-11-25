@@ -72,3 +72,8 @@
   border-radius: 10px;
   background: var(--surface-subtle);
 }
+
+.pn__precio { margin: 6px 0 0; font-size: 0.88rem; }
+.pn__precio b { font-size: 1.05rem; font-variant-numeric: tabular-nums; }
+.pn__precio span { opacity: 0.7; }
+.pn__base { margin: 0 0 10px; font-size: 0.85rem; opacity: 0.75; }

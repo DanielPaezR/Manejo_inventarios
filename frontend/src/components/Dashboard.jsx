@@ -3,12 +3,14 @@ import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import {
   ShoppingCart, Package, ChartColumn, FileText, Truck, ClipboardList,
   ReceiptText, Bike, Users, FileSearch, Wallet, Landmark, Building2,
-  CircleHelp, ChevronDown, Menu, KeyRound, LogOut, Store, Check, ClipboardCheck, Settings, Megaphone
+  CircleHelp, ChevronDown, Menu, KeyRound, LogOut, Store, Check, ClipboardCheck, Settings, Megaphone, Lock
 } from 'lucide-react';
 import CambiarPassword from './CambiarPassword';
 import { useModulo } from '../hooks/useModulo';
 import api from '../services/api';
 import { puedeVerRuta } from '../utils/permisos';
+import { usePlan } from '../hooks/usePlan';
+import { BloqueoPlan } from './PlanNegocio';
 import './Dashboard.css';
 
 const MENU = {
@@ -20,16 +22,16 @@ const MENU = {
   admin: [
     { path: '/ventas', icon: ShoppingCart, label: 'Ventas', grupo: 'Vender' },
     { path: '/pedidos-cliente', icon: ReceiptText, label: 'Pedidos de clientes', grupo: 'Vender' },
-    { path: '/ruta-entregas', icon: Bike, label: 'Ruta de entregas', grupo: 'Vender' },
+    { path: '/ruta-entregas', icon: Bike, label: 'Ruta de entregas', grupo: 'Vender', funcion: 'domicilios' },
     { path: '/facturas', icon: FileSearch, label: 'Facturas', grupo: 'Vender' },
     { path: '/productos', icon: Package, label: 'Productos', grupo: 'Mercancía' },
     { path: '/inventario', icon: ClipboardCheck, label: 'Inventario', grupo: 'Mercancía' },
     { path: '/proveedores', icon: Truck, label: 'Proveedores', grupo: 'Mercancía' },
-    { path: '/pedidos', icon: ClipboardList, label: 'Mis pedidos', grupo: 'Mercancía' },
+    { path: '/pedidos', icon: ClipboardList, label: 'Mis pedidos', grupo: 'Mercancía', funcion: 'proveedores' },
     { path: '/clientes', icon: Users, label: 'Clientes', grupo: 'Clientes' },
     { path: '/marketing', icon: Megaphone, label: 'Marketing', grupo: 'Clientes' },
     { path: '/finanzas', icon: Wallet, label: 'Caja y bolsillos', grupo: 'Dinero' },
-    { path: '/finanzas-negocio', icon: Landmark, label: 'Finanzas del negocio', grupo: 'Dinero' },
+    { path: '/finanzas-negocio', icon: Landmark, label: 'Finanzas del negocio', grupo: 'Dinero', funcion: 'finanzas' },
     { path: '/estadisticas', icon: ChartColumn, label: 'Estadísticas', grupo: 'Análisis' },
     { path: '/reportes', icon: FileText, label: 'Reportes', grupo: 'Análisis' },
     { path: '/configuracion', icon: Settings, label: 'Configuración', grupo: 'Ajustes' }
@@ -37,7 +39,7 @@ const MENU = {
   trabajador: [
     { path: '/ventas', icon: ShoppingCart, label: 'Ventas' },
     { path: '/pedidos-cliente', icon: ReceiptText, label: 'Pedidos de Clientes' },
-    { path: '/ruta-entregas', icon: Bike, label: 'Ruta de Entregas' }
+    { path: '/ruta-entregas', icon: Bike, label: 'Ruta de Entregas', funcion: 'domicilios' }
   ]
 };
 
@@ -47,6 +49,9 @@ const Dashboard = ({ user, onLogout, onRefrescarPermisos }) => {
   const location = useLocation();
   const navigate = useNavigate();
   const { moduloActivo, modulos, cambiarModulo } = useModulo();
+  // Funciones del plan del negocio (el super admin no tiene plan).
+  const { incluye: planIncluye } = usePlan();
+  const incluyePlan = (funcion) => user?.rol === 'super_admin' || !funcion || planIncluye(funcion);
   const [showCambiarPassword, setShowCambiarPassword] = useState(false);
   const [showModuloMenu, setShowModuloMenu] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
@@ -65,7 +70,7 @@ const Dashboard = ({ user, onLogout, onRefrescarPermisos }) => {
   // menú. Se recalcula al navegar para que desaparezca al hacer el pedido.
   const [pedidosPorHacer, setPedidosPorHacer] = useState(0);
   useEffect(() => {
-    if (user?.rol !== 'admin' || !moduloActivo) return;
+    if (user?.rol !== 'admin' || !moduloActivo || !incluyePlan('proveedores')) return;
     api.get('/proveedores/calendario')
       .then(res => setPedidosPorHacer(res.data.proveedores.filter(p => p.estado === 'hoy' || p.estado === 'atrasado').length))
       .catch(() => {});
@@ -121,6 +126,9 @@ const Dashboard = ({ user, onLogout, onRefrescarPermisos }) => {
       // en el mismo orden del menú del admin.
       : MENU.admin.filter(item => MENU.trabajador.some(t => t.path === item.path) || puedeVerRuta(user, item.path))
   ).filter(item => item.path !== '/ruta-entregas' || moduloActivo?.tiene_domicilio !== false);
+  // Lo que el plan no incluye sigue en el menú con candado y, al abrirlo,
+  // muestra el aviso en lugar de la página.
+  const bloqueada = items.find(item => item.path === location.pathname && !incluyePlan(item.funcion));
 
   const paginaActual = items.find(item => item.path === location.pathname);
   const inicial = user?.nombre?.charAt(0).toUpperCase() || 'U';
@@ -145,7 +153,7 @@ const Dashboard = ({ user, onLogout, onRefrescarPermisos }) => {
 
         <nav className="sidebar-nav">
           <ul className="nav-menu">
-            {items.map(({ path, icon: Icon, label, grupo }, i) => (
+            {items.map(({ path, icon: Icon, label, grupo, funcion }, i) => (
               <React.Fragment key={path}>
               {grupo && grupo !== items[i - 1]?.grupo && (
                 sidebarCollapsed
@@ -159,6 +167,9 @@ const Dashboard = ({ user, onLogout, onRefrescarPermisos }) => {
                 <Link to={path}>
                   <Icon className="nav-icon" size={18} strokeWidth={1.9} />
                   {!sidebarCollapsed && <span className="nav-label">{label}</span>}
+                  {!sidebarCollapsed && !incluyePlan(funcion) && (
+                    <Lock size={13} className="nav-candado" aria-label="No incluido en tu plan" />
+                  )}
                   {path === '/pedidos' && pedidosPorHacer > 0 && (
                     <span className="nav-badge" title="Proveedores a los que hoy toca hacer pedido">{pedidosPorHacer}</span>
                   )}
@@ -275,7 +286,9 @@ const Dashboard = ({ user, onLogout, onRefrescarPermisos }) => {
           {/* key={pathname}: remonta el div en cada navegación para que la
               animación de entrada se dispare de nuevo. */}
           <div key={location.pathname} className="page-transition">
-            <Outlet />
+            {bloqueada
+              ? <BloqueoPlan titulo={bloqueada.label} funcion={bloqueada.funcion} />
+              : <Outlet />}
           </div>
         </main>
       </div>

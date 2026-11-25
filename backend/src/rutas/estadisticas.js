@@ -168,7 +168,10 @@ module.exports = function registrarRutas(ctx) {
   app.get('/api/mi-plan', authenticateToken, checkAccess, async (req, res) => {
     try {
       const { plan, uso } = await planes.usoDelNegocio(pool, req.negocioId);
-      res.json({ plan, uso, funciones: planes.FUNCIONES });
+      // Para cada función, el primer plan que la incluye (para el aviso de candado).
+      const desde = Object.fromEntries(Object.keys(planes.FUNCIONES).map(f => [
+        f, Object.values(planes.PLANES).find(p => p.funciones.includes(f))?.nombre || null]));
+      res.json({ plan, uso, funciones: planes.FUNCIONES, desde, condiciones: planes.CONDICIONES });
     } catch (error) {
       console.error('Error leyendo el plan:', error);
       res.status(500).json({ error: 'Error interno del servidor' });
@@ -176,14 +179,22 @@ module.exports = function registrarRutas(ctx) {
   });
 
   app.get('/api/planes', authenticateToken, requireSuperAdmin, (req, res) => {
-    res.json({ planes: planes.PLANES, funciones: planes.FUNCIONES });
+    res.json({ planes: planes.PLANES, funciones: planes.FUNCIONES, condiciones: planes.CONDICIONES });
   });
 
   app.put('/api/negocios/:id/plan', authenticateToken, requireSuperAdmin, async (req, res) => {
     try {
       const plan = req.body?.plan || null;
       if (plan !== null && !planes.PLANES[plan]) return res.status(400).json({ error: 'Plan no válido' });
-      const { rows: [n] } = await pool.query('UPDATE negocios SET plan = $1 WHERE id = $2 RETURNING id, plan', [plan, req.params.id]);
+      // Sedes adicionales (se cobran aparte): solo aplican en Multisede.
+      const sedesExtra = req.body?.sedes_extra === undefined ? null : Number(req.body.sedes_extra);
+      if (sedesExtra !== null && !(Number.isInteger(sedesExtra) && sedesExtra >= 0 && sedesExtra <= 50)) {
+        return res.status(400).json({ error: 'Las sedes adicionales deben ser un número entre 0 y 50' });
+      }
+      const { rows: [n] } = sedesExtra === null
+        ? await pool.query('UPDATE negocios SET plan = $1 WHERE id = $2 RETURNING id, plan', [plan, req.params.id])
+        : await pool.query('UPDATE negocios SET plan = $1, sedes_extra = $2 WHERE id = $3 RETURNING id, plan',
+          [plan, plan === 'multisede' ? sedesExtra : 0, req.params.id]);
       if (!n) return res.status(404).json({ error: 'Negocio no encontrado' });
       res.json(await planes.usoDelNegocio(pool, n.id));
     } catch (error) {
@@ -284,8 +295,9 @@ module.exports = function registrarRutas(ctx) {
   });
 
   // ---- Análisis adicionales de Estadísticas ----
-  const rutaAnalisis = (ruta, construir) => {
-    app.get(ruta, authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+  const rutaAnalisis = (ruta, construir, funcionPlan = null) => {
+    const extra = funcionPlan ? [planes.requierePlan(pool, funcionPlan)] : [];
+    app.get(ruta, authenticateToken, checkAccess, requireAdmin, ...extra, async (req, res) => {
       try {
         if (!req.moduloId) {
           return res.status(400).json({ error: 'Se requiere un módulo' });
@@ -301,7 +313,7 @@ module.exports = function registrarRutas(ctx) {
   rutaAnalisis('/api/estadisticas/productos-simulador', (req) => productosParaSimulador(pool, req.moduloId));
   rutaAnalisis('/api/estadisticas/mermas', (req) => mermas(pool, req.moduloId));
   rutaAnalisis('/api/estadisticas/equipo', (req) => ventasPorEquipo(pool, req.moduloId));
-  rutaAnalisis('/api/estadisticas/clientes-en-linea', (req) => clientesEnLinea(pool, req.moduloId));
+  rutaAnalisis('/api/estadisticas/clientes-en-linea', (req) => clientesEnLinea(pool, req.moduloId), 'reportes');
   rutaAnalisis('/api/estadisticas/hoy', (req) => hoyRapido(pool, req.moduloId));
 
   // Para todos (también trabajadores): mis ventas, podio y avance del equipo.
@@ -348,7 +360,7 @@ module.exports = function registrarRutas(ctx) {
   });
 
   // Primeros 30 días con ventas contra los últimos 30 (pestaña "Antes y ahora").
-  app.get('/api/estadisticas/antes-y-ahora', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+  app.get('/api/estadisticas/antes-y-ahora', authenticateToken, checkAccess, requireAdmin, planes.requierePlan(pool, 'reportes'), async (req, res) => {
     try {
       if (!req.moduloId) {
         return res.status(400).json({ error: 'Se requiere un módulo' });
@@ -670,7 +682,7 @@ module.exports = function registrarRutas(ctx) {
       .sort((a, b) => b.monto - a.monto);
   };
 
-  app.get('/api/estadisticas/ventas-cruzadas', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+  app.get('/api/estadisticas/ventas-cruzadas', authenticateToken, checkAccess, requireAdmin, planes.requierePlan(pool, 'multisede'), async (req, res) => {
     try {
       const moduloId = req.moduloId;
       const negocioId = req.negocioId;
@@ -853,7 +865,7 @@ module.exports = function registrarRutas(ctx) {
     return result.rows[0]?.id === Number(moduloId);
   };
 
-  app.put('/api/estadisticas/ventas-cruzadas/pagado', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+  app.put('/api/estadisticas/ventas-cruzadas/pagado', authenticateToken, checkAccess, requireAdmin, planes.requierePlan(pool, 'multisede'), async (req, res) => {
     let client;
     try {
       const moduloId = req.moduloId;
@@ -974,7 +986,7 @@ module.exports = function registrarRutas(ctx) {
     }
   });
 
-  app.get('/api/estadisticas/global', authenticateToken, requireAdmin, async (req, res) => {
+  app.get('/api/estadisticas/global', authenticateToken, requireAdmin, planes.requierePlan(pool, 'multisede'), async (req, res) => {
     try {
       const userId = req.user.id;
       const { periodo, fecha_inicio, fecha_fin } = req.query;

@@ -10,6 +10,7 @@
 // resumen_envios (canal 'recordatorio_<tipo>', semana = fecha del día)
 // para no mandarlo dos veces el mismo día.
 const { canalesDisponibles, enviarPush } = require('./notificador');
+const planes = require('./planes');
 
 const TIPOS = ['cierre', 'pedidos', 'pagos'];
 const HORA_CIERRE = 21;
@@ -170,13 +171,18 @@ function programarRecordatorios(pool, calendario) {
     const manana = hora >= HORA_MANANA && hora < 11;
     if (!manana && hora < 17) return;
     try {
-      const { rows } = await pool.query('SELECT id, recordatorios FROM modulos WHERE activo = true');
+      const { rows } = await pool.query(
+        `SELECT m.id, m.recordatorios,
+                ${planes.sqlNegocioIncluye('proveedores', 'm.negocio_id')} AS con_proveedores,
+                ${planes.sqlNegocioIncluye('finanzas', 'm.negocio_id')} AS con_finanzas
+         FROM modulos m WHERE m.activo = true`);
       for (const m of rows) {
         const config = leerConfig(m.recordatorios);
         const tipos = [];
-        if (manana && config.pedidos.activo) tipos.push('pedidos');
-        if (manana && config.pagos.activo) tipos.push('pagos');
-        if (config.cierre.activo && hora >= config.cierre.hora) tipos.push('cierre');
+        // Cada recordatorio depende de una función del plan del negocio.
+        if (manana && config.pedidos.activo && m.con_proveedores) tipos.push('pedidos');
+        if (manana && config.pagos.activo && m.con_finanzas) tipos.push('pagos');
+        if (config.cierre.activo && hora >= config.cierre.hora && m.con_finanzas) tipos.push('cierre');
         for (const tipo of tipos) {
           await enviarRecordatorio(pool, m.id, tipo, calendario)
             .catch(err => console.error(`Recordatorio ${tipo} módulo ${m.id}:`, err.message));

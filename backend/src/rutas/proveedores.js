@@ -4,7 +4,7 @@
 // y lo que exportan los grupos registrados antes; devuelven lo que otros usan.
 module.exports = function registrarRutas(ctx) {
   const {
-    ahoraColombia, authenticateToken, checkAccess, app, pool, requirePermiso
+    ahoraColombia, authenticateToken, checkAccess, app, pool, requirePermiso, planes
   } = ctx;
 
   // ==================== RUTAS DE PROVEEDORES ====================
@@ -311,7 +311,7 @@ module.exports = function registrarRutas(ctx) {
 
   const ORDEN_ESTADO_CALENDARIO = { atrasado: 0, hoy: 1, manana: 2, proximo: 3, esperando_aviso: 4, hecho: 5, sin_configurar: 6, pausado: 7 };
 
-  app.get('/api/proveedores/calendario', authenticateToken, checkAccess, requirePermiso('proveedores'), async (req, res) => {
+  app.get('/api/proveedores/calendario', authenticateToken, checkAccess, requirePermiso('proveedores'), planes.requierePlan(pool, 'proveedores'), async (req, res) => {
     try {
       const moduloId = req.moduloId;
       if (!moduloId) {
@@ -377,7 +377,7 @@ module.exports = function registrarRutas(ctx) {
   };
 
   // Para proveedores que avisan cuándo vienen: registrar (o borrar) la fecha.
-  app.put('/api/proveedores/:id/proxima-visita', authenticateToken, checkAccess, requirePermiso('proveedores'), async (req, res) => {
+  app.put('/api/proveedores/:id/proxima-visita', authenticateToken, checkAccess, requirePermiso('proveedores'), planes.requierePlan(pool, 'proveedores'), async (req, res) => {
     try {
       const { fecha } = req.body;
       if (fecha !== null && fecha !== '' && !/^\d{4}-\d{2}-\d{2}$/.test(fecha || '')) {
@@ -465,7 +465,7 @@ module.exports = function registrarRutas(ctx) {
     }
   });
 
-  app.get('/api/proveedores/:id/sugerencia-pedido', authenticateToken, checkAccess, requirePermiso('proveedores'), async (req, res) => {
+  app.get('/api/proveedores/:id/sugerencia-pedido', authenticateToken, checkAccess, requirePermiso('proveedores'), planes.requierePlan(pool, 'proveedores'), async (req, res) => {
     try {
       const { id } = req.params;
       const moduloId = req.moduloId;
@@ -866,7 +866,7 @@ module.exports = function registrarRutas(ctx) {
   // ==================== RUTAS DE PEDIDOS ====================
 
   // Crear pedido a proveedor
-  app.post('/api/pedidos', authenticateToken, checkAccess, requirePermiso('proveedores'), async (req, res) => {
+  app.post('/api/pedidos', authenticateToken, checkAccess, requirePermiso('proveedores'), planes.requierePlan(pool, 'proveedores'), async (req, res) => {
     // pool.connect() dentro del try: si la conexión falla, no debe quedar
     // como una promesa rechazada sin atrapar que tumbe todo el proceso.
     let client;
@@ -1082,7 +1082,7 @@ module.exports = function registrarRutas(ctx) {
   // "recibido" solo se sume al inventario lo que de verdad llegó.
   // Body: { detalles: [{ producto_id, cantidad }] } con la lista completa que
   // queda; los productos que no vengan (o con cantidad 0) se quitan.
-  app.put('/api/pedidos/:id/detalles', authenticateToken, checkAccess, requirePermiso('proveedores'), async (req, res) => {
+  app.put('/api/pedidos/:id/detalles', authenticateToken, checkAccess, requirePermiso('proveedores'), planes.requierePlan(pool, 'proveedores'), async (req, res) => {
     let client;
     try {
       const { id } = req.params;
@@ -1207,7 +1207,7 @@ module.exports = function registrarRutas(ctx) {
   // Actualizar estado del pedido. Al pasar a "recibido" suma al inventario lo
   // que tenga el pedido en ese momento, una sola vez (si ya estaba recibido no
   // vuelve a sumar), todo en una transacción.
-  app.put('/api/pedidos/:id/estado', authenticateToken, checkAccess, requirePermiso('proveedores'), async (req, res) => {
+  app.put('/api/pedidos/:id/estado', authenticateToken, checkAccess, requirePermiso('proveedores'), planes.requierePlan(pool, 'proveedores'), async (req, res) => {
     let client;
     try {
       const { id } = req.params;

@@ -5,7 +5,7 @@
 module.exports = function registrarRutas(ctx) {
   const {
     ahoraColombia, authenticateToken, requireAdmin, checkAccess, BOLSILLOS_MANUALES, app, pool,
-    esModuloPorDefecto, marcarPagoCruzadas, rangoCruzadas
+    esModuloPorDefecto, marcarPagoCruzadas, rangoCruzadas, planes
   } = ctx;
 
   // ==================== RUTAS DE CATEGORÍAS DE GASTO ====================
@@ -451,7 +451,7 @@ module.exports = function registrarRutas(ctx) {
     return Math.round(n * 100) / 100;
   };
 
-  app.get('/api/finanzas/bolsillos', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+  app.get('/api/finanzas/bolsillos', authenticateToken, checkAccess, requireAdmin, planes.requierePlan(pool, 'finanzas'), async (req, res) => {
     try {
       const moduloId = req.moduloId;
       const negocioId = req.negocioId;
@@ -491,7 +491,7 @@ module.exports = function registrarRutas(ctx) {
   // en caja (billetes + monedas), cartera y Nequi. La diferencia entre ese
   // total y lo que la app tenía queda como ajuste de cuadre, y luego todo
   // se reparte en los bolsillos.
-  app.post('/api/finanzas/bolsillos/apertura', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+  app.post('/api/finanzas/bolsillos/apertura', authenticateToken, checkAccess, requireAdmin, planes.requierePlan(pool, 'finanzas'), async (req, res) => {
     let client;
     try {
       const moduloId = req.moduloId;
@@ -585,7 +585,7 @@ module.exports = function registrarRutas(ctx) {
   // de la base se guarda en la cartera. Opcionalmente, en el mismo paso, se
   // entrega a los otros módulos lo vendido hoy de sus productos (y se marca
   // el día como pagado en ventas cruzadas).
-  app.post('/api/finanzas/bolsillos/cierre', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+  app.post('/api/finanzas/bolsillos/cierre', authenticateToken, checkAccess, requireAdmin, planes.requierePlan(pool, 'finanzas'), async (req, res) => {
     let client;
     try {
       const moduloId = req.moduloId;
@@ -659,7 +659,7 @@ module.exports = function registrarRutas(ctx) {
   // ingreso real al bolsillo que recibe.
   const TIPOS_TRASLADO = ['traslado', 'favor', 'monedas'];
 
-  app.post('/api/finanzas/bolsillos/traslados', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+  app.post('/api/finanzas/bolsillos/traslados', authenticateToken, checkAccess, requireAdmin, planes.requierePlan(pool, 'finanzas'), async (req, res) => {
     let client;
     try {
       const moduloId = req.moduloId;
@@ -713,7 +713,7 @@ module.exports = function registrarRutas(ctx) {
     }
   });
 
-  app.get('/api/finanzas/bolsillos/traslados', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+  app.get('/api/finanzas/bolsillos/traslados', authenticateToken, checkAccess, requireAdmin, planes.requierePlan(pool, 'finanzas'), async (req, res) => {
     try {
       const moduloId = req.moduloId;
       if (!moduloId) {
@@ -745,7 +745,7 @@ module.exports = function registrarRutas(ctx) {
 
   // Deshacer un traslado hecho a mano (por si se registró mal). Los de
   // apertura, ventas cruzadas y pagos cruzados no se borran desde aquí.
-  app.delete('/api/finanzas/bolsillos/traslados/:id', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+  app.delete('/api/finanzas/bolsillos/traslados/:id', authenticateToken, checkAccess, requireAdmin, planes.requierePlan(pool, 'finanzas'), async (req, res) => {
     let client;
     try {
       const moduloId = req.moduloId;
@@ -775,7 +775,7 @@ module.exports = function registrarRutas(ctx) {
     }
   });
 
-  app.get('/api/finanzas/cuadres', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+  app.get('/api/finanzas/cuadres', authenticateToken, checkAccess, requireAdmin, planes.requierePlan(pool, 'finanzas'), async (req, res) => {
     try {
       const moduloId = req.moduloId;
       if (!moduloId) {
@@ -807,7 +807,7 @@ module.exports = function registrarRutas(ctx) {
   // Cuadre: se cuenta el dinero real y la diferencia con la app queda como
   // ajuste (faltante/sobrante). Con bolsillo, cuadra solo ese bolsillo; sin
   // él, el saldo total del módulo (antes de abrir bolsillos).
-  app.post('/api/finanzas/cuadres', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+  app.post('/api/finanzas/cuadres', authenticateToken, checkAccess, requireAdmin, planes.requierePlan(pool, 'finanzas'), async (req, res) => {
     let client;
     try {
       const moduloId = req.moduloId;
@@ -887,7 +887,7 @@ module.exports = function registrarRutas(ctx) {
   // plan de datos...). "Pagar" registra el egreso en su bolsillo y categoría;
   // el listado dice si ya se pagó este mes.
 
-  app.get('/api/finanzas/pagos-fijos', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+  app.get('/api/finanzas/pagos-fijos', authenticateToken, checkAccess, requireAdmin, planes.requierePlan(pool, 'finanzas'), async (req, res) => {
     try {
       const moduloId = req.moduloId;
       if (!moduloId) {
@@ -939,7 +939,7 @@ module.exports = function registrarRutas(ctx) {
     return { valores: [nombre, monto, dia, body.bolsillo, categoria] };
   };
 
-  app.post('/api/finanzas/pagos-fijos', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+  app.post('/api/finanzas/pagos-fijos', authenticateToken, checkAccess, requireAdmin, planes.requierePlan(pool, 'finanzas'), async (req, res) => {
     try {
       const moduloId = req.moduloId;
       if (!moduloId) {
@@ -959,7 +959,7 @@ module.exports = function registrarRutas(ctx) {
     }
   });
 
-  app.put('/api/finanzas/pagos-fijos/:id', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+  app.put('/api/finanzas/pagos-fijos/:id', authenticateToken, checkAccess, requireAdmin, planes.requierePlan(pool, 'finanzas'), async (req, res) => {
     try {
       const moduloId = req.moduloId;
       const { error, valores } = await validarPagoFijo(req.body, moduloId);
@@ -977,7 +977,7 @@ module.exports = function registrarRutas(ctx) {
     }
   });
 
-  app.delete('/api/finanzas/pagos-fijos/:id', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+  app.delete('/api/finanzas/pagos-fijos/:id', authenticateToken, checkAccess, requireAdmin, planes.requierePlan(pool, 'finanzas'), async (req, res) => {
     try {
       const result = await pool.query(
         'UPDATE pagos_fijos SET activo = false WHERE id = $1 AND modulo_id = $2 RETURNING id',
@@ -993,7 +993,7 @@ module.exports = function registrarRutas(ctx) {
 
   // El monto puede variar (ej. el dólar movió el precio de Claude): si viene
   // en el body se usa ese, si no el configurado.
-  app.post('/api/finanzas/pagos-fijos/:id/pagar', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+  app.post('/api/finanzas/pagos-fijos/:id/pagar', authenticateToken, checkAccess, requireAdmin, planes.requierePlan(pool, 'finanzas'), async (req, res) => {
     try {
       const moduloId = req.moduloId;
       const fijo = await pool.query(

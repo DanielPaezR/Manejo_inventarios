@@ -58,7 +58,7 @@ module.exports = function registrarRutas(ctx) {
 
   const cargarContextoBot = async (moduloId) => {
     const moduloResult = await pool.query(
-      `SELECT m.id, m.nombre, m.nombre_publico, m.activo, m.tiene_domicilio, m.bot_activo, m.bot_horario,
+      `SELECT m.id, m.nombre, m.nombre_publico, m.activo, ${planes.sqlTieneDomicilio()} AS tiene_domicilio, m.bot_activo, m.bot_horario,
             m.bot_envio_costo, m.bot_envio_info, m.bot_info_extra, m.bot_estilo,
             n.nombre AS negocio_nombre, n.tipo AS negocio_tipo, n.telefono AS negocio_telefono,
             n.direccion AS negocio_direccion, n.activo AS negocio_activo
@@ -311,7 +311,7 @@ module.exports = function registrarRutas(ctx) {
       }
 
       const moduloResult = await client.query(
-        'SELECT id, activo, tiene_domicilio FROM modulos WHERE id = $1',
+        `SELECT m.id, m.activo, ${planes.sqlTieneDomicilio()} AS tiene_domicilio FROM modulos m WHERE m.id = $1`,
         [moduloId]
       );
       if (moduloResult.rows.length === 0 || moduloResult.rows[0].activo === false) {
@@ -512,7 +512,7 @@ module.exports = function registrarRutas(ctx) {
       const { token } = req.params;
 
       const pedidoResult = await pool.query(
-        `SELECT pc.*, n.telefono as negocio_telefono, n.nombre as negocio_nombre, n.tipo as negocio_tipo, m.tiene_domicilio,
+        `SELECT pc.*, n.telefono as negocio_telefono, n.nombre as negocio_nombre, n.tipo as negocio_tipo, ${planes.sqlTieneDomicilio()} AS tiene_domicilio,
               COALESCE(m.nombre_publico, m.nombre) AS modulo_nombre_publico
        FROM pedidos_cliente pc
        JOIN modulos m ON pc.modulo_id = m.id
@@ -589,7 +589,7 @@ module.exports = function registrarRutas(ctx) {
       // FOR UPDATE: evita que una edición y, por ejemplo, una cancelación
       // simultánea del mismo pedido se pisen entre sí.
       const pedidoResult = await client.query(
-        `SELECT pc.*, m.tiene_domicilio
+        `SELECT pc.*, ${planes.sqlTieneDomicilio()} AS tiene_domicilio
        FROM pedidos_cliente pc
        JOIN modulos m ON pc.modulo_id = m.id
        WHERE pc.token_publico = $1 FOR UPDATE OF pc`,

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import api from '../services/api';
 import Bolsillos from './Bolsillos';
+import { BloqueoPlan } from './PlanNegocio';
 import './Finanzas.css';
 
 const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
@@ -343,7 +344,11 @@ const Finanzas = ({ user }) => {
             </span>
           </div>
 
-          <Bolsillos categoriasGasto={categoriasGasto} onCambio={cargarDatos} />
+          {/* Bolsillos, cierre de caja, cuadres y pagos fijos: plan Negocio en
+              adelante. El registro de ingresos y gastos es de todos los planes. */}
+          <BloqueoPlan titulo="Caja por bolsillos, cierre y pagos fijos" funcion="finanzas">
+            <Bolsillos categoriasGasto={categoriasGasto} onCambio={cargarDatos} />
+          </BloqueoPlan>
 
           <div className="card desglose-card">
             <h3>📊 Desglose</h3>

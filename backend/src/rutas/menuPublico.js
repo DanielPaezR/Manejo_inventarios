@@ -57,7 +57,7 @@ module.exports = function registrarRutas(ctx) {
       }
 
       const moduloResult = await pool.query(
-        `SELECT m.id, m.nombre, m.nombre_publico, m.activo, m.foto_portada_url, m.tiene_domicilio, m.bot_activo, m.bot_estilo,
+        `SELECT m.id, m.nombre, m.nombre_publico, m.activo, m.foto_portada_url, ${planes.sqlTieneDomicilio()} AS tiene_domicilio, m.bot_activo, m.bot_estilo,
               m.bot_horario, m.bot_envio_costo,
               n.nombre as negocio_nombre, n.tipo as negocio_tipo
        FROM modulos m

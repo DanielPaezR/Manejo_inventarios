@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import api from '../services/api';
 import GestionModulos from './GestionModulos';
 import RespaldosPanel from './RespaldosPanel';
+import { pesos } from './PlanNegocio';
 import './Negocios.css';
 
 const Negocios = ({ user }) => {
@@ -51,17 +52,21 @@ const Negocios = ({ user }) => {
     }
   };
 
+  // Igual que backend/src/helpers/planes.js (precio mensual sin IVA).
   const PLANES = [
     { id: '', nombre: 'Sin límites' },
-    { id: 'emprende', nombre: 'Emprende' },
-    { id: 'negocio', nombre: 'Negocio' },
-    { id: 'multisede', nombre: 'Multisede' }
+    { id: 'emprende', nombre: 'Emprende', precio: 49900, resumen: '1 sede · 2 usuarios · para recoger' },
+    { id: 'negocio', nombre: 'Negocio', precio: 89900, resumen: '1 sede · 5 usuarios · domicilios, proveedores, bolsillos' },
+    { id: 'multisede', nombre: 'Multisede', precio: 149900, resumen: '3 sedes · usuarios ilimitados · ventas entre sedes' }
   ];
-  const cambiarPlan = async (negocio, plan) => {
+  const SEDE_ADICIONAL = 39900;
+  const cambiarPlan = async (negocio, plan, sedesExtra = 0) => {
     try {
-      await api.put(`/negocios/${negocio.id}/plan`, { plan: plan || null });
-      setNegocios(prev => prev.map(n => (n.id === negocio.id ? { ...n, plan: plan || null } : n)));
-      setMensaje(`✅ ${negocio.nombre} ahora tiene el plan ${PLANES.find(p => p.id === plan)?.nombre}`);
+      const extra = plan === 'multisede' ? sedesExtra : 0;
+      await api.put(`/negocios/${negocio.id}/plan`, { plan: plan || null, sedes_extra: extra });
+      setNegocios(prev => prev.map(n => (n.id === negocio.id ? { ...n, plan: plan || null, sedes_extra: extra } : n)));
+      setMensaje(`✅ ${negocio.nombre} ahora tiene el plan ${PLANES.find(p => p.id === plan)?.nombre}` +
+        (extra ? ` con ${extra} sede${extra === 1 ? '' : 's'} adicional${extra === 1 ? '' : 'es'}` : ''));
     } catch (error) {
       setMensaje(`❌ ${error.response?.data?.error || 'No se pudo cambiar el plan'}`);
     } finally {
@@ -614,10 +619,23 @@ const Negocios = ({ user }) => {
               <p><strong>📅 Creado:</strong> {new Date(negocio.fecha_creacion).toLocaleDateString()}</p>
               <label className="negocio-plan">
                 <strong>📦 Plan:</strong>
-                <select value={negocio.plan || ''} onChange={(e) => cambiarPlan(negocio, e.target.value)}>
-                  {PLANES.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
+                <select value={negocio.plan || ''} onChange={(e) => cambiarPlan(negocio, e.target.value, negocio.sedes_extra || 0)}>
+                  {PLANES.map(p => <option key={p.id} value={p.id}>{p.nombre}{p.precio ? ` · ${pesos(p.precio)}/mes` : ''}</option>)}
                 </select>
               </label>
+              {PLANES.find(p => p.id === (negocio.plan || ''))?.resumen && (
+                <p className="negocio-plan-resumen">{PLANES.find(p => p.id === negocio.plan).resumen}</p>
+              )}
+              {negocio.plan === 'multisede' && (
+                <label className="negocio-plan">
+                  <strong>➕ Sedes adicionales:</strong>
+                  <select value={negocio.sedes_extra || 0} onChange={(e) => cambiarPlan(negocio, 'multisede', Number(e.target.value))}>
+                    {Array.from({ length: 11 }, (_, i) => (
+                      <option key={i} value={i}>{i === 0 ? 'Ninguna' : `${i} (+${pesos(i * SEDE_ADICIONAL)}/mes)`}</option>
+                    ))}
+                  </select>
+                </label>
+              )}
               {!negocio.activo && negocio.motivo_desactivacion && (
                 <p className="negocio-motivo-desactivacion">
                   <strong>⚠️ Motivo de desactivación:</strong> {negocio.motivo_desactivacion}
