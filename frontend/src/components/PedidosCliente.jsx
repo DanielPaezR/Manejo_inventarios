@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../services/api';
 import EstadoPagoPedido from './EstadoPagoPedido';
+import ListaEmpaque from './ListaEmpaque';
 import { textosNegocio, tipoNegocioUsuario } from '../utils/tipoNegocio';
 import { useModulo } from '../hooks/useModulo';
 import { enlaceAvisoCliente } from '../utils/etapaPedido';
@@ -498,6 +499,17 @@ const PedidosCliente = ({ user }) => {
                       {estado.label}
                     </span>
                   </div>
+                  {pedido.detalles?.length > 0 && (
+                    <div className="pedido-cliente-miniaturas" aria-hidden="true">
+                      {pedido.detalles.slice(0, 5).map(d => (
+                        <span key={d.id} className="pedido-cliente-miniatura" title={`${d.cantidad}× ${d.nombre_producto}`}>
+                          {d.foto_url ? <img src={d.foto_url} alt="" loading="lazy" /> : (d.nombre_producto || '?').charAt(0).toUpperCase()}
+                          {Number(d.cantidad) > 1 && <b>{Number(d.cantidad)}</b>}
+                        </span>
+                      ))}
+                      {pedido.detalles.length > 5 && <span className="pedido-cliente-miniatura mas">+{pedido.detalles.length - 5}</span>}
+                    </div>
+                  )}
                   <div className="pedido-cliente-resumen-datos">
                     <span>{pedido.detalles?.length || 0} producto(s)</span>
                     <span>{formatearMoneda(pedido.total)}</span>
@@ -592,32 +604,7 @@ const PedidosCliente = ({ user }) => {
                       </div>
                     ) : (
                       <>
-                        <table className="tabla-pedido-cliente-detalle">
-                          <thead>
-                            <tr>
-                              <th>Producto</th>
-                              <th>Cantidad</th>
-                              <th>Precio</th>
-                              <th>Subtotal</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {pedido.detalles?.map(detalle => (
-                              <tr key={detalle.id}>
-                                <td>{detalle.nombre_producto}</td>
-                                <td>{detalle.cantidad}</td>
-                                <td>{formatearMoneda(detalle.precio_unitario)}</td>
-                                <td>{formatearMoneda(detalle.subtotal)}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                          <tfoot>
-                            <tr>
-                              <td colSpan="3"><strong>Total</strong></td>
-                              <td><strong>{formatearMoneda(pedido.total)}</strong></td>
-                            </tr>
-                          </tfoot>
-                        </table>
+                        <ListaEmpaque pedido={pedido} editable={['pendiente', 'confirmado'].includes(pedido.estado) && !pedido.etapa} />
                         {pedido.monto_recibido && (
                           <p className="pedido-cliente-monto-recibido">💵 El cliente indicó que paga con: {formatearMoneda(pedido.monto_recibido)}</p>
                         )}

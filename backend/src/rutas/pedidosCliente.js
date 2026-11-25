@@ -44,9 +44,13 @@ module.exports = function registrarRutas(ctx) {
       }
 
       const detallesResult = await pool.query(
-        `SELECT * FROM pedidos_cliente_detalle
-       WHERE pedido_cliente_id = ANY($1)
-       ORDER BY id`,
+        // Foto y categoría del producto para la lista de empaque.
+        `SELECT d.*, pr.foto_url, c.nombre AS categoria_nombre
+       FROM pedidos_cliente_detalle d
+       LEFT JOIN productos pr ON pr.id = d.producto_id
+       LEFT JOIN categorias c ON c.id = pr.categoria_id
+       WHERE d.pedido_cliente_id = ANY($1)
+       ORDER BY d.id`,
         [pedidos.map(p => p.id)]
       );
 
@@ -86,7 +90,11 @@ module.exports = function registrarRutas(ctx) {
       }
 
       const detalleResult = await pool.query(
-        'SELECT * FROM pedidos_cliente_detalle WHERE pedido_cliente_id = $1 ORDER BY id',
+        `SELECT d.*, pr.foto_url, c.nombre AS categoria_nombre
+         FROM pedidos_cliente_detalle d
+         LEFT JOIN productos pr ON pr.id = d.producto_id
+         LEFT JOIN categorias c ON c.id = pr.categoria_id
+         WHERE d.pedido_cliente_id = $1 ORDER BY d.id`,
         [id]
       );
 

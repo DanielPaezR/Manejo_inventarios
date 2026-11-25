@@ -165,11 +165,15 @@ const RutaEntregas = ({ user }) => {
     const mapa = new Map();
     for (const parada of paradas) {
       for (const detalle of parada.detalles || []) {
-        mapa.set(detalle.nombre_producto, (mapa.get(detalle.nombre_producto) || 0) + Number(detalle.cantidad));
+        const previo = mapa.get(detalle.nombre_producto);
+        mapa.set(detalle.nombre_producto, {
+          cantidad: (previo?.cantidad || 0) + Number(detalle.cantidad),
+          foto: previo?.foto || detalle.foto_url || null
+        });
       }
     }
     return Array.from(mapa.entries())
-      .map(([nombre, cantidad]) => ({ nombre, cantidad }))
+      .map(([nombre, { cantidad, foto }]) => ({ nombre, cantidad, foto }))
       .sort((a, b) => b.cantidad - a.cantidad);
   }, [paradas]);
 
@@ -467,6 +471,9 @@ const RutaEntregas = ({ user }) => {
               <ul className="ruta-entregas-resumen-lista">
                 {resumenProductos.map((item) => (
                   <li key={item.nombre}>
+                    {item.foto
+                      ? <img className="ruta-entregas-resumen-foto" src={item.foto} alt="" loading="lazy" />
+                      : <span className="ruta-entregas-resumen-foto" aria-hidden="true" />}
                     <span className="ruta-entregas-resumen-cantidad">{item.cantidad}</span>
                     <span>{item.nombre}</span>
                   </li>
