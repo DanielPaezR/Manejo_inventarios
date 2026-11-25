@@ -1,3 +1,9 @@
+.sdm-opciones {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
 .sdm-btn-buscar {
   width: 100%;
   justify-content: center;
@@ -8,7 +14,8 @@
 }
 
 .sdm-mapa {
-  height: 220px;
+  position: relative;
+  height: 300px;
   border-radius: 12px;
   overflow: hidden;
 }
@@ -18,25 +25,67 @@
   width: 100%;
 }
 
+/* Pin fijo en el centro del mapa. La gota es un cuadrado de 30 px girado
+   45°: su punta queda 21 px (15·√2) bajo su centro, así que se sube 21 px
+   para que la punta caiga justo en el centro del mapa (el punto elegido). */
+.sdm-pin-fijo {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  z-index: 500;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  margin-top: -21px;
+}
+
+.sdm-pin-sombra {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  z-index: 499;
+  width: 10px;
+  height: 5px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.35);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
 .sdm-hint {
   margin: 6px 0;
   font-size: 12px;
-  color: var(--text-muted);
+  color: var(--text-muted, #6b7280);
   text-align: center;
 }
 
 .sdm-aviso {
   margin: 0 0 8px;
   font-size: 13px;
-  color: var(--warning);
-  background: var(--warning-50);
+  color: var(--warning, #92400e);
+  background: var(--warning-50, #fef3c7);
   border-radius: 8px;
   padding: 8px 10px;
 }
 
-.sdm-btn-confirmar {
-  width: 100%;
+.sdm-acciones {
+  display: flex;
+  gap: 8px;
+}
+
+.sdm-btn-gps {
+  flex: 0 0 auto;
+  min-width: 48px;
   justify-content: center;
+}
+
+.sdm-btn-confirmar {
+  flex: 1;
+  justify-content: center;
+}
+
+.sdm-btn-cancelar {
+  display: block;
+  margin: 8px auto 0;
 }
 
 .sdm-confirmado {
@@ -45,11 +94,17 @@
   justify-content: space-between;
   gap: 10px;
   padding: 10px 14px;
-  background: var(--success-50);
-  border: 1px solid var(--success-50);
+  background: var(--success-50, #dcfce7);
+  border: 1px solid var(--success-50, #dcfce7);
   border-radius: 10px;
   font-size: 13px;
-  color: var(--success);
+  color: var(--success, #166534);
+}
+
+.sdm-nota {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: var(--text-muted, #6b7280);
 }
 
 .sdm-btn-ajustar {
@@ -62,14 +117,15 @@
   padding: 0;
 }
 
-/* Pin arrastrable — mismo truco que RutaEntregas.css: L.divIcon en vez de
-   los íconos por defecto de Leaflet, que no cargan bien con Vite. */
+/* Pin — mismo truco que RutaEntregas.css (dibujado con CSS en vez de los
+   íconos por defecto de Leaflet, que no cargan bien con Vite). */
 .sdm-pin-gota {
-  width: 26px;
-  height: 26px;
+  width: 30px;
+  height: 30px;
   border-radius: 50% 50% 50% 0;
   transform: rotate(-45deg);
-  background: var(--danger);
-  border: 2px solid white;
+  box-sizing: border-box;
+  background: var(--danger, #dc2626);
+  border: 3px solid white;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
 }

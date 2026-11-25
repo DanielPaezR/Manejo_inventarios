@@ -364,7 +364,7 @@ module.exports = function registrarRutas(ctx) {
       // en el menú real que ve el cliente).
       const result = await pool.query(
         `SELECT m.id, m.nombre, m.nombre_publico, m.descripcion, m.activo, m.foto_portada_url,
-              m.frecuencia_entrega_dias, m.tiene_domicilio, n.nombre as negocio_nombre
+              m.frecuencia_entrega_dias, m.tiene_domicilio, m.ubicacion_lat, m.ubicacion_lng, n.nombre as negocio_nombre
        FROM modulos m
        JOIN negocios n ON m.negocio_id = n.id
        WHERE m.id = $1 AND m.negocio_id = $2`,
@@ -437,6 +437,24 @@ module.exports = function registrarRutas(ctx) {
         values.push(!!req.body.juegos_activos);
       }
 
+      // Ubicación del local (para el mapa de domicilios). null la borra.
+      if ('ubicacion' in req.body) {
+        const u = req.body.ubicacion;
+        let lat = null;
+        let lng = null;
+        if (u !== null) {
+          lat = Number(u?.lat);
+          lng = Number(u?.lng);
+          if (!Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) {
+            return res.status(400).json({ error: 'Ubicación no válida' });
+          }
+        }
+        sets.push(`ubicacion_lat = $${paramIndex++}`);
+        values.push(lat);
+        sets.push(`ubicacion_lng = $${paramIndex++}`);
+        values.push(lng);
+      }
+
       if (sets.length === 0) {
         return res.status(400).json({ error: 'No hay nada para actualizar' });
       }
@@ -446,7 +464,7 @@ module.exports = function registrarRutas(ctx) {
       const result = await pool.query(
         `UPDATE modulos SET ${sets.join(', ')}
        WHERE id = $${paramIndex++} AND negocio_id = $${paramIndex}
-       RETURNING id, nombre, nombre_publico, descripcion, activo, foto_portada_url, frecuencia_entrega_dias, tiene_domicilio`,
+       RETURNING id, nombre, nombre_publico, descripcion, activo, foto_portada_url, frecuencia_entrega_dias, tiene_domicilio, ubicacion_lat, ubicacion_lng`,
         values
       );
 

@@ -143,6 +143,25 @@ const MenuPublico = () => {
   const [esDomicilio, setEsDomicilio] = useState(false);
   const [direccionEntrega, setDireccionEntrega] = useState('');
   const [ubicacionDomicilio, setUbicacionDomicilio] = useState(null);
+  const [detalleDireccion, setDetalleDireccion] = useState('');
+
+  // La dirección del último domicilio queda guardada en este celular: el
+  // cliente que repite no tiene que volver a escribirla ni ubicarla.
+  const claveDireccion = `menu_direccion_${moduloId}`;
+  useEffect(() => {
+    if (!esDomicilio || direccionEntrega || ubicacionDomicilio) return;
+    try {
+      const guardada = JSON.parse(localStorage.getItem(claveDireccion) || 'null');
+      if (guardada?.direccion) {
+        setDireccionEntrega(guardada.direccion);
+        setDetalleDireccion(guardada.detalle || '');
+        if (Number.isFinite(guardada.lat) && Number.isFinite(guardada.lng)) {
+          setUbicacionDomicilio({ lat: guardada.lat, lng: guardada.lng, direccion: guardada.direccion });
+        }
+      }
+    } catch { /* sin almacenamiento */ }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [esDomicilio]);
   const [enviando, setEnviando] = useState(false);
   const [errorEnvio, setErrorEnvio] = useState('');
   const [busqueda, setBusqueda] = useState('');
@@ -383,9 +402,12 @@ const MenuPublico = () => {
     if (!telefono.trim()) return setErrorEnvio('⚠️ Ingresa tu número de teléfono');
     if (itemsCarrito.length === 0 && itemsPromos.length === 0) return setErrorEnvio('⚠️ Agrega al menos un producto');
     if (esDomicilio && !direccionEntrega.trim()) return setErrorEnvio('⚠️ Ingresa la dirección de entrega');
-    if (esDomicilio && (!ubicacionDomicilio || ubicacionDomicilio.direccion !== direccionEntrega.trim())) {
-      return setErrorEnvio('⚠️ Confirma tu ubicación en el mapa antes de enviar el pedido');
+    if (esDomicilio && !ubicacionDomicilio) {
+      return setErrorEnvio('⚠️ Marca en el mapa dónde te entregamos (usa tu ubicación o busca la dirección)');
     }
+    const direccionCompleta = esDomicilio
+      ? [direccionEntrega.trim(), detalleDireccion.trim()].filter(Boolean).join(' - ')
+      : undefined;
     try {
       setEnviando(true);
       const response = await apiPublico.post(`/menu/${moduloId}/pedidos`, {
@@ -393,7 +415,7 @@ const MenuPublico = () => {
         telefono: telefono.trim(),
         monto_recibido: montoRecibido ? Number(montoRecibido) : undefined,
         es_domicilio: esDomicilio,
-        direccion_entrega: esDomicilio ? direccionEntrega.trim() : undefined,
+        direccion_entrega: direccionCompleta,
         lat: esDomicilio ? ubicacionDomicilio.lat : undefined,
         lng: esDomicilio ? ubicacionDomicilio.lng : undefined,
         items: [
@@ -404,6 +426,14 @@ const MenuPublico = () => {
       document.body.style.overflow = '';
       if (modulo?.sellos) guardarTelefonoSellos(telefono.replace(/\D/g, ''));
       recordarPedido(moduloId, response.data.token_publico);
+      if (esDomicilio) {
+        try {
+          localStorage.setItem(claveDireccion, JSON.stringify({
+            direccion: direccionEntrega.trim(), detalle: detalleDireccion.trim(),
+            lat: ubicacionDomicilio.lat, lng: ubicacionDomicilio.lng
+          }));
+        } catch { /* sin almacenamiento */ }
+      }
       navigate(`/menu/${moduloId}/pedido/${response.data.token_publico}`, { replace: true });
     } catch (err) {
       console.error('Error generando pedido:', err);
@@ -743,9 +773,15 @@ const MenuPublico = () => {
                     <label className="mv-campo">
                       <span>Dirección de entrega</span>
                       <input type="text" value={direccionEntrega} onChange={(e) => setDireccionEntrega(e.target.value)} autoComplete="street-address"
-                        placeholder="Ej. Calle 10 # 20-30, apto 201" />
+                        placeholder="Ej. Calle 10 # 20-30" />
                     </label>
-                    <SelectorDireccionMapa direccion={direccionEntrega} ubicacion={ubicacionDomicilio} onConfirmar={setUbicacionDomicilio} />
+                    <label className="mv-campo">
+                      <span>Apto, torre, barrio o indicaciones <small>(opcional)</small></span>
+                      <input type="text" value={detalleDireccion} onChange={(e) => setDetalleDireccion(e.target.value)}
+                        placeholder="Ej. Apto 201, torre 3 · portón verde" />
+                    </label>
+                    <SelectorDireccionMapa direccion={direccionEntrega} ubicacion={ubicacionDomicilio} onConfirmar={setUbicacionDomicilio}
+                      centro={modulo?.ubicacion || null} />
                   </>
                 )}
                 <label className="mv-campo">

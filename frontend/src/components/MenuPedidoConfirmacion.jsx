@@ -271,8 +271,8 @@ const MenuPedidoConfirmacion = () => {
       setErrorAccion('⚠️ Ingresa la dirección de entrega');
       return;
     }
-    if (esDomicilioEdit && (!ubicacionDomicilioEdit || ubicacionDomicilioEdit.direccion !== direccionEntregaEdit.trim())) {
-      setErrorAccion('⚠️ Confirma tu ubicación en el mapa antes de guardar');
+    if (esDomicilioEdit && !ubicacionDomicilioEdit) {
+      setErrorAccion('⚠️ Marca en el mapa dónde te entregamos antes de guardar');
       return;
     }
 
@@ -577,6 +577,8 @@ const MenuPedidoConfirmacion = () => {
                       direccion={direccionEntregaEdit}
                       ubicacion={ubicacionDomicilioEdit}
                       onConfirmar={setUbicacionDomicilioEdit}
+                      centro={pedido.modulo_lat !== null && pedido.modulo_lat !== undefined
+                        ? { lat: Number(pedido.modulo_lat), lng: Number(pedido.modulo_lng) } : null}
                     />
                   </>
                 )}

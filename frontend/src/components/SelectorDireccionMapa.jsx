@@ -1,124 +1,179 @@
 import React, { useState } from 'react';
-import { MapContainer, TileLayer, Marker } from 'react-leaflet';
-import L from 'leaflet';
+import { MapContainer, TileLayer, useMap, useMapEvents } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import apiPublico from '../services/apiPublico';
 import './SelectorDireccionMapa.css';
 
-// Bogotá, como punto de partida cuando Nominatim no encuentra la dirección
-// escrita — el cliente arrastra el pin desde ahí hasta su ubicación real.
+// Si el negocio no ha marcado dónde queda su local, el mapa arranca en
+// Bogotá y el cliente se mueve desde ahí.
 const CENTRO_DEFECTO = { lat: 4.7110, lng: -74.0721 };
 
-// Mismo truco que RutaEntregas.jsx: L.divIcon en vez de los íconos por
-// defecto de Leaflet, que no cargan bien empaquetados con Vite.
-const iconoPin = L.divIcon({
-  className: 'sdm-pin',
-  html: '<div class="sdm-pin-gota"></div>',
-  iconSize: [26, 26],
-  iconAnchor: [13, 26],
-});
+// El pin queda fijo en el centro y lo que se mueve es el mapa (como en las
+// apps de domicilios): en el celular es mucho más fácil que arrastrar un
+// pin chiquito. Tocar un punto del mapa también lo lleva al centro.
+const SeguirCentro = ({ onMover }) => {
+  const map = useMapEvents({
+    move: () => {
+      const c = map.getCenter();
+      onMover({ lat: c.lat, lng: c.lng });
+    },
+    click: (e) => map.panTo(e.latlng)
+  });
+  return null;
+};
 
-// Confirmación de dirección en mapa para el checkout del menú público
-// (Tanda de domicilio con mapa): el cliente escribe la dirección a mano,
-// este componente la geocodifica contra Nominatim (vía backend, que ya
-// tiene el User-Agent y el rate-limit correctos — un fetch de navegador no
-// puede fijar esos headers) y muestra un pin arrastrable para que la
-// ajuste antes de confirmar. Así el pedido siempre lleva una ubicación que
-// el propio cliente validó, no solo texto libre.
+const Recentrar = ({ centro, zoom }) => {
+  const map = useMap();
+  React.useEffect(() => {
+    map.setView([centro.lat, centro.lng], zoom ?? map.getZoom());
+  }, [centro, zoom, map]);
+  return null;
+};
+
+// Ubicación de entrega para un domicilio (menú público) o del local
+// (configuración del negocio). Dos formas de llegar al punto:
+// - "Usar mi ubicación actual": el GPS del celular (lo más preciso).
+// - "Buscar en el mapa": busca lo escrito en `direccion` cerca de `centro`
+//   (el local del negocio). La búsqueda ubica la calle, no la casa, así que
+//   siempre se termina de ajustar moviendo el mapa.
 //
-// Contrato con el padre: `direccion` es el texto actual del input (que el
-// padre sigue controlando); `ubicacion` es `{ lat, lng, direccion } | null`
-// que el padre guarda tal cual se lo pasa `onConfirmar`. Si `direccion`
-// cambia después de confirmar (el cliente edita el texto), este
-// componente deja de mostrarse como "confirmado" porque compara
-// `ubicacion.direccion` contra `direccion` — no hace falta que el padre
-// limpie nada a mano.
-const SelectorDireccionMapa = ({ direccion, ubicacion, onConfirmar }) => {
-  const [buscando, setBuscando] = useState(false);
-  const [marcador, setMarcador] = useState(null); // { lat, lng } mientras se ajusta, antes de confirmar
-  const [avisoNoEncontrada, setAvisoNoEncontrada] = useState(false);
+// Contrato con el padre: `direccion` es el texto del input (lo controla el
+// padre); `ubicacion` es `{ lat, lng, direccion } | null` y el padre la
+// guarda tal cual se la pasa `onConfirmar`. Una vez confirmado, el punto
+// vale aunque el cliente siga editando el texto (ej. agrega el apto); solo
+// se le avisa por si cambió de dirección.
+const SelectorDireccionMapa = ({
+  direccion, ubicacion, onConfirmar, centro = null,
+  textoConfirmar = '✅ Mi casa está aquí', textoConfirmado = '✅ Ubicación marcada en el mapa'
+}) => {
+  const [abierto, setAbierto] = useState(false);
+  const [vista, setVista] = useState(null); // { lat, lng, zoom } a donde mover el mapa
+  const [punto, setPunto] = useState(null); // centro actual del mapa
+  const [buscando, setBuscando] = useState('');
+  const [aviso, setAviso] = useState('');
 
   const direccionTrim = (direccion || '').trim();
-  const yaConfirmada = !!ubicacion && ubicacion.direccion === direccionTrim;
+  const cambioTexto = !!ubicacion && !!ubicacion.direccion && ubicacion.direccion !== direccionTrim;
 
-  const buscarEnMapa = async () => {
+  const abrirEn = (lat, lng, zoom, mensaje = '') => {
+    setVista({ lat, lng, zoom });
+    setPunto({ lat, lng });
+    setAviso(mensaje);
+    setAbierto(true);
+  };
+
+  const usarGps = () => {
+    if (!navigator.geolocation) {
+      setAviso('Este navegador no deja usar la ubicación. Busca tu dirección o mueve el mapa.');
+      return;
+    }
+    setBuscando('gps');
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setBuscando('');
+        const precision = Math.round(pos.coords.accuracy || 0);
+        abrirEn(pos.coords.latitude, pos.coords.longitude, 18,
+          precision > 80 ? `Tu celular te ubicó con unos ${precision} m de margen: revisa que el pin quede en tu casa.` : '');
+      },
+      (err) => {
+        setBuscando('');
+        const base = centro || CENTRO_DEFECTO;
+        abrirEn(base.lat, base.lng, centro ? 15 : 12, err.code === 1
+          ? 'No diste permiso para usar tu ubicación. Mueve el mapa hasta tu casa.'
+          : 'No pudimos obtener tu ubicación. Mueve el mapa hasta tu casa.');
+      },
+      { enableHighAccuracy: true, timeout: 12000, maximumAge: 60000 }
+    );
+  };
+
+  const buscarDireccion = async () => {
     if (!direccionTrim) return;
-    setBuscando(true);
-    setAvisoNoEncontrada(false);
+    setBuscando('direccion');
     try {
-      const response = await apiPublico.get('/menu/geocodificar', { params: { direccion: direccionTrim } });
-      setMarcador({ lat: response.data.lat, lng: response.data.lng });
-    } catch (error) {
-      setAvisoNoEncontrada(true);
-      setMarcador({ ...CENTRO_DEFECTO });
+      const params = { direccion: direccionTrim };
+      if (centro) Object.assign(params, { cerca_lat: centro.lat, cerca_lng: centro.lng });
+      const { data } = await apiPublico.get('/menu/geocodificar', { params });
+      abrirEn(data.lat, data.lng, 17, 'Encontramos la calle: mueve el mapa para dejar el pin justo en tu casa.');
+    } catch {
+      const base = centro || CENTRO_DEFECTO;
+      abrirEn(base.lat, base.lng, centro ? 15 : 12, 'No encontramos esa dirección. Mueve el mapa hasta tu casa.');
     } finally {
-      setBuscando(false);
+      setBuscando('');
     }
   };
 
-  const confirmarUbicacion = () => {
-    if (!marcador) return;
-    onConfirmar({ lat: marcador.lat, lng: marcador.lng, direccion: direccionTrim });
-    setMarcador(null);
-    setAvisoNoEncontrada(false);
+  const confirmar = () => {
+    if (!punto) return;
+    onConfirmar({ lat: punto.lat, lng: punto.lng, direccion: direccionTrim });
+    setAbierto(false);
+    setAviso('');
   };
 
-  if (yaConfirmada && !marcador) {
+  if (ubicacion && !abierto) {
     return (
-      <div className="sdm-confirmado">
-        <span>✅ Ubicación confirmada en el mapa</span>
-        <button
-          type="button"
-          onClick={() => setMarcador({ lat: ubicacion.lat, lng: ubicacion.lng })}
-          className="sdm-btn-ajustar"
-        >
-          ✏️ Ajustar
-        </button>
+      <div className="sdm-confirmado-caja">
+        <div className="sdm-confirmado">
+          <span>{textoConfirmado}</span>
+          <button type="button" onClick={() => abrirEn(ubicacion.lat, ubicacion.lng, 18)} className="sdm-btn-ajustar">
+            ✏️ Ajustar
+          </button>
+        </div>
+        {cambioTexto && (
+          <p className="sdm-nota">¿Cambiaste de dirección? Toca "Ajustar" y revisa que el pin siga en el lugar correcto.</p>
+        )}
       </div>
     );
   }
 
-  if (!marcador) {
+  if (!abierto) {
     return (
-      <button
-        type="button"
-        onClick={buscarEnMapa}
-        disabled={buscando || !direccionTrim}
-        className="mp-btn sdm-btn-buscar"
-      >
-        {buscando ? 'Buscando...' : '📍 Confirmar ubicación en el mapa'}
-      </button>
+      <div className="sdm-opciones">
+        <button type="button" onClick={usarGps} disabled={!!buscando} className="mp-btn mp-btn--primary sdm-btn-buscar">
+          {buscando === 'gps' ? 'Buscando tu ubicación...' : '🎯 Usar mi ubicación actual'}
+        </button>
+        <button
+          type="button"
+          onClick={buscarDireccion}
+          disabled={!!buscando || !direccionTrim}
+          className="mp-btn sdm-btn-buscar"
+          title={!direccionTrim ? 'Escribe primero la dirección' : ''}
+        >
+          {buscando === 'direccion' ? 'Buscando...' : '📍 Buscar la dirección en el mapa'}
+        </button>
+        {aviso && <p className="sdm-aviso">{aviso}</p>}
+      </div>
     );
   }
 
   return (
     <div className="sdm-mapa-wrapper">
-      {avisoNoEncontrada && (
-        <p className="sdm-aviso">No pudimos ubicar esa dirección automáticamente. Arrastra el pin hasta tu ubicación.</p>
-      )}
+      {aviso && <p className="sdm-aviso">{aviso}</p>}
       <div className="sdm-mapa">
-        <MapContainer center={[marcador.lat, marcador.lng]} zoom={16} scrollWheelZoom={false}>
+        <MapContainer center={[vista.lat, vista.lng]} zoom={vista.zoom} scrollWheelZoom={false}>
           <TileLayer
             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           />
-          <Marker
-            position={[marcador.lat, marcador.lng]}
-            icon={iconoPin}
-            draggable
-            eventHandlers={{
-              dragend: (e) => {
-                const { lat, lng } = e.target.getLatLng();
-                setMarcador({ lat, lng });
-              }
-            }}
-          />
+          <Recentrar centro={vista} zoom={vista.zoom} />
+          <SeguirCentro onMover={setPunto} />
         </MapContainer>
+        <div className="sdm-pin-sombra" aria-hidden="true" />
+        <div className="sdm-pin-fijo" aria-hidden="true"><div className="sdm-pin-gota" /></div>
       </div>
-      <p className="sdm-hint">Arrastra el pin si no cayó en el lugar correcto.</p>
-      <button type="button" onClick={confirmarUbicacion} className="mp-btn mp-btn--primary sdm-btn-confirmar">
-        ✅ Confirmar esta ubicación
-      </button>
+      <p className="sdm-hint">Mueve el mapa o toca un punto hasta que el pin quede en la entrada.</p>
+      <div className="sdm-acciones">
+        <button type="button" onClick={usarGps} disabled={!!buscando} className="mp-btn sdm-btn-gps" title="Usar mi ubicación actual">
+          {buscando === 'gps' ? '...' : '🎯'}
+        </button>
+        <button type="button" onClick={confirmar} className="mp-btn mp-btn--primary sdm-btn-confirmar">
+          {textoConfirmar}
+        </button>
+      </div>
+      {ubicacion && (
+        <button type="button" className="sdm-btn-ajustar sdm-btn-cancelar" onClick={() => { setAbierto(false); setAviso(''); }}>
+          Cancelar
+        </button>
+      )}
     </div>
   );
 };

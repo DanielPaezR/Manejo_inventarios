@@ -567,3 +567,25 @@
   color: inherit;
   font-size: 0.9rem;
 }
+
+/* Ubicación del local (Domicilios) */
+.conf-ubicacion-local {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.conf-ubicacion-local .conf-subtitulo { margin: 0; }
+.conf-ubicacion-local .conf-ayuda { margin: 0; }
+.conf-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  color: inherit;
+  font: inherit;
+}

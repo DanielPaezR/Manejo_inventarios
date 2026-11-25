@@ -33,8 +33,12 @@ module.exports = function registrarRutas(ctx) {
       if (!direccion || !direccion.trim()) {
         return res.status(400).json({ error: 'Falta la dirección' });
       }
+      // Cerca del local del negocio (si lo configuró): sin esto, "Calle 10
+      // # 20-30" cae en la Calle 10 de cualquier ciudad (casi siempre Bogotá).
+      const cerca = { lat: Number(req.query.cerca_lat), lng: Number(req.query.cerca_lng) };
+      const conCerca = req.query.cerca_lat && Number.isFinite(cerca.lat) && Number.isFinite(cerca.lng);
 
-      const coords = await geocodificar(direccion.trim());
+      const coords = await geocodificar(direccion.trim(), conCerca ? { cerca } : {});
       if (!coords) {
         return res.status(404).json({ error: 'No se pudo ubicar esa dirección' });
       }
@@ -58,6 +62,7 @@ module.exports = function registrarRutas(ctx) {
 
       const moduloResult = await pool.query(
         `SELECT m.id, m.nombre, m.nombre_publico, m.activo, m.foto_portada_url, ${planes.sqlTieneDomicilio()} AS tiene_domicilio, m.bot_activo, m.bot_estilo,
+              m.ubicacion_lat, m.ubicacion_lng,
               m.bot_horario, m.bot_envio_costo,
               n.nombre as negocio_nombre, n.tipo as negocio_tipo
        FROM modulos m
@@ -91,6 +96,10 @@ module.exports = function registrarRutas(ctx) {
           negocio_nombre: moduloResult.rows[0].negocio_nombre,
           foto_portada_url: moduloResult.rows[0].foto_portada_url,
           tiene_domicilio: moduloResult.rows[0].tiene_domicilio,
+          // Dónde queda el local: centro del mapa al elegir la dirección.
+          ubicacion: moduloResult.rows[0].ubicacion_lat !== null && moduloResult.rows[0].ubicacion_lat !== undefined
+            ? { lat: Number(moduloResult.rows[0].ubicacion_lat), lng: Number(moduloResult.rows[0].ubicacion_lng) }
+            : null,
           negocio_tipo: moduloResult.rows[0].negocio_tipo,
           // Datos que el negocio llenó en la configuración del asistente; la
           // portada del menú los muestra aunque el asistente esté apagado.

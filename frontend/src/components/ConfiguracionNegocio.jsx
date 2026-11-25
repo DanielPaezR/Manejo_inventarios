@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import api from '../services/api';
 import { useModulo } from '../hooks/useModulo';
 import SubidaImagen from './SubidaImagen';
+import SelectorDireccionMapa from './SelectorDireccionMapa';
 import ConfigAsistente from './ConfigAsistente';
 import EquipoPermisos from './EquipoPermisos';
 import AdminJuegos from './AdminJuegos';
@@ -52,6 +53,10 @@ const ConfiguracionNegocio = ({ user }) => {
   const [guardando, setGuardando] = useState(false);
   const [guardandoDomicilio, setGuardandoDomicilio] = useState(false);
   const [juegosActivos, setJuegosActivos] = useState(true);
+  // Dónde queda el local: centra el mapa del cliente al pedir a domicilio y
+  // hace que la búsqueda de direcciones se quede en esta ciudad.
+  const [ubicacionLocal, setUbicacionLocal] = useState(null);
+  const [direccionLocal, setDireccionLocal] = useState('');
   const [guardandoJuegos, setGuardandoJuegos] = useState(false);
   const [copiado, setCopiado] = useState(false);
   const [mensaje, setMensaje] = useState('');
@@ -67,6 +72,9 @@ const ConfiguracionNegocio = ({ user }) => {
         setNegocioNombre(res.data.negocio_nombre || '');
         setTieneDomicilio(res.data.tiene_domicilio !== false);
         setJuegosActivos(res.data.juegos_activos !== false);
+        setUbicacionLocal(res.data.ubicacion_lat !== null && res.data.ubicacion_lat !== undefined
+          ? { lat: Number(res.data.ubicacion_lat), lng: Number(res.data.ubicacion_lng), direccion: '' }
+          : null);
         setCargado(true);
       })
       .catch(err => {
@@ -109,6 +117,18 @@ const ConfiguracionNegocio = ({ user }) => {
       avisar(`❌ ${err.response?.data?.error || 'No se pudo cambiar'}`);
     } finally {
       setGuardandoDomicilio(false);
+    }
+  };
+
+  const guardarUbicacionLocal = async (ubicacion) => {
+    const anterior = ubicacionLocal;
+    setUbicacionLocal({ ...ubicacion, direccion: '' });
+    try {
+      await api.put(`/modulos/${moduloActivo.id}/portada`, { ubicacion: { lat: ubicacion.lat, lng: ubicacion.lng } });
+      avisar('✅ Ubicación del local guardada');
+    } catch (err) {
+      setUbicacionLocal(anterior);
+      avisar(`❌ ${err.response?.data?.error || 'No se pudo guardar la ubicación'}`);
     }
   };
 
@@ -188,6 +208,27 @@ const ConfiguracionNegocio = ({ user }) => {
             <span />
           </button>
         </div>
+        {tieneDomicilio && cargado && (
+          <div className="conf-ubicacion-local">
+            <h4 className="conf-subtitulo">📍 ¿Dónde queda tu local?</h4>
+            <p className="conf-ayuda">
+              {ubicacionLocal
+                ? 'Con esto, el mapa del cliente arranca en tu zona y las direcciones se buscan en tu ciudad.'
+                : 'Márcalo una vez: así el mapa del cliente arranca en tu zona y la búsqueda de direcciones no se va a otra ciudad. Si estás en el local, usa tu ubicación actual.'}
+            </p>
+            {!ubicacionLocal && (
+              <input type="text" className="conf-input" value={direccionLocal} onChange={(e) => setDireccionLocal(e.target.value)}
+                placeholder="Dirección con la ciudad. Ej. Calle 10 # 20-30, Tunja" />
+            )}
+            <SelectorDireccionMapa
+              direccion={direccionLocal}
+              ubicacion={ubicacionLocal}
+              onConfirmar={guardarUbicacionLocal}
+              textoConfirmar="✅ Mi local está aquí"
+              textoConfirmado="✅ Ubicación del local guardada"
+            />
+          </div>
+        )}
       </div>
       </BloqueoPlan>
 

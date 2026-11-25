@@ -513,7 +513,8 @@ module.exports = function registrarRutas(ctx) {
 
       const pedidoResult = await pool.query(
         `SELECT pc.*, n.telefono as negocio_telefono, n.nombre as negocio_nombre, n.tipo as negocio_tipo, ${planes.sqlTieneDomicilio()} AS tiene_domicilio,
-              COALESCE(m.nombre_publico, m.nombre) AS modulo_nombre_publico
+              COALESCE(m.nombre_publico, m.nombre) AS modulo_nombre_publico,
+              m.ubicacion_lat AS modulo_lat, m.ubicacion_lng AS modulo_lng
        FROM pedidos_cliente pc
        JOIN modulos m ON pc.modulo_id = m.id
        JOIN negocios n ON m.negocio_id = n.id
