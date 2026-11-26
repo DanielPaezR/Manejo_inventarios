@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import api from '../services/api';
 import EstadoPagoPedido from './EstadoPagoPedido';
 import ListaEmpaque from './ListaEmpaque';
+import EnvioMensajero from './EnvioMensajero';
 import { textosNegocio, tipoNegocioUsuario } from '../utils/tipoNegocio';
 import { useModulo } from '../hooks/useModulo';
 import { enlaceAvisoCliente } from '../utils/etapaPedido';
@@ -610,6 +611,9 @@ const PedidosCliente = ({ user }) => {
                         )}
                         {pedido.es_domicilio && (
                           <p className="pedido-cliente-domicilio">🛵 Domicilio: {pedido.direccion_entrega}</p>
+                        )}
+                        {pedido.es_domicilio && ['pendiente', 'confirmado'].includes(pedido.estado) && (
+                          <EnvioMensajero pedido={pedido} moduloId={moduloActivo?.id} />
                         )}
 
                         {(pedido.estado === 'pendiente' || pedido.estado === 'confirmado' || pedido.estado === 'cancelado') && (

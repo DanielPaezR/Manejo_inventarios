@@ -364,7 +364,7 @@ module.exports = function registrarRutas(ctx) {
       // en el menú real que ve el cliente).
       const result = await pool.query(
         `SELECT m.id, m.nombre, m.nombre_publico, m.descripcion, m.activo, m.foto_portada_url,
-              m.frecuencia_entrega_dias, m.tiene_domicilio, m.ubicacion_lat, m.ubicacion_lng, n.nombre as negocio_nombre
+              m.frecuencia_entrega_dias, m.tiene_domicilio, m.ubicacion_lat, m.ubicacion_lng, n.nombre as negocio_nombre, n.direccion AS negocio_direccion, n.telefono AS negocio_telefono
        FROM modulos m
        JOIN negocios n ON m.negocio_id = n.id
        WHERE m.id = $1 AND m.negocio_id = $2`,
