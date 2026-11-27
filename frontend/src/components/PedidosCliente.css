@@ -455,3 +455,15 @@
   text-align: center;
 }
 .pedido-cliente-miniatura.mas { font-size: 13px; }
+
+.btn-registrar-pedido {
+  padding: 10px 16px;
+  border: none;
+  border-radius: 10px;
+  background: #2f855a;
+  color: #fff;
+  font-weight: 700;
+  font-size: 14px;
+  cursor: pointer;
+}
+.btn-registrar-pedido:hover { background: #276749; }

@@ -23,6 +23,6 @@ export const usePlan = () => {
     return () => { vivo = false; };
   }, []);
   // Mientras carga (o si falla) no bloquea nada.
-  const incluye = (funcion) => !datos || datos.plan.funciones.includes(funcion);
+  const incluye = (funcion) => !datos?.plan?.funciones || datos.plan.funciones.includes(funcion);
   return { datos, plan: datos?.plan || null, incluye };
 };

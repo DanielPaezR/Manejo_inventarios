@@ -290,7 +290,11 @@ module.exports = function registrarRutas(ctx) {
     }
   }
 
-  app.post('/api/menu/:moduloId/pedidos', async (req, res) => {
+  // Crea un pedido de cliente. Lo usan el menú en línea (el cliente, sin
+  // sesión) y "Registrar pedido" del panel (`manual`: el negocio lo anota
+  // cuando el cliente escribe por WhatsApp o llama). El manual queda ya
+  // confirmado, sin celular obligatorio y puede venir ya pagado.
+  const crearPedidoCliente = async (req, res, manual = null) => {
     // client se declara afuera y pool.connect() va DENTRO del try: en una
     // ruta pública sin autenticación, si pool.connect() llega a rechazar
     // (ej. timeout de conexión) y queda fuera del try, la promesa rechazada
@@ -302,8 +306,9 @@ module.exports = function registrarRutas(ctx) {
       client = await pool.connect();
       await client.query('BEGIN');
 
-      const { moduloId } = req.params;
-      const { mesa_nombre, telefono, monto_recibido, items, es_domicilio, direccion_entrega, lat, lng } = req.body;
+      const moduloId = manual ? String(manual.moduloId || '') : req.params.moduloId;
+      const { mesa_nombre, monto_recibido, items, es_domicilio, direccion_entrega, lat, lng } = req.body;
+      const telefono = typeof req.body.telefono === 'string' ? req.body.telefono : '';
 
       if (!/^\d+$/.test(moduloId)) {
         await client.query('ROLLBACK');
@@ -324,7 +329,7 @@ module.exports = function registrarRutas(ctx) {
         return res.status(400).json({ error: 'Ingresa tu nombre' });
       }
 
-      if (!telefono || !telefono.trim()) {
+      if (!manual && !telefono.trim()) {
         await client.query('ROLLBACK');
         return res.status(400).json({ error: 'Ingresa un número de teléfono' });
       }
@@ -461,11 +466,19 @@ module.exports = function registrarRutas(ctx) {
       const total = subtotal;
       const tokenPublico = crypto.randomBytes(24).toString('hex');
 
+      // Registrado por el negocio: ya confirmado y, si el cliente pagó antes
+      // (ej. transferencia), con el pago anotado.
+      const metodoPago = manual && req.body.pagado === true
+        ? (['efectivo', 'transferencia', 'tarjeta'].includes(req.body.metodo_pago) ? req.body.metodo_pago : 'transferencia')
+        : null;
+
       const pedidoResult = await client.query(
-        `INSERT INTO pedidos_cliente (modulo_id, token_publico, mesa_nombre, telefono, monto_recibido, subtotal, total, es_domicilio, direccion_entrega, lat, lng)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+        `INSERT INTO pedidos_cliente (modulo_id, token_publico, mesa_nombre, telefono, monto_recibido, subtotal, total, es_domicilio, direccion_entrega, lat, lng,
+                                      estado, origen, pagado, metodo_pago_cliente)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
        RETURNING *`,
-        [moduloId, tokenPublico, mesa_nombre.trim(), telefono.trim(), montoRecibidoValido, subtotal, total, esDomicilio, direccionEntregaValida, latValida, lngValida]
+        [moduloId, tokenPublico, mesa_nombre.trim(), telefono.trim(), montoRecibidoValido, subtotal, total, esDomicilio, direccionEntregaValida, latValida, lngValida,
+         manual ? 'confirmado' : 'pendiente', manual ? 'manual' : 'menu', !!metodoPago, metodoPago]
       );
 
       const pedido = pedidoResult.rows[0];
@@ -482,9 +495,12 @@ module.exports = function registrarRutas(ctx) {
 
       await client.query('COMMIT');
 
-      enviarNotificacionesPedidoNuevo(moduloId, pedido).catch(err =>
-        console.error('Error inesperado enviando notificaciones push:', err)
-      );
+      // Si lo registró el mismo negocio, no hace falta avisarle que llegó.
+      if (!manual) {
+        enviarNotificacionesPedidoNuevo(moduloId, pedido).catch(err =>
+          console.error('Error inesperado enviando notificaciones push:', err)
+        );
+      }
 
       if (esDomicilio && direccionEntregaValida && latValida === null) {
         geocodificarYGuardarPedido(pedido.id, direccionEntregaValida).catch(err =>
@@ -502,6 +518,14 @@ module.exports = function registrarRutas(ctx) {
     } finally {
       if (client) client.release();
     }
+  };
+
+  app.post('/api/menu/:moduloId/pedidos', (req, res) => crearPedidoCliente(req, res));
+
+  // "Registrar pedido" del panel de Pedidos de clientes (admin o trabajador).
+  app.post('/api/pedidos-cliente/manual', authenticateToken, checkAccess, (req, res) => {
+    if (!req.moduloId) return res.status(400).json({ error: 'Se requiere un módulo' });
+    return crearPedidoCliente(req, res, { moduloId: req.moduloId });
   });
 
   // Consultar un pedido de cliente por su token público. Incluye el

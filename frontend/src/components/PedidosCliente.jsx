@@ -4,6 +4,7 @@ import api from '../services/api';
 import EstadoPagoPedido from './EstadoPagoPedido';
 import ListaEmpaque from './ListaEmpaque';
 import EnvioMensajero from './EnvioMensajero';
+import RegistrarPedido from './RegistrarPedido';
 import { textosNegocio, tipoNegocioUsuario } from '../utils/tipoNegocio';
 import { useModulo } from '../hooks/useModulo';
 import { enlaceAvisoCliente } from '../utils/etapaPedido';
@@ -48,6 +49,7 @@ const PedidosCliente = ({ user }) => {
   const [loading, setLoading] = useState(false);
   const [mensaje, setMensaje] = useState('');
   const [expandidoId, setExpandidoId] = useState(null);
+  const [registrando, setRegistrando] = useState(false);
 
   const [editandoId, setEditandoId] = useState(null);
   const [itemsEdit, setItemsEdit] = useState([]);
@@ -414,9 +416,23 @@ const PedidosCliente = ({ user }) => {
               {eliminandoCancelados ? 'Eliminando...' : '🗑️ Eliminar todos los cancelados'}
             </button>
           )}
+          <button onClick={() => setRegistrando(true)} className="btn-registrar-pedido">➕ Registrar pedido</button>
           <button onClick={() => cargarPedidos()} className="btn-refresh">🔄</button>
         </div>
       </div>
+
+      {registrando && (
+        <RegistrarPedido
+          onCerrar={() => setRegistrando(false)}
+          onCreado={(pedido) => {
+            setRegistrando(false);
+            setMensaje(`✅ Pedido de ${pedido.mesa_nombre} registrado y confirmado`);
+            setTimeout(() => setMensaje(''), 4000);
+            cargarPedidos();
+            setExpandidoId(pedido.id);
+          }}
+        />
+      )}
 
       {(user?.rol === 'admin' || user?.rol === 'super_admin') && (
         <p className="config-menu-hint">
@@ -486,6 +502,9 @@ const PedidosCliente = ({ user }) => {
                     <span className="pedido-cliente-mesa">{pedido.mesa_nombre}</span>
                     {pedido.es_domicilio && (
                       <span className="pedido-cliente-domicilio-badge">🛵 Domicilio</span>
+                    )}
+                    {pedido.origen === 'manual' && (
+                      <span className="pedido-cliente-domicilio-badge" title="Registrado por el negocio">📝 Registrado</span>
                     )}
                     {pedido.comprobante_estado === 'en_revision' && !pedido.pagado && (
                       <span className="pedido-cliente-domicilio-badge">🧾 Comprobante</span>
