@@ -593,3 +593,20 @@
 .equipo-permiso.delicado.on {
   border-color: #dd6b20;
 }
+
+/* Datos de la tienda */
+.conf-datos-tienda {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 10px;
+  margin: 8px 0;
+}
+.conf-datos-tienda label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+}
+@media (max-width: 600px) {
+  .conf-datos-tienda { grid-template-columns: 1fr; }
+}

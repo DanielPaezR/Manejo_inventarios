@@ -488,6 +488,45 @@ module.exports = function registrarRutas(ctx) {
     }
   });
 
+  // Datos de contacto de la tienda que el administrador puede cambiar él
+  // mismo (antes solo se ponían al crear el negocio): la dirección (punto de
+  // recogida para el mensajero) y el WhatsApp al que llegan los pedidos.
+  app.put('/api/mi-negocio', authenticateToken, checkAccess, requireAdmin, async (req, res) => {
+    try {
+      const negocioId = req.negocioId;
+      if (!negocioId) return res.status(400).json({ error: 'Negocio no identificado' });
+
+      const sets = [];
+      const values = [];
+      if ('direccion' in req.body) {
+        const direccion = typeof req.body.direccion === 'string' ? req.body.direccion.trim() : '';
+        if (direccion.length > 200) return res.status(400).json({ error: 'La dirección es muy larga' });
+        values.push(direccion || null);
+        sets.push(`direccion = $${values.length}`);
+      }
+      if ('telefono' in req.body) {
+        const telefono = typeof req.body.telefono === 'string' ? req.body.telefono.trim() : '';
+        if (telefono && !/^[\d\s+()-]{7,20}$/.test(telefono)) {
+          return res.status(400).json({ error: 'Escribe un número de celular válido' });
+        }
+        values.push(telefono || null);
+        sets.push(`telefono = $${values.length}`);
+      }
+      if (sets.length === 0) return res.status(400).json({ error: 'No hay nada para actualizar' });
+
+      values.push(negocioId);
+      const { rows: [negocio] } = await pool.query(
+        `UPDATE negocios SET ${sets.join(', ')} WHERE id = $${values.length} RETURNING id, direccion, telefono`,
+        values
+      );
+      if (!negocio) return res.status(404).json({ error: 'Negocio no encontrado' });
+      res.json(negocio);
+    } catch (error) {
+      console.error('Error actualizando datos del negocio:', error);
+      res.status(500).json({ error: 'Error interno del servidor' });
+    }
+  });
+
   // Eliminar módulos es función exclusiva de super_admin (antes admin podía
   // borrar los suyos). Borrado real solo si el módulo está genuinamente
   // vacío (sin productos, ventas, clientes ni proveedores) — mismo criterio

@@ -56,7 +56,12 @@ const ConfiguracionNegocio = ({ user }) => {
   // Dónde queda el local: centra el mapa del cliente al pedir a domicilio y
   // hace que la búsqueda de direcciones se quede en esta ciudad.
   const [ubicacionLocal, setUbicacionLocal] = useState(null);
-  const [direccionLocal, setDireccionLocal] = useState('');
+  // Datos de contacto de la tienda (del negocio): dirección (recogida del
+  // mensajero, búsqueda en el mapa) y WhatsApp al que llegan los pedidos.
+  const [direccionTienda, setDireccionTienda] = useState('');
+  const [telefonoTienda, setTelefonoTienda] = useState('');
+  const [datosGuardados, setDatosGuardados] = useState({ direccion: '', telefono: '' });
+  const [guardandoDatos, setGuardandoDatos] = useState(false);
   const [guardandoJuegos, setGuardandoJuegos] = useState(false);
   const [copiado, setCopiado] = useState(false);
   const [mensaje, setMensaje] = useState('');
@@ -72,6 +77,9 @@ const ConfiguracionNegocio = ({ user }) => {
         setNegocioNombre(res.data.negocio_nombre || '');
         setTieneDomicilio(res.data.tiene_domicilio !== false);
         setJuegosActivos(res.data.juegos_activos !== false);
+        setDireccionTienda(res.data.negocio_direccion || '');
+        setTelefonoTienda(res.data.negocio_telefono || '');
+        setDatosGuardados({ direccion: res.data.negocio_direccion || '', telefono: res.data.negocio_telefono || '' });
         setUbicacionLocal(res.data.ubicacion_lat !== null && res.data.ubicacion_lat !== undefined
           ? { lat: Number(res.data.ubicacion_lat), lng: Number(res.data.ubicacion_lng), direccion: '' }
           : null);
@@ -119,6 +127,22 @@ const ConfiguracionNegocio = ({ user }) => {
       setGuardandoDomicilio(false);
     }
   };
+
+  const guardarDatosTienda = async () => {
+    try {
+      setGuardandoDatos(true);
+      const { data } = await api.put('/mi-negocio', { direccion: direccionTienda, telefono: telefonoTienda });
+      setDatosGuardados({ direccion: data.direccion || '', telefono: data.telefono || '' });
+      setDireccionTienda(data.direccion || '');
+      setTelefonoTienda(data.telefono || '');
+      avisar('✅ Datos de la tienda guardados');
+    } catch (err) {
+      avisar(`❌ ${err.response?.data?.error || 'No se pudieron guardar los datos'}`);
+    } finally {
+      setGuardandoDatos(false);
+    }
+  };
+  const datosCambiaron = direccionTienda.trim() !== datosGuardados.direccion || telefonoTienda.trim() !== datosGuardados.telefono;
 
   const guardarUbicacionLocal = async (ubicacion) => {
     const anterior = ubicacionLocal;
@@ -183,6 +207,29 @@ const ConfiguracionNegocio = ({ user }) => {
         </p>
       </div>
 
+      {/* Datos de la tienda: los puede cambiar el administrador. */}
+      <div className="card conf-card">
+        <h3 className="conf-titulo"><Store size={18} /> Datos de la tienda</h3>
+        <p className="conf-ayuda">La dirección es donde el mensajero recoge los domicilios. El WhatsApp es al que te llegan los pedidos del {textos.menu}.</p>
+        <div className="conf-datos-tienda">
+          <label>
+            <span>Dirección de la tienda (con la ciudad)</span>
+            <input type="text" className="conf-input" value={direccionTienda} onChange={(e) => setDireccionTienda(e.target.value)}
+              placeholder="Ej. Carrera 11 # 18-30, Tunja" disabled={!cargado} />
+          </label>
+          <label>
+            <span>WhatsApp de la tienda</span>
+            <input type="tel" inputMode="tel" className="conf-input" value={telefonoTienda} onChange={(e) => setTelefonoTienda(e.target.value)}
+              placeholder="Ej. 310 987 6543" disabled={!cargado} />
+          </label>
+        </div>
+        {datosCambiaron && (
+          <button type="button" className="conf-btn conf-btn-guardar" onClick={guardarDatosTienda} disabled={guardandoDatos}>
+            {guardandoDatos ? 'Guardando...' : '💾 Guardar datos de la tienda'}
+          </button>
+        )}
+      </div>
+
       {/* Domicilios: desde el plan Negocio. Sin ellos el catálogo en línea
           recibe pedidos solo para recoger. */}
       <BloqueoPlan titulo="Domicilios" funcion="domicilios">
@@ -216,12 +263,11 @@ const ConfiguracionNegocio = ({ user }) => {
                 ? 'Con esto, el mapa del cliente arranca en tu zona y las direcciones se buscan en tu ciudad.'
                 : 'Márcalo una vez: así el mapa del cliente arranca en tu zona y la búsqueda de direcciones no se va a otra ciudad. Si estás en el local, usa tu ubicación actual.'}
             </p>
-            {!ubicacionLocal && (
-              <input type="text" className="conf-input" value={direccionLocal} onChange={(e) => setDireccionLocal(e.target.value)}
-                placeholder="Dirección con la ciudad. Ej. Calle 10 # 20-30, Tunja" />
+            {!ubicacionLocal && !datosGuardados.direccion && (
+              <p className="conf-nota">Para buscarla en el mapa, primero escribe la dirección en "Datos de la tienda" (con la ciudad), o usa tu ubicación actual si estás en el local.</p>
             )}
             <SelectorDireccionMapa
-              direccion={direccionLocal}
+              direccion={datosGuardados.direccion}
               ubicacion={ubicacionLocal}
               onConfirmar={guardarUbicacionLocal}
               textoConfirmar="✅ Mi local está aquí"
