@@ -35,6 +35,7 @@ const { construirResumen, construirAntesYAhora, metricasPeriodo } = require('./s
 const { cargarPromociones, expandirDetalles, limpiarPromocion } = require('./src/helpers/promociones');
 const { guardarPuntaje, podio: podioJuego, campeones: campeonesJuegos, leerPremio, ganadores: ganadoresJuegos, misPremios, canjear: canjearPremio, puntajesRecientes } = require('./src/helpers/juegos');
 const { aplicarMigraciones } = require('./src/helpers/migraciones');
+const slugs = require('./src/helpers/slugs');
 const { productosParaSimulador, mermas, ventasPorEquipo, clientesEnLinea, hoyRapido, miDia } = require('./src/helpers/analisisExtra');
 const { enviarResumenModulo, programarResumenSemanal } = require('./src/helpers/resumenSemanal');
 const sellos = require('./src/helpers/sellos');
@@ -154,8 +155,12 @@ const ctx = {
   canalesDisponibles, normalizarTelefono, BOLSILLOS, BOLSILLOS_MANUALES, bolsilloPorMetodo,
   registrarIngresosVenta, JWT_SECRET, generarReporteVentasDiarias, generarReporteInventario,
   generarReporteFinancieroMensual, generarExcelProductos, generarExcelVentas, app, PORT, pool,
-  VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_SUBJECT
+  VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_SUBJECT, slugs
 };
+
+// /api/menu/elixir/... funciona igual que /api/menu/64/...: el enlace con
+// nombre se traduce al número del módulo antes de cada ruta.
+app.param('moduloId', slugs.resolverModuloId(pool));
 const GRUPOS_DE_RUTAS = [
   'cuentas',
   'negocios',
@@ -207,7 +212,10 @@ app.listen(PORT, () => {
 });
 
 // Aplica las migraciones pendientes de backend/migrations al arrancar.
-aplicarMigraciones(pool).catch(error => console.error('Error aplicando migraciones:', error.message));
+// Después, les da enlace con nombre a los menús que aún no tienen.
+aplicarMigraciones(pool)
+  .then(() => slugs.asegurarSlugs(pool))
+  .catch(error => console.error('Error aplicando migraciones:', error.message));
 
 programarResumenSemanal(pool);
 programarRecordatorios(pool, calendarioDelModulo);

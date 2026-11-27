@@ -4,7 +4,7 @@
 // y lo que exportan los grupos registrados antes; devuelven lo que otros usan.
 module.exports = function registrarRutas(ctx) {
   const {
-    authenticateToken, requireAdmin, requireSuperAdmin, checkAccess, planes, app, pool, requirePermiso
+    authenticateToken, requireAdmin, requireSuperAdmin, checkAccess, planes, app, pool, requirePermiso, slugs
   } = ctx;
   // Definidos en grupos que se registran después: se buscan al usarlos.
   const juegosActivos = (...args) => ctx.juegosActivos(...args);
@@ -364,7 +364,7 @@ module.exports = function registrarRutas(ctx) {
       // en el menú real que ve el cliente).
       const result = await pool.query(
         `SELECT m.id, m.nombre, m.nombre_publico, m.descripcion, m.activo, m.foto_portada_url,
-              m.frecuencia_entrega_dias, m.tiene_domicilio, m.ubicacion_lat, m.ubicacion_lng, n.nombre as negocio_nombre, n.direccion AS negocio_direccion, n.telefono AS negocio_telefono
+              m.frecuencia_entrega_dias, m.tiene_domicilio, m.ubicacion_lat, m.ubicacion_lng, m.slug, n.nombre as negocio_nombre, n.direccion AS negocio_direccion, n.telefono AS negocio_telefono
        FROM modulos m
        JOIN negocios n ON m.negocio_id = n.id
        WHERE m.id = $1 AND m.negocio_id = $2`,
@@ -446,6 +446,15 @@ module.exports = function registrarRutas(ctx) {
         values.push(!!req.body.juegos_activos);
       }
 
+      // Enlace con nombre del menú (/menu/elixir). Solo el administrador.
+      if ('slug' in req.body) {
+        const slug = String(req.body.slug || '').trim().toLowerCase();
+        const motivo = slugs.validarSlug(slug);
+        if (motivo) return res.status(400).json({ error: motivo });
+        sets.push(`slug = $${paramIndex++}`);
+        values.push(slug);
+      }
+
       // Ubicación del local (para el mapa de domicilios). null la borra.
       if ('ubicacion' in req.body) {
         const u = req.body.ubicacion;
@@ -473,7 +482,7 @@ module.exports = function registrarRutas(ctx) {
       const result = await pool.query(
         `UPDATE modulos SET ${sets.join(', ')}
        WHERE id = $${paramIndex++} AND negocio_id = $${paramIndex}
-       RETURNING id, nombre, nombre_publico, descripcion, activo, foto_portada_url, frecuencia_entrega_dias, tiene_domicilio, ubicacion_lat, ubicacion_lng`,
+       RETURNING id, nombre, nombre_publico, descripcion, activo, foto_portada_url, frecuencia_entrega_dias, tiene_domicilio, ubicacion_lat, ubicacion_lng, slug`,
         values
       );
 
@@ -483,6 +492,9 @@ module.exports = function registrarRutas(ctx) {
 
       res.json(result.rows[0]);
     } catch (error) {
+      if (error.code === '23505' && /slug/.test(error.constraint || error.detail || '')) {
+        return res.status(400).json({ error: 'Ese enlace ya lo usa otro negocio, prueba con otro' });
+      }
       console.error('Error actualizando módulo:', error);
       res.status(500).json({ error: 'Error interno del servidor' });
     }

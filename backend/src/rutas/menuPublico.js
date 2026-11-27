@@ -50,6 +50,20 @@ module.exports = function registrarRutas(ctx) {
     }
   });
 
+  // Número y enlace con nombre de un menú (para las páginas del cliente que
+  // solo tienen lo que viene en la dirección, ej. "Mis pedidos").
+  app.get('/api/menu/:moduloId/id', async (req, res) => {
+    try {
+      if (!/^\d+$/.test(req.params.moduloId)) return res.status(404).json({ error: 'Menú no disponible' });
+      const { rows: [m] } = await pool.query('SELECT id, slug FROM modulos WHERE id = $1 AND activo = true', [req.params.moduloId]);
+      if (!m) return res.status(404).json({ error: 'Menú no disponible' });
+      res.json(m);
+    } catch (error) {
+      console.error('Error resolviendo menú:', error);
+      res.status(500).json({ error: 'Error interno del servidor' });
+    }
+  });
+
   // Menú público: solo productos activos con stock disponible, sin datos
   // internos (precio_compra, codigo_ean, etc.)
   app.get('/api/menu/:moduloId', async (req, res) => {
@@ -62,7 +76,7 @@ module.exports = function registrarRutas(ctx) {
 
       const moduloResult = await pool.query(
         `SELECT m.id, m.nombre, m.nombre_publico, m.activo, m.foto_portada_url, ${planes.sqlTieneDomicilio()} AS tiene_domicilio, m.bot_activo, m.bot_estilo,
-              m.ubicacion_lat, m.ubicacion_lng,
+              m.ubicacion_lat, m.ubicacion_lng, m.slug,
               m.bot_horario, m.bot_envio_costo,
               n.nombre as negocio_nombre, n.tipo as negocio_tipo
        FROM modulos m
@@ -88,6 +102,9 @@ module.exports = function registrarRutas(ctx) {
       res.json({
         modulo: {
           id: moduloResult.rows[0].id,
+          // Enlace con nombre (/menu/elixir): el menú se cambia a él si
+          // entraron con el número.
+          slug: moduloResult.rows[0].slug || null,
           nombre: moduloResult.rows[0].nombre,
           // nombre_publico es el nombre de marca que ve el cliente en el menú
           // (ej. "Cositas de Ana"); si el módulo no lo configuró, cae al
