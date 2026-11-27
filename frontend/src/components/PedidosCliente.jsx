@@ -631,8 +631,17 @@ const PedidosCliente = ({ user }) => {
                         {pedido.es_domicilio && (
                           <p className="pedido-cliente-domicilio">🛵 Domicilio: {pedido.direccion_entrega}</p>
                         )}
-                        {pedido.es_domicilio && ['pendiente', 'confirmado'].includes(pedido.estado) && (
+                        {/* También en los entregados: si lo marcaron entregado antes de
+                            tiempo, siguen teniendo a mano los datos del envío. */}
+                        {pedido.es_domicilio && ['pendiente', 'confirmado', 'completado'].includes(pedido.estado) && (
                           <EnvioMensajero pedido={pedido} moduloId={moduloActivo?.id} />
+                        )}
+                        {pedido.estado === 'completado' && pedido.es_domicilio && enlaceAvisoCliente(pedido, 'en_camino', nombreNegocio) && (
+                          <div className="pedido-cliente-acciones">
+                            <a href={enlaceAvisoCliente(pedido, 'en_camino', nombreNegocio)} target="_blank" rel="noopener noreferrer" className="btn-whatsapp-pedido-cliente">
+                              📲 Avisar al cliente que va en camino
+                            </a>
+                          </div>
                         )}
 
                         {(pedido.estado === 'pendiente' || pedido.estado === 'confirmado' || pedido.estado === 'cancelado') && (
